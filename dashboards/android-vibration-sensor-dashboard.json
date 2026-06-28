@@ -1,0 +1,313 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "android-vibration-sensor-demo",
+    "title": "Android Vibration Sensor Demo",
+    "tags": ["android", "mobile-sensor", "vibration", "demo"],
+    "timezone": "browser",
+    "schemaVersion": 41,
+    "version": 1,
+    "refresh": "5s",
+    "time": {
+      "from": "now-15m",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "type": "stat",
+        "title": "Latest Vibration",
+        "gridPos": { "x": 0, "y": 0, "w": 8, "h": 5 },
+        "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
+        "targets": [
+          {
+            "refId": "A",
+            "type": "json",
+            "source": "url",
+            "url": "__API_BASE_URL__/api/mobile-sensor/latest",
+            "url_options": { "method": "GET" },
+            "parser": "backend",
+            "root_selector": "data",
+            "format": "table",
+            "columns": [
+              { "selector": "time", "text": "time", "type": "timestamp" },
+              { "selector": "deviceId", "text": "deviceId", "type": "string" },
+              { "selector": "accelMagnitude", "text": "accelMagnitude", "type": "number" }
+            ]
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "accMS2",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 12 },
+                { "color": "red", "value": 16 }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "/accelMagnitude/" },
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 2,
+        "type": "gauge",
+        "title": "Battery",
+        "gridPos": { "x": 8, "y": 0, "w": 8, "h": 5 },
+        "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
+        "targets": [
+          {
+            "refId": "A",
+            "type": "json",
+            "source": "url",
+            "url": "__API_BASE_URL__/api/mobile-sensor/latest",
+            "url_options": { "method": "GET" },
+            "parser": "backend",
+            "root_selector": "data",
+            "format": "table",
+            "columns": [
+              { "selector": "time", "text": "time", "type": "timestamp" },
+              { "selector": "batteryPercent", "text": "batteryPercent", "type": "number" }
+            ]
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "yellow", "value": 30 },
+                { "color": "green", "value": 60 }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "/batteryPercent/" },
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        }
+      },
+      {
+        "id": 3,
+        "type": "stat",
+        "title": "Tap Count",
+        "gridPos": { "x": 16, "y": 0, "w": 8, "h": 5 },
+        "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
+        "targets": [
+          {
+            "refId": "A",
+            "type": "json",
+            "source": "url",
+            "url": "__API_BASE_URL__/api/mobile-sensor/latest",
+            "url_options": { "method": "GET" },
+            "parser": "backend",
+            "root_selector": "data",
+            "format": "table",
+            "columns": [
+              { "selector": "time", "text": "time", "type": "timestamp" },
+              { "selector": "tapCount", "text": "tapCount", "type": "number" }
+            ]
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "short", "decimals": 0 },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "/tapCount/" },
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "center"
+        }
+      },
+      {
+        "id": 4,
+        "type": "timeseries",
+        "title": "Vibration Trend",
+        "gridPos": { "x": 0, "y": 5, "w": 24, "h": 9 },
+        "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
+        "targets": [
+          {
+            "refId": "A",
+            "type": "json",
+            "source": "url",
+            "url": "__API_BASE_URL__/api/mobile-sensor/history?limit=1000",
+            "url_options": { "method": "GET" },
+            "parser": "backend",
+            "root_selector": "data",
+            "format": "table",
+            "columns": [
+              { "selector": "time", "text": "time", "type": "timestamp" },
+              { "selector": "accelMagnitude", "text": "accelMagnitude", "type": "number" }
+            ]
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "accMS2",
+            "decimals": 2,
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 14,
+              "showPoints": "never"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 12 },
+                { "color": "red", "value": 16 }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "mean", "max"] },
+          "tooltip": { "mode": "single", "sort": "none" }
+        }
+      },
+      {
+        "id": 5,
+        "type": "timeseries",
+        "title": "Acceleration XYZ",
+        "gridPos": { "x": 0, "y": 14, "w": 16, "h": 8 },
+        "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
+        "targets": [
+          {
+            "refId": "A",
+            "type": "json",
+            "source": "url",
+            "url": "__API_BASE_URL__/api/mobile-sensor/history?limit=1000",
+            "url_options": { "method": "GET" },
+            "parser": "backend",
+            "root_selector": "data",
+            "format": "table",
+            "columns": [
+              { "selector": "time", "text": "time", "type": "timestamp" },
+              { "selector": "accelX", "text": "accelX", "type": "number" },
+              { "selector": "accelY", "text": "accelY", "type": "number" },
+              { "selector": "accelZ", "text": "accelZ", "type": "number" }
+            ]
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "accMS2",
+            "decimals": 2,
+            "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 8, "showPoints": "never" }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull"] },
+          "tooltip": { "mode": "multi", "sort": "none" }
+        }
+      },
+      {
+        "id": 6,
+        "type": "timeseries",
+        "title": "Shock Events",
+        "gridPos": { "x": 16, "y": 14, "w": 8, "h": 8 },
+        "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
+        "targets": [
+          {
+            "refId": "A",
+            "type": "json",
+            "source": "url",
+            "url": "__API_BASE_URL__/api/mobile-sensor/history?limit=1000",
+            "url_options": { "method": "GET" },
+            "parser": "backend",
+            "root_selector": "data",
+            "format": "table",
+            "columns": [
+              { "selector": "time", "text": "time", "type": "timestamp" },
+              { "selector": "shockValue", "text": "shockValue", "type": "number" }
+            ]
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "short", "decimals": 0 },
+          "overrides": []
+        },
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] },
+          "tooltip": { "mode": "single", "sort": "none" }
+        }
+      },
+      {
+        "id": 7,
+        "type": "table",
+        "title": "Device Communication Status",
+        "gridPos": { "x": 0, "y": 22, "w": 24, "h": 7 },
+        "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
+        "targets": [
+          {
+            "refId": "A",
+            "type": "json",
+            "source": "url",
+            "url": "__API_BASE_URL__/api/mobile-sensor/latest",
+            "url_options": { "method": "GET" },
+            "parser": "backend",
+            "root_selector": "data",
+            "format": "table",
+            "columns": [
+              { "selector": "deviceId", "text": "deviceId", "type": "string" },
+              { "selector": "time", "text": "time", "type": "timestamp" },
+              { "selector": "status", "text": "status", "type": "string" },
+              { "selector": "message", "text": "message", "type": "string" },
+              { "selector": "batteryPercent", "text": "batteryPercent", "type": "number" }
+            ]
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" } } },
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "status" },
+              "properties": [
+                { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+                {
+                  "id": "mappings",
+                  "value": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "ONLINE": { "color": "green", "index": 0 },
+                        "WARN": { "color": "yellow", "index": 1 },
+                        "OFFLINE": { "color": "red", "index": 2 }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "options": { "showHeader": true, "cellHeight": "sm", "footer": { "show": false } }
+      }
+    ]
+  },
+  "folderUid": "",
+  "overwrite": true,
+  "message": "Create Android vibration sensor demo dashboard"
+}

@@ -4,3 +4,8 @@ node_modules/
 .env.*
 *.log
 *.tmp
+mobile/**/.gradle/
+mobile/**/build/
+mobile/**/app/build/
+mobile/**/*.apk
+mobile/**/local.properties

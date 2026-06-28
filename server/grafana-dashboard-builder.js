@@ -15,6 +15,11 @@ const VERTEX_AI_MODEL = process.env.VERTEX_AI_MODEL || "gemini-2.5-flash-lite";
 const ROOT = path.resolve(__dirname, "..");
 const PUBLIC_DIR = path.join(ROOT, "public");
 const VISUALIZATIONS = new Set(["timeseries", "stat", "gauge", "piechart", "table"]);
+const MOBILE_SENSOR_MAX_POINTS = Number(process.env.MOBILE_SENSOR_MAX_POINTS || 5000);
+const mobileSensorState = {
+  points: [],
+  devices: new Map()
+};
 
 const manufacturingProfiles = [
   {
@@ -916,11 +921,146 @@ function readBody(req) {
   });
 }
 
+function numberOrDefault(value, defaultValue = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : defaultValue;
+}
+
+function cleanDeviceId(value) {
+  return String(value || "android-demo-001")
+    .replace(/[^a-zA-Z0-9_.-]/g, "-")
+    .slice(0, 64) || "android-demo-001";
+}
+
+function isoTimestamp(value) {
+  const date = value ? new Date(value) : new Date();
+  return Number.isFinite(date.getTime()) ? date.toISOString() : new Date().toISOString();
+}
+
+function buildMobileSensorPoint(body) {
+  const accelX = numberOrDefault(body.accelX);
+  const accelY = numberOrDefault(body.accelY);
+  const accelZ = numberOrDefault(body.accelZ);
+  const providedMagnitude = Number(body.accelMagnitude);
+  const accelMagnitude = Number.isFinite(providedMagnitude)
+    ? providedMagnitude
+    : Math.sqrt(accelX * accelX + accelY * accelY + accelZ * accelZ);
+  const shock = body.shock === true || body.shock === 1 || body.shock === "true";
+  const timestamp = isoTimestamp(body.timestamp);
+  return {
+    time: timestamp,
+    epochMs: new Date(timestamp).getTime(),
+    deviceId: cleanDeviceId(body.deviceId),
+    accelX,
+    accelY,
+    accelZ,
+    accelMagnitude,
+    shock,
+    shockValue: shock ? 1 : 0,
+    tapCount: Math.max(0, Math.trunc(numberOrDefault(body.tapCount))),
+    batteryPercent: Math.max(0, Math.min(100, numberOrDefault(body.batteryPercent, 100))),
+    status: String(body.status || "ONLINE").toUpperCase() === "OFFLINE" ? "OFFLINE" : String(body.status || "ONLINE").toUpperCase() === "WARN" ? "WARN" : "ONLINE"
+  };
+}
+
+function storeMobileSensorPoint(point) {
+  mobileSensorState.points.push(point);
+  if (mobileSensorState.points.length > MOBILE_SENSOR_MAX_POINTS) {
+    mobileSensorState.points.splice(0, mobileSensorState.points.length - MOBILE_SENSOR_MAX_POINTS);
+  }
+  mobileSensorState.devices.set(point.deviceId, {
+    deviceId: point.deviceId,
+    time: point.time,
+    epochMs: point.epochMs,
+    accelMagnitude: point.accelMagnitude,
+    tapCount: point.tapCount,
+    batteryPercent: point.batteryPercent,
+    status: point.status,
+    online: point.status === "OFFLINE" ? 0 : 1,
+    message: point.status === "OFFLINE" ? "no data" : point.status === "WARN" ? "check sensor" : "streaming"
+  });
+}
+
+function mobileSensorHistory(limit = 500, deviceId = "") {
+  const cleanId = deviceId ? cleanDeviceId(deviceId) : "";
+  const rows = cleanId ? mobileSensorState.points.filter((point) => point.deviceId === cleanId) : mobileSensorState.points;
+  return rows.slice(-Math.max(1, Math.min(2000, Number(limit) || 500)));
+}
+
+function prometheusLine(name, labels, value, epochMs) {
+  const labelText = Object.entries(labels)
+    .map(([key, labelValue]) => `${key}="${String(labelValue).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`)
+    .join(",");
+  return `${name}{${labelText}} ${Number(value) || 0} ${epochMs}`;
+}
+
+function mobileSensorPrometheusText() {
+  const latest = Array.from(mobileSensorState.devices.values());
+  const lines = [
+    "# HELP mobile_sensor_accel_magnitude Acceleration magnitude from Android demo device.",
+    "# TYPE mobile_sensor_accel_magnitude gauge",
+    "# HELP mobile_sensor_battery_percent Battery percent from Android demo device.",
+    "# TYPE mobile_sensor_battery_percent gauge",
+    "# HELP mobile_sensor_online Online state from Android demo device.",
+    "# TYPE mobile_sensor_online gauge"
+  ];
+  for (const point of latest) {
+    const labels = { device_id: point.deviceId };
+    lines.push(prometheusLine("mobile_sensor_accel_magnitude", labels, point.accelMagnitude, point.epochMs));
+    lines.push(prometheusLine("mobile_sensor_battery_percent", labels, point.batteryPercent, point.epochMs));
+    lines.push(prometheusLine("mobile_sensor_online", labels, point.online, point.epochMs));
+    lines.push(prometheusLine("mobile_sensor_tap_count", labels, point.tapCount, point.epochMs));
+  }
+  return `${lines.join("\n")}\n`;
+}
+
 async function handleApi(req, res) {
   try {
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type,Authorization"
+      });
+      res.end();
+      return;
+    }
+
     if (req.method === "GET" && req.url === "/api/health") {
       const health = await grafana("/api/health");
       sendJson(res, 200, { ok: true, grafana: health, grafanaUrl: GRAFANA_URL });
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/mobile-sensor") {
+      const body = await readBody(req);
+      const point = buildMobileSensorPoint(body);
+      storeMobileSensorPoint(point);
+      sendJson(res, 200, { ok: true, accepted: point });
+      return;
+    }
+
+    if (req.method === "GET" && req.url.startsWith("/api/mobile-sensor/history")) {
+      const parsed = new URL(req.url, "http://localhost");
+      const rows = mobileSensorHistory(parsed.searchParams.get("limit"), parsed.searchParams.get("deviceId") || "");
+      sendJson(res, 200, { ok: true, data: rows });
+      return;
+    }
+
+    if (req.method === "GET" && req.url === "/api/mobile-sensor/latest") {
+      const latest = Array.from(mobileSensorState.devices.values()).sort((a, b) => b.epochMs - a.epochMs);
+      sendJson(res, 200, { ok: true, data: latest });
+      return;
+    }
+
+    if (req.method === "GET" && req.url === "/api/mobile-sensor/metrics") {
+      const body = mobileSensorPrometheusText();
+      res.writeHead(200, {
+        "Content-Type": "text/plain; version=0.0.4; charset=utf-8",
+        "Content-Length": Buffer.byteLength(body),
+        "Access-Control-Allow-Origin": "*"
+      });
+      res.end(body);
       return;
     }
 
