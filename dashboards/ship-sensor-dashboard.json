@@ -1,0 +1,356 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "ship-sensor-demo",
+    "title": "Ship Sensor Dashboard - Demo",
+    "tags": ["codex", "iot", "sensor", "demo"],
+    "timezone": "browser",
+    "schemaVersion": 41,
+    "version": 1,
+    "refresh": "5s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "type": "timeseries",
+        "title": "Engine Temperature",
+        "datasource": {
+          "type": "grafana-testdata-datasource",
+          "uid": "testdata"
+        },
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {
+              "type": "grafana-testdata-datasource",
+              "uid": "testdata"
+            },
+            "scenarioId": "random_walk",
+            "alias": "Engine Temp",
+            "seriesCount": 1
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "celsius",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 12,
+              "showPoints": "never"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 60
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          }
+        }
+      },
+      {
+        "id": 2,
+        "type": "timeseries",
+        "title": "Fuel Pressure",
+        "datasource": {
+          "type": "grafana-testdata-datasource",
+          "uid": "testdata"
+        },
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {
+              "type": "grafana-testdata-datasource",
+              "uid": "testdata"
+            },
+            "scenarioId": "random_walk",
+            "alias": "Main Line",
+            "seriesCount": 1
+          },
+          {
+            "refId": "B",
+            "datasource": {
+              "type": "grafana-testdata-datasource",
+              "uid": "testdata"
+            },
+            "scenarioId": "random_walk",
+            "alias": "Sub Line",
+            "seriesCount": 1
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "pressurebar",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "showPoints": "never"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "calcs": ["lastNotNull", "mean"]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "type": "gauge",
+        "title": "Current Status",
+        "datasource": {
+          "type": "grafana-testdata-datasource",
+          "uid": "testdata"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 0,
+          "y": 9
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {
+              "type": "grafana-testdata-datasource",
+              "uid": "testdata"
+            },
+            "scenarioId": "random_walk",
+            "alias": "RPM",
+            "seriesCount": 1
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "rpm",
+            "min": 0,
+            "max": 7000,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 4500
+                },
+                {
+                  "color": "red",
+                  "value": 6000
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        }
+      },
+      {
+        "id": 4,
+        "type": "stat",
+        "title": "Atmospheric Pressure",
+        "datasource": {
+          "type": "grafana-testdata-datasource",
+          "uid": "testdata"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 6,
+          "y": 9
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {
+              "type": "grafana-testdata-datasource",
+              "uid": "testdata"
+            },
+            "scenarioId": "random_walk",
+            "alias": "Pressure",
+            "seriesCount": 1
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "pressurehpa",
+            "decimals": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 1015
+                },
+                {
+                  "color": "red",
+                  "value": 1030
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "orientation": "auto",
+          "textMode": "auto",
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        }
+      },
+      {
+        "id": 5,
+        "type": "table",
+        "title": "Sensor Alert History",
+        "datasource": {
+          "type": "grafana-testdata-datasource",
+          "uid": "testdata"
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 9
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {
+              "type": "grafana-testdata-datasource",
+              "uid": "testdata"
+            },
+            "scenarioId": "csv_content",
+            "csvContent": "time,sensor,severity,message\n2026-05-24T09:00:00+09:00,Engine Temperature,WARN,Temperature exceeded warning threshold\n2026-05-24T09:03:00+09:00,Fuel Pressure,INFO,Sub line pressure normalized\n2026-05-24T09:06:00+09:00,RPM,CRITICAL,RPM entered danger range\n2026-05-24T09:09:00+09:00,Atmospheric Pressure,INFO,Pressure stable"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              }
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "severity"
+              },
+              "properties": [
+                {
+                  "id": "custom.cellOptions",
+                  "value": {
+                    "type": "color-text"
+                  }
+                },
+                {
+                  "id": "mappings",
+                  "value": [
+                    {
+                      "options": {
+                        "CRITICAL": {
+                          "color": "red",
+                          "index": 0
+                        },
+                        "WARN": {
+                          "color": "yellow",
+                          "index": 1
+                        },
+                        "INFO": {
+                          "color": "green",
+                          "index": 2
+                        }
+                      },
+                      "type": "value"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "showHeader": true,
+          "cellHeight": "sm",
+          "footer": {
+            "show": false
+          }
+        }
+      }
+    ]
+  },
+  "folderUid": "",
+  "message": "Create Ship Sensor Dashboard from Codex",
+  "overwrite": true
+}
+

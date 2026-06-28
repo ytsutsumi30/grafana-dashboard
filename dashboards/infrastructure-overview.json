@@ -1,0 +1,476 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "infrastructure-overview-demo",
+    "title": "Infrastructure Overview - Demo",
+    "tags": ["codex", "infrastructure", "noc", "demo"],
+    "timezone": "browser",
+    "schemaVersion": 41,
+    "version": 1,
+    "refresh": "5s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "type": "gauge",
+        "title": "CPU Usage",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 7, "w": 5, "x": 0, "y": 0},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "CPU",
+            "seriesCount": 1
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 70},
+                {"color": "red", "value": 90}
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""},
+          "orientation": "auto",
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        }
+      },
+      {
+        "id": 2,
+        "type": "gauge",
+        "title": "Memory Usage",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 7, "w": 5, "x": 5, "y": 0},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "Memory",
+            "seriesCount": 1
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 75},
+                {"color": "red", "value": 90}
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""},
+          "orientation": "auto",
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        }
+      },
+      {
+        "id": 3,
+        "type": "timeseries",
+        "title": "Network Throughput",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 7, "w": 14, "x": 10, "y": 0},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "Inbound",
+            "seriesCount": 1
+          },
+          {
+            "refId": "B",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "Outbound",
+            "seriesCount": 1
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "Bps",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 20,
+              "showPoints": "never",
+              "stacking": {"mode": "normal", "group": "A"}
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "mean"]},
+          "tooltip": {"mode": "multi", "sort": "none"}
+        }
+      },
+      {
+        "id": 4,
+        "type": "piechart",
+        "title": "Disk Usage",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 7},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "csv_content",
+            "csvContent": "metric,value\nUsed,62\nFree,21\nCache,11\nLogs,6"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {"unit": "percent"},
+          "overrides": []
+        },
+        "options": {
+          "pieType": "donut",
+          "displayLabels": ["name", "percent"],
+          "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+          "reduceOptions": {"values": true, "calcs": ["lastNotNull"], "fields": ""}
+        }
+      },
+      {
+        "id": 5,
+        "type": "piechart",
+        "title": "Service Health",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 7},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "csv_content",
+            "csvContent": "status,value\nHealthy,82\nWarning,11\nCritical,4\nUnknown,3"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {"unit": "percent"},
+          "overrides": []
+        },
+        "options": {
+          "pieType": "donut",
+          "displayLabels": ["name", "percent"],
+          "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+          "reduceOptions": {"values": true, "calcs": ["lastNotNull"], "fields": ""}
+        }
+      },
+      {
+        "id": 6,
+        "type": "timeseries",
+        "title": "Requests Per Second",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 7},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "api",
+            "seriesCount": 1
+          },
+          {
+            "refId": "B",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "web",
+            "seriesCount": 1
+          },
+          {
+            "refId": "C",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "worker",
+            "seriesCount": 1
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 18,
+              "showPoints": "never"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"]},
+          "tooltip": {"mode": "multi", "sort": "none"}
+        }
+      },
+      {
+        "id": 7,
+        "type": "timeseries",
+        "title": "Response Latency",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 15},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "p50",
+            "seriesCount": 1
+          },
+          {
+            "refId": "B",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "p95",
+            "seriesCount": 1
+          },
+          {
+            "refId": "C",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "p99",
+            "seriesCount": 1
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 15,
+              "showPoints": "never"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "p99"},
+              "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+            }
+          ]
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"]},
+          "tooltip": {"mode": "multi", "sort": "none"}
+        }
+      },
+      {
+        "id": 8,
+        "type": "timeseries",
+        "title": "Error Rate",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 15},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "5xx",
+            "seriesCount": 1
+          },
+          {
+            "refId": "B",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "4xx",
+            "seriesCount": 1
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 10,
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 12,
+              "showPoints": "never"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 5}
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"]},
+          "tooltip": {"mode": "multi", "sort": "none"}
+        }
+      },
+      {
+        "id": 9,
+        "type": "timeseries",
+        "title": "Database Connections",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 23},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "active",
+            "seriesCount": 1
+          },
+          {
+            "refId": "B",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "idle",
+            "seriesCount": 1
+          },
+          {
+            "refId": "C",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "max",
+            "seriesCount": 1
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 15,
+              "showPoints": "never"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"]},
+          "tooltip": {"mode": "multi", "sort": "none"}
+        }
+      },
+      {
+        "id": 10,
+        "type": "timeseries",
+        "title": "Queue Depth",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 23},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "worker queue",
+            "seriesCount": 1
+          },
+          {
+            "refId": "B",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "retry queue",
+            "seriesCount": 1
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 18,
+              "showPoints": "never"
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"]},
+          "tooltip": {"mode": "multi", "sort": "none"}
+        }
+      },
+      {
+        "id": 11,
+        "type": "table",
+        "title": "Top Alerts",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 31},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "csv_content",
+            "csvContent": "time,severity,service,message\n2026-05-27T00:05:00+09:00,CRITICAL,api,p99 latency exceeded 1200 ms\n2026-05-27T00:08:00+09:00,WARN,postgres,active connections above baseline\n2026-05-27T00:11:00+09:00,WARN,worker,retry queue depth increasing\n2026-05-27T00:14:00+09:00,INFO,web,error rate recovered\n2026-05-27T00:17:00+09:00,CRITICAL,network,inbound throughput saturation"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "cellOptions": {"type": "auto"}
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "severity"},
+              "properties": [
+                {
+                  "id": "custom.cellOptions",
+                  "value": {"type": "color-text"}
+                },
+                {
+                  "id": "mappings",
+                  "value": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "CRITICAL": {"color": "red", "index": 0},
+                        "WARN": {"color": "yellow", "index": 1},
+                        "INFO": {"color": "green", "index": 2}
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "showHeader": true,
+          "cellHeight": "sm",
+          "footer": {"show": false}
+        }
+      }
+    ]
+  },
+  "folderUid": "",
+  "message": "Create Infrastructure Overview dashboard from Codex",
+  "overwrite": true
+}

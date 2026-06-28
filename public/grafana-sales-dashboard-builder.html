@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Grafana Cloud ダッシュボード提案ツール</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f1218;
+      --panel: #171b24;
+      --panel-2: #1d2430;
+      --text: #edf2f7;
+      --muted: #9aa7b8;
+      --line: #2b3444;
+      --accent: #ff8a2a;
+      --accent-2: #4aa3ff;
+      --ok: #2fbf71;
+      --danger: #ff5c7a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif;
+      letter-spacing: 0;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+    }
+
+    aside {
+      border-right: 1px solid var(--line);
+      background: #111720;
+      padding: 24px;
+    }
+
+    main {
+      padding: 24px;
+      display: grid;
+      gap: 18px;
+      align-content: start;
+    }
+
+    h1 {
+      margin: 0 0 18px;
+      font-size: 22px;
+      line-height: 1.35;
+      font-weight: 700;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 17px;
+    }
+
+    label {
+      display: block;
+      margin: 16px 0 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #0d1118;
+      color: var(--text);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font: inherit;
+      min-height: 40px;
+    }
+
+    textarea { resize: vertical; min-height: 72px; }
+
+    button {
+      border: 0;
+      border-radius: 6px;
+      padding: 10px 14px;
+      min-height: 40px;
+      color: #111827;
+      background: var(--accent);
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+
+    button.danger {
+      background: transparent;
+      color: var(--danger);
+      border: 1px solid rgba(255, 92, 122, 0.45);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .stack { display: grid; gap: 12px; }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .check-row input {
+      width: 18px;
+      height: 18px;
+      min-height: 18px;
+      accent-color: var(--accent);
+    }
+
+    .status {
+      margin-top: 18px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #0d1118;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .status a {
+      color: var(--accent-2);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .status.ok { border-color: rgba(47, 191, 113, 0.5); color: #baf4d1; }
+    .status.error { border-color: rgba(255, 92, 122, 0.5); color: #ffc2cc; }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .panel-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 14px;
+    }
+
+    .panel-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .meta.two {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .empty {
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      padding: 32px;
+      color: var(--muted);
+      text-align: center;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    a { color: var(--accent-2); }
+
+    @media (max-width: 840px) {
+      .app { grid-template-columns: 1fr; }
+      aside { border-right: 0; border-bottom: 1px solid var(--line); }
+      .toolbar { align-items: stretch; flex-direction: column; }
+      .meta, .meta.two { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <h1>Grafana Cloud<br>ダッシュボード提案ツール</h1>
+
+      <label for="industry">業種欄向けのダッシュボードを作成してください。</label>
+      <input id="industry" value="板金加工業者" placeholder="例: 板金加工業者">
+
+      <label for="dashboardType">ダッシュボード種別</label>
+      <select id="dashboardType">
+        <option value="manufacturing">製造ライン・設備保全</option>
+        <option value="iot">IoTデバイス監視</option>
+      </select>
+
+      <div class="actions">
+        <button id="propose">パネル案作成</button>
+        <button id="create" class="secondary" disabled>Grafana Cloud に作成</button>
+      </div>
+      <label class="check-row" for="overwriteDashboard">
+        <input id="overwriteDashboard" type="checkbox">
+        既存ダッシュボードを上書きする
+      </label>
+
+      <div id="status" class="status">業種を入力してパネル案を作成してください。</div>
+    </aside>
+
+    <main>
+      <section class="toolbar">
+        <div>
+          <h2 id="dashboardName">パネル案</h2>
+          <div id="dashboardMeta" class="status">未作成</div>
+        </div>
+        <button id="addPanel" class="secondary" disabled>+ パネル追加</button>
+      </section>
+
+      <section id="panels" class="panel-grid">
+        <div class="empty">ここにAI提案されたパネル案が表示されます。</div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const state = {
+      proposal: null,
+      panels: []
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    function setStatus(message, kind = "") {
+      const el = $("status");
+      el.className = `status ${kind}`;
+      el.textContent = message;
+    }
+
+    async function api(path, payload) {
+      if (window.location.protocol === "file:") {
+        throw new Error("この画面は http://localhost:4173/ から開いてください。file:// で直接開くとローカルAPIに接続できません。");
+      }
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!response.ok || data.ok === false) {
+        throw new Error(data.error || "Request failed");
+      }
+      return data;
+    }
+
+    function renderMeta() {
+      if (!state.proposal) {
+        $("dashboardName").textContent = "パネル案";
+        $("dashboardMeta").textContent = "未作成";
+        return;
+      }
+      const label = state.proposal.dashboardType === "iot" ? "IoTデバイス監視ダッシュボード" : "保全用ダッシュボード";
+      $("dashboardName").textContent = `${state.proposal.industry} ${label}`;
+      const url = `https://ytsutsumi30.grafana.net/d/${state.proposal.dashboardUid}/${state.proposal.dashboardSlug}`;
+      $("dashboardMeta").innerHTML =
+        `名前: ${escapeHtml(state.proposal.dashboardUid)}\nURL: <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`;
+    }
+
+    function updatePanel(index, key, value) {
+      if (key === "min" || key === "max") {
+        state.panels[index][key] = Number(value);
+      } else if (key === "latestOnly") {
+        state.panels[index][key] = value;
+      } else {
+        state.panels[index][key] = value;
+      }
+    }
+
+    function renderPanels() {
+      renderMeta();
+      const root = $("panels");
+      if (!state.panels.length) {
+        root.innerHTML = '<div class="empty">ここにAI提案されたパネル案が表示されます。</div>';
+        $("create").disabled = true;
+        $("addPanel").disabled = !state.proposal;
+        return;
+      }
+
+      $("create").disabled = false;
+      $("addPanel").disabled = false;
+      root.innerHTML = "";
+
+      state.panels.forEach((panel, index) => {
+        const card = document.createElement("article");
+        card.className = "panel-card";
+        card.innerHTML = `
+          <div class="panel-head">
+            <strong>Panel ${index + 1}</strong>
+            <button class="danger" type="button">削除</button>
+          </div>
+          <label>パネル名</label>
+          <input data-key="title" value="${escapeHtml(panel.title)}">
+          <div class="meta">
+            <div>
+              <label>可視化</label>
+              <select data-key="visualization">
+                ${option("timeseries", "時系列", panel.visualization)}
+                ${option("stat", "Stat", panel.visualization)}
+                ${option("gauge", "Gauge", panel.visualization)}
+                ${option("piechart", "ドーナツ", panel.visualization)}
+                ${option("table", "Table", panel.visualization)}
+              </select>
+            </div>
+            <div>
+              <label>単位</label>
+              <input data-key="unit" value="${escapeHtml(panel.unit)}">
+            </div>
+            <div>
+              <label>最新値のみ</label>
+              <select data-key="latestOnly">
+                ${option("false", "いいえ", String(Boolean(panel.latestOnly)))}
+                ${option("true", "はい", String(Boolean(panel.latestOnly)))}
+              </select>
+            </div>
+          </div>
+          <div class="meta two">
+            <div>
+              <label>最小値</label>
+              <input type="number" step="any" data-key="min" value="${panel.min}">
+            </div>
+            <div>
+              <label>最大値</label>
+              <input type="number" step="any" data-key="max" value="${panel.max}">
+            </div>
+          </div>
+          <label>目的</label>
+          <textarea data-key="purpose">${escapeHtml(panel.purpose || "")}</textarea>
+        `;
+
+        card.querySelector(".danger").addEventListener("click", () => {
+          state.panels.splice(index, 1);
+          renderPanels();
+        });
+
+        card.querySelectorAll("[data-key]").forEach((input) => {
+          input.addEventListener("input", () => {
+            const key = input.dataset.key;
+            const value = key === "latestOnly" ? input.value === "true" : input.value;
+            updatePanel(index, key, value);
+          });
+        });
+
+        root.appendChild(card);
+      });
+    }
+
+    function option(value, label, selected) {
+      return `<option value="${value}" ${value === selected ? "selected" : ""}>${label}</option>`;
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    $("propose").addEventListener("click", async () => {
+      const industry = $("industry").value.trim();
+      if (!industry) {
+        setStatus("業種を入力してください。", "error");
+        return;
+      }
+      $("propose").disabled = true;
+      setStatus("パネル案を作成しています...");
+      try {
+        const proposal = await api("/api/propose", { industry, dashboardType: $("dashboardType").value });
+        state.proposal = proposal;
+        state.panels = proposal.panels;
+        renderPanels();
+        const sourceLabel = proposal.source === "ai" ? "AI生成" : proposal.source === "fallback" ? "汎用テンプレート" : "既知業種テンプレート";
+        const warning = proposal.warning ? `\n${proposal.warning}` : "";
+        setStatus(`パネル案を作成しました。方式: ${sourceLabel}\n内容を編集してから作成できます。${warning}`, proposal.warning ? "error" : "ok");
+      } catch (error) {
+        setStatus(error.message, "error");
+      } finally {
+        $("propose").disabled = false;
+      }
+    });
+
+    $("addPanel").addEventListener("click", () => {
+      state.panels.push({
+        id: state.panels.length + 1,
+        title: "New Sensor Panel",
+        visualization: "timeseries",
+        unit: "short",
+        min: 0,
+        max: 100,
+        purpose: "追加センサーの推移を監視",
+        latestOnly: false
+      });
+      renderPanels();
+    });
+
+    $("create").addEventListener("click", async () => {
+      if (!state.proposal || !state.panels.length) return;
+      $("create").disabled = true;
+      setStatus("Grafana Cloud にダッシュボードを作成しています...");
+      try {
+        const result = await api("/api/create-dashboard", {
+          industry: $("industry").value.trim(),
+          dashboardType: $("dashboardType").value,
+          panels: state.panels,
+          overwrite: $("overwriteDashboard").checked
+        });
+        const label = state.proposal.dashboardType === "iot" ? "IoTデバイス監視ダッシュボード" : "保全用ダッシュボード";
+        const status = $("status");
+        status.className = "status ok";
+        status.innerHTML =
+          `名前：${escapeHtml(result.name)}\n\nGrafana Cloud に${escapeHtml($("industry").value.trim())}${label}を作成しました。\nURL:\n<a href="${escapeHtml(result.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(result.url)}</a>`;
+      } catch (error) {
+        setStatus(error.message, "error");
+      } finally {
+        $("create").disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

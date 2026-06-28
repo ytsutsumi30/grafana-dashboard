@@ -1,0 +1,392 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "press-maintenance-demo",
+    "title": "Press Machine Maintenance - Demo",
+    "tags": ["codex", "press", "maintenance", "iot", "demo"],
+    "timezone": "browser",
+    "schemaVersion": 41,
+    "version": 1,
+    "refresh": "5s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "type": "timeseries",
+        "title": "Cycle Time",
+        "description": "Mock range: 10-15 s. Watch trend drift and cycle instability.",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "Cycle Time",
+            "seriesCount": 1,
+            "min": 10,
+            "max": 15
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "min": 10,
+            "max": 15,
+            "decimals": 2,
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 12,
+              "showPoints": "never"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 14},
+                {"color": "red", "value": 15}
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "mean", "max"]},
+          "tooltip": {"mode": "single", "sort": "none"}
+        }
+      },
+      {
+        "id": 2,
+        "type": "timeseries",
+        "title": "Maximum Press Pressure",
+        "description": "Mock range: 90-110 t. Detect gradual loss of press force or abnormal spikes.",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "Max Pressure",
+            "seriesCount": 1,
+            "min": 90,
+            "max": 110
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "min": 90,
+            "max": 110,
+            "decimals": 1,
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "showPoints": "never"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "yellow", "value": null},
+                {"color": "green", "value": 95},
+                {"color": "yellow", "value": 105},
+                {"color": "red", "value": 110}
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "min", "max"]},
+          "tooltip": {"mode": "single", "sort": "none"}
+        }
+      },
+      {
+        "id": 3,
+        "type": "timeseries",
+        "title": "Die Temperature",
+        "description": "Mock range: 10-100 C. Trend monitoring for lubrication, cooling, and die wear.",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "Die Temperature",
+            "seriesCount": 1,
+            "min": 10,
+            "max": 100
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "celsius",
+            "min": 10,
+            "max": 100,
+            "decimals": 1,
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 18,
+              "showPoints": "never"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 70},
+                {"color": "red", "value": 90}
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "mean", "max"]},
+          "tooltip": {"mode": "single", "sort": "none"}
+        }
+      },
+      {
+        "id": 4,
+        "type": "stat",
+        "title": "Ambient Temperature",
+        "description": "Mock range: 10-40 C. Latest value only.",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "Ambient Temp",
+            "seriesCount": 1,
+            "min": 10,
+            "max": 40
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "celsius",
+            "min": 10,
+            "max": 40,
+            "decimals": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 30},
+                {"color": "red", "value": 35}
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""},
+          "orientation": "horizontal",
+          "textMode": "auto",
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "center"
+        }
+      },
+      {
+        "id": 5,
+        "type": "stat",
+        "title": "Ambient Humidity",
+        "description": "Mock range: 10-70%. Latest value only.",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 8},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "Ambient Humidity",
+            "seriesCount": 1,
+            "min": 10,
+            "max": 70
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 10,
+            "max": 70,
+            "decimals": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 60},
+                {"color": "red", "value": 68}
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""},
+          "orientation": "horizontal",
+          "textMode": "auto",
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "center"
+        }
+      },
+      {
+        "id": 6,
+        "type": "timeseries",
+        "title": "Vibration Acceleration",
+        "description": "Mock range: 0.01-0.1 m/s2. Trend and spike monitoring for bearings and mechanical looseness.",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "Vibration",
+            "seriesCount": 1,
+            "min": 0.01,
+            "max": 0.1
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "accMS2",
+            "min": 0.01,
+            "max": 0.1,
+            "decimals": 3,
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 12,
+              "showPoints": "never"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 0.07},
+                {"color": "red", "value": 0.09}
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]},
+          "tooltip": {"mode": "single", "sort": "none"}
+        }
+      },
+      {
+        "id": 7,
+        "type": "timeseries",
+        "title": "Motor Current",
+        "description": "Mock range: 30-80 A. Useful for load drift, friction, and motor overload monitoring.",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "Motor Current",
+            "seriesCount": 1,
+            "min": 30,
+            "max": 80
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "amp",
+            "min": 30,
+            "max": 80,
+            "decimals": 1,
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 18,
+              "showPoints": "never"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 65},
+                {"color": "red", "value": 75}
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "mean", "max"]},
+          "tooltip": {"mode": "single", "sort": "none"}
+        }
+      },
+      {
+        "id": 8,
+        "type": "timeseries",
+        "title": "Noise Level",
+        "description": "Mock range: 60-80 dB. Watch abnormal operating sound and impact noise.",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "Noise",
+            "seriesCount": 1,
+            "min": 60,
+            "max": 80
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "dB",
+            "min": 60,
+            "max": 80,
+            "decimals": 1,
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 12,
+              "showPoints": "never"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 75},
+                {"color": "red", "value": 80}
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "mean", "max"]},
+          "tooltip": {"mode": "single", "sort": "none"}
+        }
+      }
+    ]
+  },
+  "folderUid": "",
+  "message": "Create Press Machine Maintenance dashboard from Codex",
+  "overwrite": true
+}

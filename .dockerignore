@@ -1,0 +1,14 @@
+.git
+.codex
+.agents
+outputs
+node_modules
+npm-debug.log
+*.log
+.env
+.env.*
+dashboards
+scripts
+docker-compose.yml
+grafana-codex-prompt.html
+README.md

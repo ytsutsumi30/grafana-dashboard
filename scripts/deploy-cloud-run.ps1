@@ -1,0 +1,60 @@
+param(
+  [Parameter(Mandatory = $true)]
+  [string]$ProjectId,
+
+  [string]$Region = "asia-northeast1",
+  [string]$ServiceName = "grafana-dashboard-builder",
+  [string]$GrafanaUrl = "https://ytsutsumi30.grafana.net",
+  [string]$GrafanaTokenSecret = "grafana-service-account-token",
+  [string]$OpenAiKeySecret = "openai-api-key",
+  [string]$AiProvider = "vertex",
+  [string]$VertexAiLocation = "global",
+  [string]$VertexAiModel = "gemini-2.5-flash-lite",
+  [string]$ServiceAccount = "",
+  [switch]$SkipOpenAiSecret,
+  [switch]$AllowUnauthenticated
+)
+
+$ErrorActionPreference = "Stop"
+
+function Require-Command($Name) {
+  if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+    throw "$Name is not installed or not on PATH."
+  }
+}
+
+Require-Command "gcloud"
+
+gcloud config set project $ProjectId | Out-Host
+
+gcloud services enable `
+  run.googleapis.com `
+  cloudbuild.googleapis.com `
+  secretmanager.googleapis.com `
+  artifactregistry.googleapis.com `
+  aiplatform.googleapis.com `
+  --project $ProjectId | Out-Host
+
+$authFlag = if ($AllowUnauthenticated) { "--allow-unauthenticated" } else { "--no-allow-unauthenticated" }
+$secretArgs = "GRAFANA_SERVICE_ACCOUNT_TOKEN=$GrafanaTokenSecret`:latest"
+if ($AiProvider -eq "openai" -and -not $SkipOpenAiSecret) {
+  $secretArgs = "$secretArgs,OPENAI_API_KEY=$OpenAiKeySecret`:latest"
+}
+$envArgs = "GRAFANA_URL=$GrafanaUrl,AI_PROVIDER=$AiProvider,VERTEX_AI_PROJECT=$ProjectId,VERTEX_AI_LOCATION=$VertexAiLocation,VERTEX_AI_MODEL=$VertexAiModel"
+$deployArgs = @(
+  "run", "deploy", $ServiceName,
+  "--source", ".",
+  "--project", $ProjectId,
+  "--region", $Region,
+  "--set-env-vars", $envArgs,
+  "--set-secrets", $secretArgs,
+  "--memory", "512Mi",
+  "--cpu", "1",
+  "--max-instances", "3",
+  $authFlag
+)
+if ($ServiceAccount) {
+  $deployArgs += @("--service-account", $ServiceAccount)
+}
+
+gcloud @deployArgs

@@ -1,0 +1,8 @@
+[mcp_servers.grafana]
+command = "uvx"
+args = ["mcp-grafana", "--enabled-tools", "search,dashboard,datasource,folder,api"]
+env = { GRAFANA_URL = "https://ytsutsumi30.grafana.net" }
+env_vars = ["GRAFANA_SERVICE_ACCOUNT_TOKEN"]
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+default_tools_approval_mode = "prompt"

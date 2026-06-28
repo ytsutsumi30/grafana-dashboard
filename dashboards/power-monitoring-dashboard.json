@@ -1,0 +1,297 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "power-monitoring-demo",
+    "title": "Power Monitoring IoT - Demo",
+    "tags": ["codex", "power", "iot", "energy", "demo"],
+    "timezone": "browser",
+    "schemaVersion": 41,
+    "version": 1,
+    "refresh": "5s",
+    "time": {
+      "from": "now-30d",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "type": "stat",
+        "title": "Current Power Usage",
+        "description": "Mock range: 50-500 kW. Latest total demand.",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 5, "w": 8, "x": 0, "y": 0},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "Current Power Usage",
+            "seriesCount": 1,
+            "min": 50,
+            "max": 500
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "kwatt",
+            "min": 50,
+            "max": 500,
+            "decimals": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 350},
+                {"color": "red", "value": 450}
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""},
+          "orientation": "horizontal",
+          "textMode": "auto",
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "center"
+        }
+      },
+      {
+        "id": 2,
+        "type": "gauge",
+        "title": "Solar / Generated Power",
+        "description": "Mock range: 0-120 kW. Latest generated power.",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 5, "w": 8, "x": 8, "y": 0},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "Generated Power",
+            "seriesCount": 1,
+            "min": 0,
+            "max": 120
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "kwatt",
+            "min": 0,
+            "max": 120,
+            "decimals": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "yellow", "value": 20},
+                {"color": "green", "value": 60}
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""},
+          "orientation": "auto",
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        }
+      },
+      {
+        "id": 3,
+        "type": "stat",
+        "title": "CO2 Emissions",
+        "description": "Mock range: 100-1200 kg-CO2/day.",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 5, "w": 8, "x": 16, "y": 0},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "random_walk",
+            "alias": "CO2 Emissions",
+            "seriesCount": 1,
+            "min": 100,
+            "max": 1200
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "min": 100,
+            "max": 1200,
+            "decimals": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 800},
+                {"color": "red", "value": 1000}
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": {"values": false, "calcs": ["lastNotNull"], "fields": ""},
+          "orientation": "horizontal",
+          "textMode": "auto",
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "center"
+        }
+      },
+      {
+        "id": 4,
+        "type": "timeseries",
+        "title": "Daily Power Trend",
+        "description": "Daily power consumption, generated power, and CO2 emissions.",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 11, "w": 24, "x": 0, "y": 5},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "csv_content",
+            "csvContent": "time,power_usage_kwh,generated_kwh,co2_kg\n2026-05-09T00:00:00+09:00,540,44,248\n2026-05-10T00:00:00+09:00,690,51,316\n2026-05-11T00:00:00+09:00,810,58,372\n2026-05-12T00:00:00+09:00,760,48,350\n2026-05-13T00:00:00+09:00,1580,112,727\n2026-05-14T00:00:00+09:00,1660,118,764\n2026-05-15T00:00:00+09:00,2090,186,961\n2026-05-16T00:00:00+09:00,2240,205,1030\n2026-05-17T00:00:00+09:00,1910,164,879\n2026-05-18T00:00:00+09:00,780,72,359\n2026-05-19T00:00:00+09:00,420,38,193\n2026-05-20T00:00:00+09:00,350,31,161\n2026-05-21T00:00:00+09:00,1830,145,842\n2026-05-22T00:00:00+09:00,2050,188,943\n2026-05-23T00:00:00+09:00,2110,201,971\n2026-05-24T00:00:00+09:00,1880,160,865\n2026-05-25T00:00:00+09:00,710,62,327\n2026-05-26T00:00:00+09:00,390,35,179\n2026-05-27T00:00:00+09:00,1360,118,626\n2026-05-28T00:00:00+09:00,1980,212,911\n2026-05-29T00:00:00+09:00,2070,226,952\n2026-05-30T00:00:00+09:00,2085,231,959\n2026-05-31T00:00:00+09:00,1810,172,833\n2026-06-01T00:00:00+09:00,1010,90,465\n2026-06-02T00:00:00+09:00,660,56,304\n2026-06-03T00:00:00+09:00,2460,252,1132\n2026-06-04T00:00:00+09:00,1950,178,897\n2026-06-05T00:00:00+09:00,2130,194,980\n2026-06-06T00:00:00+09:00,1800,151,828\n2026-06-07T00:00:00+09:00,2040,187,938\n2026-06-08T00:00:00+09:00,1370,122,630"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "kwatth",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "fillOpacity": 12,
+              "showPoints": "never"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 2000},
+                {"color": "red", "value": 2400}
+              ]
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "power_usage_kwh"},
+              "properties": [
+                {"id": "displayName", "value": "Power Usage"},
+                {"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}},
+                {"id": "custom.drawStyle", "value": "bars"},
+                {"id": "custom.fillOpacity", "value": 85}
+              ]
+            },
+            {
+              "matcher": {"id": "byName", "options": "generated_kwh"},
+              "properties": [
+                {"id": "displayName", "value": "Generated Power"},
+                {"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}},
+                {"id": "custom.drawStyle", "value": "line"},
+                {"id": "custom.lineWidth", "value": 3}
+              ]
+            },
+            {
+              "matcher": {"id": "byName", "options": "co2_kg"},
+              "properties": [
+                {"id": "displayName", "value": "CO2 Emissions"},
+                {"id": "unit", "value": "short"},
+                {"id": "color", "value": {"mode": "fixed", "fixedColor": "light-blue"}},
+                {"id": "custom.drawStyle", "value": "line"},
+                {"id": "custom.fillOpacity", "value": 20}
+              ]
+            }
+          ]
+        },
+        "options": {
+          "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "mean", "max"]},
+          "tooltip": {"mode": "multi", "sort": "none"}
+        }
+      },
+      {
+        "id": 5,
+        "type": "piechart",
+        "title": "Power Distribution by Category",
+        "description": "Monthly energy consumption distribution by equipment category.",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 12, "w": 13, "x": 0, "y": 16},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "csv_content",
+            "csvContent": "category,kwh\nMachining Center,19477.17\nMolding Machine,13863.64\nAir Conditioning,6646.12\n2F Main Feeder,2915.91\nLighting,419.50\nVending Machine,190.83\nCompressor,108.53\n2F Lighting Warehouse,88.86\n2F Lighting Corridor,42.53\nElevator,6.44"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {"unit": "kwatth", "decimals": 2},
+          "overrides": []
+        },
+        "options": {
+          "pieType": "donut",
+          "displayLabels": ["name", "value", "percent"],
+          "legend": {"displayMode": "table", "placement": "bottom", "showLegend": true, "values": ["value", "percent"]},
+          "reduceOptions": {"values": true, "calcs": ["lastNotNull"], "fields": ""}
+        }
+      },
+      {
+        "id": 6,
+        "type": "table",
+        "title": "Device Communication Status",
+        "description": "IoT device heartbeat and communication status.",
+        "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+        "gridPos": {"h": 12, "w": 11, "x": 13, "y": 16},
+        "targets": [
+          {
+            "refId": "A",
+            "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
+            "scenarioId": "csv_content",
+            "csvContent": "device,area,status,last_seen,message\nPM-001,Machining Center,ONLINE,2026-06-08T09:31:12+09:00,collecting normally\nPM-002,Molding Machine,ONLINE,2026-06-08T09:31:08+09:00,collecting normally\nPM-003,Air Conditioning,WARN,2026-06-08T09:28:44+09:00,delayed heartbeat\nPM-004,2F Main Feeder,ONLINE,2026-06-08T09:31:02+09:00,collecting normally\nPM-005,Lighting,ONLINE,2026-06-08T09:30:58+09:00,collecting normally\nPM-006,Compressor,WARN,2026-06-08T09:27:31+09:00,packet loss detected\nPM-007,Elevator,OFFLINE,2026-06-08T09:12:10+09:00,no data for 19 minutes"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "cellOptions": {"type": "auto"}
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "status"},
+              "properties": [
+                {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+                {
+                  "id": "mappings",
+                  "value": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "ONLINE": {"color": "green", "index": 0},
+                        "WARN": {"color": "yellow", "index": 1},
+                        "OFFLINE": {"color": "red", "index": 2}
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "showHeader": true,
+          "cellHeight": "sm",
+          "footer": {"show": false}
+        }
+      }
+    ]
+  },
+  "folderUid": "",
+  "message": "Create Power Monitoring IoT dashboard from Codex",
+  "overwrite": true
+}
