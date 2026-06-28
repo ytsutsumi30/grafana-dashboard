@@ -173,6 +173,67 @@
       gap: 14px;
     }
 
+    .preview {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0b0f16;
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .preview-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .preview-board {
+      display: grid;
+      grid-template-columns: repeat(24, minmax(0, 1fr));
+      grid-auto-rows: 18px;
+      gap: 6px;
+      min-height: 190px;
+    }
+
+    .preview-panel {
+      border: 1px solid #354052;
+      border-radius: 6px;
+      background: linear-gradient(180deg, #1a2230, #111722);
+      padding: 8px;
+      display: grid;
+      align-content: space-between;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .preview-title {
+      font-weight: 700;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .preview-meta {
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .preview-viz {
+      height: 24px;
+      border-radius: 4px;
+      background:
+        linear-gradient(90deg, transparent 0 12%, rgba(74, 163, 255, 0.2) 12% 13%, transparent 13% 25%),
+        linear-gradient(135deg, rgba(47, 191, 113, 0.35), rgba(255, 138, 42, 0.18));
+    }
+
     .panel-card {
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -258,6 +319,16 @@
         <button id="addPanel" class="secondary" disabled>+ パネル追加</button>
       </section>
 
+      <section class="preview">
+        <div class="preview-head">
+          <h2>生成前プレビュー</h2>
+          <span id="previewSummary">パネル案作成後に表示されます</span>
+        </div>
+        <div id="previewBoard" class="preview-board">
+          <div class="empty" style="grid-column: span 24;">ダッシュボード作成前にレイアウトを確認できます。</div>
+        </div>
+      </section>
+
       <section id="panels" class="panel-grid">
         <div class="empty">ここにAI提案されたパネル案が表示されます。</div>
       </section>
@@ -335,17 +406,71 @@
     }
 
     function updatePanel(index, key, value) {
-      if (key === "min" || key === "max") {
+      if (key === "min" || key === "max" || key === "warningThreshold" || key === "criticalThreshold") {
         state.panels[index][key] = Number(value);
       } else if (key === "latestOnly") {
         state.panels[index][key] = value;
       } else {
         state.panels[index][key] = value;
       }
+      renderPreview();
+    }
+
+    function previewSize(panel) {
+      const isSmall = panel.visualization === "stat" || panel.visualization === "gauge";
+      const isWide = panel.visualization === "timeseries" && String(panel.title).toLowerCase().includes("trend");
+      return isWide ? { w: 24, h: 9 } : isSmall ? { w: 8, h: 5 } : { w: 12, h: 8 };
+    }
+
+    function previewPositions(panels) {
+      let x = 0;
+      let y = 1;
+      let rowHeight = 0;
+      return panels.map((panel) => {
+        const size = previewSize(panel);
+        if (x + size.w > 24) {
+          x = 0;
+          y += rowHeight;
+          rowHeight = 0;
+        }
+        const grid = { ...size, x, y };
+        x += size.w;
+        rowHeight = Math.max(rowHeight, size.h);
+        return grid;
+      });
+    }
+
+    function renderPreview() {
+      const board = $("previewBoard");
+      const summary = $("previewSummary");
+      if (!state.panels.length) {
+        summary.textContent = "パネル案作成後に表示されます";
+        board.innerHTML = '<div class="empty" style="grid-column: span 24;">ダッシュボード作成前にレイアウトを確認できます。</div>';
+        return;
+      }
+      const positions = previewPositions(state.panels);
+      const maxRow = Math.max(...positions.map((pos) => pos.y + pos.h), 10);
+      board.style.gridTemplateRows = `repeat(${maxRow}, 18px)`;
+      summary.textContent = `${state.panels.length} panels / ${$("folderUid").selectedOptions[0]?.textContent || "General / ルート"}`;
+      board.innerHTML = "";
+      state.panels.forEach((panel, index) => {
+        const pos = positions[index];
+        const el = document.createElement("div");
+        el.className = "preview-panel";
+        el.style.gridColumn = `${pos.x + 1} / span ${pos.w}`;
+        el.style.gridRow = `${pos.y} / span ${pos.h}`;
+        el.innerHTML = `
+          <div class="preview-title">${escapeHtml(panel.title || `Panel ${index + 1}`)}</div>
+          <div class="preview-viz"></div>
+          <div class="preview-meta">${escapeHtml(panel.visualization)} / ${escapeHtml(panel.unit)} / W:${escapeHtml(panel.warningThreshold ?? "")} C:${escapeHtml(panel.criticalThreshold ?? "")}</div>
+        `;
+        board.appendChild(el);
+      });
     }
 
     function renderPanels() {
       renderMeta();
+      renderPreview();
       const root = $("panels");
       if (!state.panels.length) {
         root.innerHTML = '<div class="empty">ここにAI提案されたパネル案が表示されます。</div>';
@@ -399,6 +524,16 @@
             <div>
               <label>最大値</label>
               <input type="number" step="any" data-key="max" value="${panel.max}">
+            </div>
+          </div>
+          <div class="meta two">
+            <div>
+              <label>Warning 閾値</label>
+              <input type="number" step="any" data-key="warningThreshold" value="${panel.warningThreshold ?? ""}">
+            </div>
+            <div>
+              <label>Critical 閾値</label>
+              <input type="number" step="any" data-key="criticalThreshold" value="${panel.criticalThreshold ?? ""}">
             </div>
           </div>
           <label>目的</label>
@@ -465,6 +600,8 @@
         unit: "short",
         min: 0,
         max: 100,
+        warningThreshold: 80,
+        criticalThreshold: 95,
         purpose: "追加センサーの推移を監視",
         latestOnly: false
       });
@@ -495,7 +632,10 @@
       }
     });
 
-    $("folderUid").addEventListener("change", renderMeta);
+    $("folderUid").addEventListener("change", () => {
+      renderMeta();
+      renderPreview();
+    });
     loadFolders();
   </script>
 </body>

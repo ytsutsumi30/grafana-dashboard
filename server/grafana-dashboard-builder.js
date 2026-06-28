@@ -311,10 +311,10 @@ function slugifyIndustry(industry, profile) {
 
 function panelFromTuple(tuple, index) {
   if (!Array.isArray(tuple)) {
-    return { id: index + 1, ...tuple };
+    return normalizePanel({ id: index + 1, ...tuple }, index);
   }
   const [title, visualization, unit, min, max, purpose] = tuple;
-  return {
+  return normalizePanel({
     id: index + 1,
     title,
     visualization,
@@ -323,7 +323,7 @@ function panelFromTuple(tuple, index) {
     max,
     purpose,
     latestOnly: visualization === "stat" || visualization === "gauge"
-  };
+  }, index);
 }
 
 function resolveDashboardType(industry, dashboardType) {
@@ -367,6 +367,9 @@ function normalizePanel(panel, index) {
   const visualization = VISUALIZATIONS.has(panel.visualization) ? panel.visualization : "timeseries";
   const normalizedMin = Number.isFinite(min) ? min : 0;
   const normalizedMax = Number.isFinite(max) && max > normalizedMin ? max : normalizedMin + 100;
+  const defaultThresholds = thresholdValues(normalizedMin, normalizedMax, panel.unit);
+  const warningThreshold = Number(panel.warningThreshold);
+  const criticalThreshold = Number(panel.criticalThreshold);
   return {
     id: index + 1,
     title: String(panel.title || `Sensor Panel ${index + 1}`).slice(0, 80),
@@ -374,6 +377,8 @@ function normalizePanel(panel, index) {
     unit: String(panel.unit || "short").slice(0, 32),
     min: normalizedMin,
     max: normalizedMax,
+    warningThreshold: Number.isFinite(warningThreshold) ? warningThreshold : defaultThresholds.warning,
+    criticalThreshold: Number.isFinite(criticalThreshold) ? criticalThreshold : defaultThresholds.critical,
     purpose: String(panel.purpose || "監視対象の状態を確認").slice(0, 160),
     latestOnly: visualization === "stat" || visualization === "gauge" || panel.latestOnly === true,
     scenarioId: panel.scenarioId === "csv_content" ? "csv_content" : "random_walk",
@@ -424,13 +429,27 @@ function aiProposalSchema() {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["title", "visualization", "unit", "min", "max", "purpose", "latestOnly", "scenarioId", "csvContent"],
+          required: [
+            "title",
+            "visualization",
+            "unit",
+            "min",
+            "max",
+            "warningThreshold",
+            "criticalThreshold",
+            "purpose",
+            "latestOnly",
+            "scenarioId",
+            "csvContent"
+          ],
           properties: {
             title: { type: "string" },
             visualization: { type: "string", enum: ["timeseries", "stat", "gauge", "piechart", "table"] },
             unit: { type: "string" },
             min: { type: "number" },
             max: { type: "number" },
+            warningThreshold: { type: "number" },
+            criticalThreshold: { type: "number" },
             purpose: { type: "string" },
             latestOnly: { type: "boolean" },
             scenarioId: { type: "string", enum: ["random_walk", "csv_content"] },
@@ -449,6 +468,7 @@ function proposalPrompt(industry, dashboardType) {
 TestData datasourceでモックできる、営業デモ向けの実用的なGrafanaパネル案を5-10個作成してください。
 各パネルは編集可能な案として短く具体的にしてください。
 Grafana-compatible units only: s, celsius, percent, amp, dB, accMS2, kwatt, kwatth, short, pressurebar, ops.
+Each panel must include warningThreshold and criticalThreshold within or near the min/max range.
 Prefer random_walk mock data. Use csv_content only when piechart or table needs fixed demo rows.
 Return JSON only.`;
 }
@@ -609,60 +629,80 @@ function layoutPanels(panels) {
   });
 }
 
-function thresholds(min, max, unit) {
+function thresholdValues(min, max, unit) {
   const span = max - min;
   if (unit === "celsius" || unit === "amp" || unit === "dB" || unit === "accMS2") {
+    return {
+      warning: min + span * 0.75,
+      critical: min + span * 0.9
+    };
+  }
+  return {
+    warning: min + span * 0.8,
+    critical: max
+  };
+}
+
+function thresholds(min, max, unit, warningThreshold, criticalThreshold) {
+  const defaultThresholds = thresholdValues(min, max, unit);
+  const warning = Number.isFinite(Number(warningThreshold)) ? Number(warningThreshold) : defaultThresholds.warning;
+  const critical = Number.isFinite(Number(criticalThreshold)) ? Number(criticalThreshold) : defaultThresholds.critical;
+  if (warning <= critical) {
     return [
       { color: "green", value: null },
-      { color: "yellow", value: min + span * 0.75 },
-      { color: "red", value: min + span * 0.9 }
+      { color: "yellow", value: warning },
+      { color: "red", value: critical }
     ];
   }
   return [
     { color: "green", value: null },
-    { color: "yellow", value: min + span * 0.8 },
-    { color: "red", value: max }
+    { color: "red", value: critical },
+    { color: "yellow", value: warning }
   ];
 }
 
 function grafanaPanel(panel, index, gridPos) {
+  const normalized = normalizePanel(panel, index);
   const type =
-    panel.visualization === "gauge"
+    normalized.visualization === "gauge"
       ? "gauge"
-      : panel.visualization === "stat"
+      : normalized.visualization === "stat"
         ? "stat"
-        : panel.visualization === "piechart"
+        : normalized.visualization === "piechart"
           ? "piechart"
-          : panel.visualization === "table"
+          : normalized.visualization === "table"
             ? "table"
             : "timeseries";
   const target = {
     refId: "A",
     datasource: { type: "grafana-testdata-datasource", uid: "testdata" },
-    scenarioId: panel.scenarioId || "random_walk",
-    alias: panel.title,
+    scenarioId: normalized.scenarioId || "random_walk",
+    alias: normalized.title,
     seriesCount: 1,
-    min: Number(panel.min),
-    max: Number(panel.max)
+    min: Number(normalized.min),
+    max: Number(normalized.max)
   };
-  if (panel.csvContent) {
-    target.csvContent = panel.csvContent;
+  if (normalized.csvContent) {
+    target.csvContent = normalized.csvContent;
   }
   const base = {
     id: index + 1,
     type,
-    title: panel.title,
-    description: `${panel.purpose || ""} Mock range: ${panel.min}-${panel.max} ${panel.unit}.`.trim(),
+    title: normalized.title,
+    description: `${normalized.purpose || ""} Mock range: ${normalized.min}-${normalized.max} ${normalized.unit}. Warning: ${normalized.warningThreshold}, Critical: ${normalized.criticalThreshold}.`.trim(),
     datasource: { type: "grafana-testdata-datasource", uid: "testdata" },
     gridPos,
     targets: [target],
     fieldConfig: {
       defaults: {
-        unit: panel.unit || "short",
-        min: Number(panel.min),
-        max: Number(panel.max),
-        decimals: Number(panel.max) <= 1 ? 3 : 1,
-        thresholds: { mode: "absolute", steps: thresholds(Number(panel.min), Number(panel.max), panel.unit) }
+        unit: normalized.unit || "short",
+        min: Number(normalized.min),
+        max: Number(normalized.max),
+        decimals: Number(normalized.max) <= 1 ? 3 : 1,
+        thresholds: {
+          mode: "absolute",
+          steps: thresholds(Number(normalized.min), Number(normalized.max), normalized.unit, normalized.warningThreshold, normalized.criticalThreshold)
+        }
       },
       overrides: []
     }

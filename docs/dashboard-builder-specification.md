@@ -134,11 +134,26 @@ IoTデバイス監視:
 - 最新値のみ表示するか
 - 最小値
 - 最大値
+- Warning 閾値
+- Critical 閾値
 - 目的
 
 また、パネルの追加と削除ができる。
 
-### 6.5 ダッシュボード作成
+### 6.5 生成前プレビュー
+
+パネル案作成後、Grafana Cloudに作成する前に、UI上でダッシュボードの簡易レイアウトプレビューを表示する。
+
+プレビュー仕様:
+
+- Grafanaと同じ24カラム相当の配置で表示する
+- `stat` / `gauge` は小型パネルとして表示する
+- `timeseries` でタイトルに `trend` を含むものは横長パネルとして表示する
+- その他のパネルは標準サイズとして表示する
+- パネル名、可視化方式、単位、Warning/Critical閾値を表示する
+- パネル編集、追加、削除、Dashboard folder変更に応じて即時更新する
+
+### 6.6 ダッシュボード作成
 
 `Grafana Cloud に作成` ボタン押下時、以下を実行する。
 
@@ -149,7 +164,7 @@ IoTデバイス監視:
 5. Grafana Cloud HTTP API `/api/dashboards/db` へPOSTする
 6. 作成されたダッシュボードURLをUIに表示する
 
-### 6.6 上書き制御
+### 6.7 上書き制御
 
 UIには `既存ダッシュボードを上書きする` チェックボックスを持つ。
 
@@ -250,6 +265,8 @@ Grafana Cloudにダッシュボードを作成する。
       "unit": "s",
       "min": 18,
       "max": 75,
+      "warningThreshold": 64.5,
+      "criticalThreshold": 72,
       "purpose": "加工1サイクルのばらつきと遅延を監視",
       "latestOnly": false
     }
@@ -281,6 +298,22 @@ Grafana Cloudにダッシュボードを作成する。
 | timezone | `browser` |
 | schemaVersion | `41` |
 | tags | `codex`, `sales-demo`, `manufacturing`, `iot`, `maintenance` |
+
+### 8.1.1 閾値
+
+各パネルには以下の閾値を設定できる。
+
+| 項目 | 内容 |
+| --- | --- |
+| `warningThreshold` | Grafana上で黄色表示に切り替える値 |
+| `criticalThreshold` | Grafana上で赤表示に切り替える値 |
+
+テンプレートまたはAI生成結果に閾値がない場合、サーバー側で値範囲から自動算出する。
+
+- 温度、電流、騒音、振動: Warning 75%、Critical 90%
+- その他: Warning 80%、Critical 最大値
+
+編集された閾値はGrafana dashboard JSONの `fieldConfig.defaults.thresholds.steps` に反映する。
 
 ### 8.2 時間範囲
 
@@ -381,16 +414,12 @@ Vertex AI Gemini利用時は、Cloud Run専用サービスアカウントに `ro
 - AI生成結果は営業デモ向けの案であり、実際の顧客設備仕様とは照合が必要
 - 一般公開状態では第三者がダッシュボードを作成できる可能性がある
 - 現状、ユーザー認証・操作履歴・承認フローはアプリ側に実装していない
-- Grafana folder選択には未対応で、ルートフォルダに作成する
+- 生成前プレビューは簡易レイアウトであり、Grafana本体の完全なレンダリング画像ではない
 
 ## 13. 今後の拡張候補
 
 - 顧客名・案件名・営業担当者名の入力
-- Dashboard folderの選択
-- テンプレート業種の追加
 - 作成履歴の保存
-- 生成前プレビュー画像の表示
 - Grafana実データソースへの差し替え支援
 - IAPまたはアプリ独自ログインの追加
-- パネルごとの閾値編集
 - PDF提案書出力
