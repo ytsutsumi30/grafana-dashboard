@@ -194,44 +194,84 @@
     .preview-board {
       display: grid;
       grid-template-columns: repeat(24, minmax(0, 1fr));
-      grid-auto-rows: 18px;
-      gap: 6px;
-      min-height: 190px;
+      grid-auto-rows: 24px;
+      gap: 8px;
+      min-height: 260px;
     }
 
     .preview-panel {
-      border: 1px solid #354052;
-      border-radius: 6px;
-      background: linear-gradient(180deg, #1a2230, #111722);
-      padding: 8px;
+      border: 1px solid #2f3745;
+      border-radius: 7px;
+      background: #151a20;
       display: grid;
-      align-content: space-between;
+      grid-template-rows: auto minmax(0, 1fr) auto;
       overflow: hidden;
       min-width: 0;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
     }
 
     .preview-title {
       font-weight: 700;
-      font-size: 12px;
+      font-size: 13px;
+      color: #dbe7ff;
+      padding: 10px 12px 6px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .preview-body {
+      position: relative;
+      min-height: 0;
+      padding: 4px 12px 6px;
     }
 
     .preview-meta {
       color: var(--muted);
       font-size: 11px;
+      border-top: 1px solid #2a3340;
+      padding: 6px 12px 8px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    .preview-viz {
-      height: 24px;
-      border-radius: 4px;
-      background:
-        linear-gradient(90deg, transparent 0 12%, rgba(74, 163, 255, 0.2) 12% 13%, transparent 13% 25%),
-        linear-gradient(135deg, rgba(47, 191, 113, 0.35), rgba(255, 138, 42, 0.18));
+    .preview-chart,
+    .preview-gauge,
+    .preview-donut,
+    .preview-table {
+      width: 100%;
+      height: 100%;
+      min-height: 96px;
+    }
+
+    .preview-stat {
+      height: 100%;
+      min-height: 96px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #4ea247, #f0d400 65%, #ff8a2a);
+      color: #10151d;
+      font-size: clamp(28px, 6vw, 58px);
+      line-height: 1;
+      font-weight: 700;
+    }
+
+    .preview-table {
+      border-collapse: collapse;
+      color: #c5cfdd;
+      font-size: 11px;
+    }
+
+    .preview-table th,
+    .preview-table td {
+      border-bottom: 1px solid #29323f;
+      padding: 4px 6px;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 130px;
     }
 
     .panel-card {
@@ -440,6 +480,137 @@
       });
     }
 
+    function formatValue(value, unit) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return "";
+      const digits = Math.abs(number) < 1 ? 3 : Math.abs(number) < 100 ? 1 : 0;
+      const label = number.toFixed(digits);
+      const unitLabel = unit === "celsius" ? "°C" : unit === "percent" ? "%" : unit === "kwatt" ? "kW" : unit === "amp" ? "A" : unit === "dB" ? "dB" : unit === "s" ? "s" : unit || "";
+      return `${label} ${unitLabel}`.trim();
+    }
+
+    function seededValue(seed, index) {
+      const x = Math.sin((seed + 1) * 12.9898 + index * 78.233) * 43758.5453;
+      return x - Math.floor(x);
+    }
+
+    function sampleSeries(panel, count = 48) {
+      const min = Number(panel.min);
+      const max = Number(panel.max);
+      const lo = Number.isFinite(min) ? min : 0;
+      const hi = Number.isFinite(max) && max > lo ? max : lo + 100;
+      const span = hi - lo;
+      let current = lo + span * (0.45 + seededValue(panel.title?.length || 3, 0) * 0.2);
+      return Array.from({ length: count }, (_, index) => {
+        current += (seededValue(panel.title?.length || 3, index) - 0.5) * span * 0.08;
+        current = Math.max(lo + span * 0.08, Math.min(hi - span * 0.06, current));
+        return current;
+      });
+    }
+
+    function renderTimeSeriesPreview(panel) {
+      const values = sampleSeries(panel);
+      const min = Number(panel.min);
+      const max = Number(panel.max);
+      const lo = Number.isFinite(min) ? min : Math.min(...values);
+      const hi = Number.isFinite(max) && max > lo ? max : Math.max(...values);
+      const width = 420;
+      const height = 170;
+      const plot = { left: 36, top: 14, right: 8, bottom: 34 };
+      const innerW = width - plot.left - plot.right;
+      const innerH = height - plot.top - plot.bottom;
+      const points = values.map((value, index) => {
+        const x = plot.left + (index / (values.length - 1)) * innerW;
+        const y = plot.top + (1 - (value - lo) / (hi - lo)) * innerH;
+        return [x, y];
+      });
+      const line = points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+      const area = `${plot.left},${plot.top + innerH} ${line} ${plot.left + innerW},${plot.top + innerH}`;
+      const last = values[values.length - 1];
+      const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+      return `
+        <svg class="preview-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <pattern id="grid-${Math.abs(panel.title?.length || 1)}" width="52" height="32" patternUnits="userSpaceOnUse">
+              <path d="M 52 0 L 0 0 0 32" fill="none" stroke="#2a3340" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect x="${plot.left}" y="${plot.top}" width="${innerW}" height="${innerH}" fill="url(#grid-${Math.abs(panel.title?.length || 1)})"/>
+          <text x="2" y="${plot.top + 8}" fill="#c6cfdd" font-size="11">${escapeHtml(formatValue(hi, panel.unit))}</text>
+          <text x="2" y="${plot.top + innerH}" fill="#c6cfdd" font-size="11">${escapeHtml(formatValue(lo, panel.unit))}</text>
+          <polygon points="${area}" fill="rgba(87, 148, 91, 0.24)"></polygon>
+          <polyline points="${line}" fill="none" stroke="#7bc96f" stroke-width="2"></polyline>
+          <line x1="${plot.left}" y1="${plot.top + innerH}" x2="${plot.left + innerW}" y2="${plot.top + innerH}" stroke="#2a3340"/>
+          <text x="${plot.left}" y="${height - 12}" fill="#7da6f8" font-size="11">Name</text>
+          <text x="${width - 132}" y="${height - 12}" fill="#7da6f8" font-size="11">Last *</text>
+          <text x="${width - 82}" y="${height - 12}" fill="#7da6f8" font-size="11">Mean</text>
+          <text x="${width - 34}" y="${height - 12}" fill="#7da6f8" font-size="11">Max</text>
+          <text x="${plot.left}" y="${height - 1}" fill="#c6cfdd" font-size="10">${escapeHtml(panel.title)}</text>
+          <text x="${width - 132}" y="${height - 1}" fill="#c6cfdd" font-size="10">${escapeHtml(formatValue(last, panel.unit))}</text>
+          <text x="${width - 82}" y="${height - 1}" fill="#c6cfdd" font-size="10">${escapeHtml(formatValue(mean, panel.unit))}</text>
+          <text x="${width - 34}" y="${height - 1}" fill="#c6cfdd" font-size="10">${escapeHtml(formatValue(hi, panel.unit))}</text>
+        </svg>
+      `;
+    }
+
+    function renderGaugePreview(panel) {
+      const min = Number(panel.min);
+      const max = Number(panel.max);
+      const lo = Number.isFinite(min) ? min : 0;
+      const hi = Number.isFinite(max) && max > lo ? max : lo + 100;
+      const value = lo + (hi - lo) * 0.62;
+      return `
+        <svg class="preview-gauge" viewBox="0 0 260 150" aria-hidden="true">
+          <path d="M45 120 A85 85 0 0 1 215 120" fill="none" stroke="#343b46" stroke-width="16"/>
+          <path d="M45 120 A85 85 0 0 1 142 39" fill="none" stroke="#98d86b" stroke-width="16"/>
+          <path d="M142 39 A85 85 0 0 1 199 78" fill="none" stroke="#f4dc26" stroke-width="16"/>
+          <path d="M199 78 A85 85 0 0 1 215 120" fill="none" stroke="#ff6b57" stroke-width="16"/>
+          <text x="130" y="94" text-anchor="middle" fill="#dbe7ff" font-size="20">${escapeHtml(formatValue(value, panel.unit))}</text>
+          <text x="130" y="116" text-anchor="middle" fill="#7bc96f" font-size="10">current</text>
+        </svg>
+      `;
+    }
+
+    function renderDonutPreview(panel) {
+      return `
+        <svg class="preview-donut" viewBox="0 0 260 150" aria-hidden="true">
+          <circle cx="80" cy="76" r="44" fill="none" stroke="#68b36b" stroke-width="18" stroke-dasharray="155 276" transform="rotate(-90 80 76)"/>
+          <circle cx="80" cy="76" r="44" fill="none" stroke="#f2c230" stroke-width="18" stroke-dasharray="72 276" stroke-dashoffset="-155" transform="rotate(-90 80 76)"/>
+          <circle cx="80" cy="76" r="44" fill="none" stroke="#55a6f7" stroke-width="18" stroke-dasharray="49 276" stroke-dashoffset="-227" transform="rotate(-90 80 76)"/>
+          <text x="150" y="48" fill="#c6cfdd" font-size="12">Category A 56%</text>
+          <text x="150" y="74" fill="#c6cfdd" font-size="12">Category B 26%</text>
+          <text x="150" y="100" fill="#c6cfdd" font-size="12">Category C 18%</text>
+        </svg>
+      `;
+    }
+
+    function renderTablePreview() {
+      return `
+        <table class="preview-table">
+          <thead><tr><th>device</th><th>area</th><th>status</th><th>last_seen</th></tr></thead>
+          <tbody>
+            <tr><td>DEV-001</td><td>Line A</td><td style="color:#7bc96f;">ONLINE</td><td>09:31</td></tr>
+            <tr><td>DEV-002</td><td>Line B</td><td style="color:#f2c230;">WARN</td><td>09:27</td></tr>
+            <tr><td>DEV-003</td><td>Line C</td><td style="color:#ff6b57;">OFFLINE</td><td>09:10</td></tr>
+          </tbody>
+        </table>
+      `;
+    }
+
+    function renderPanelVisualization(panel) {
+      if (panel.visualization === "stat") {
+        const min = Number(panel.min);
+        const max = Number(panel.max);
+        const lo = Number.isFinite(min) ? min : 0;
+        const hi = Number.isFinite(max) && max > lo ? max : lo + 100;
+        return `<div class="preview-stat">${escapeHtml(formatValue(lo + (hi - lo) * 0.35, panel.unit))}</div>`;
+      }
+      if (panel.visualization === "gauge") return renderGaugePreview(panel);
+      if (panel.visualization === "piechart") return renderDonutPreview(panel);
+      if (panel.visualization === "table") return renderTablePreview(panel);
+      return renderTimeSeriesPreview(panel);
+    }
+
     function renderPreview() {
       const board = $("previewBoard");
       const summary = $("previewSummary");
@@ -450,7 +621,7 @@
       }
       const positions = previewPositions(state.panels);
       const maxRow = Math.max(...positions.map((pos) => pos.y + pos.h), 10);
-      board.style.gridTemplateRows = `repeat(${maxRow}, 18px)`;
+      board.style.gridTemplateRows = `repeat(${maxRow}, 24px)`;
       summary.textContent = `${state.panels.length} panels / ${$("folderUid").selectedOptions[0]?.textContent || "General / ルート"}`;
       board.innerHTML = "";
       state.panels.forEach((panel, index) => {
@@ -461,8 +632,8 @@
         el.style.gridRow = `${pos.y} / span ${pos.h}`;
         el.innerHTML = `
           <div class="preview-title">${escapeHtml(panel.title || `Panel ${index + 1}`)}</div>
-          <div class="preview-viz"></div>
-          <div class="preview-meta">${escapeHtml(panel.visualization)} / ${escapeHtml(panel.unit)} / W:${escapeHtml(panel.warningThreshold ?? "")} C:${escapeHtml(panel.criticalThreshold ?? "")}</div>
+          <div class="preview-body">${renderPanelVisualization(panel)}</div>
+          <div class="preview-meta">${escapeHtml(panel.visualization)} / W:${escapeHtml(panel.warningThreshold ?? "")} / C:${escapeHtml(panel.criticalThreshold ?? "")}</div>
         `;
         board.appendChild(el);
       });

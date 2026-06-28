@@ -106,6 +106,7 @@ https://ytsutsumi30.grafana.net
 プレビューでは、Grafana Cloudに作成する前に以下を確認できます。
 
 - ダッシュボード全体のパネル配置
+- Grafana風の時系列グラフ、Stat、Gauge、ドーナツ、Tableの画面イメージ
 - パネル数
 - 作成先Dashboard folder
 - パネルごとの可視化方式
