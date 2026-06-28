@@ -232,6 +232,11 @@
         <option value="iot">IoTデバイス監視</option>
       </select>
 
+      <label for="folderUid">Dashboard folder</label>
+      <select id="folderUid">
+        <option value="">General / ルート</option>
+      </select>
+
       <div class="actions">
         <button id="propose">パネル案作成</button>
         <button id="create" class="secondary" disabled>Grafana Cloud に作成</button>
@@ -262,7 +267,8 @@
   <script>
     const state = {
       proposal: null,
-      panels: []
+      panels: [],
+      folders: []
     };
 
     const $ = (id) => document.getElementById(id);
@@ -289,6 +295,31 @@
       return data;
     }
 
+    async function apiGet(path) {
+      if (window.location.protocol === "file:") {
+        throw new Error("この画面は http://localhost:4173/ から開いてください。file:// で直接開くとローカルAPIに接続できません。");
+      }
+      const response = await fetch(path);
+      const data = await response.json();
+      if (!response.ok || data.ok === false) {
+        throw new Error(data.error || "Request failed");
+      }
+      return data;
+    }
+
+    async function loadFolders() {
+      try {
+        const data = await apiGet("/api/folders");
+        state.folders = data.folders || [];
+        $("folderUid").innerHTML = state.folders
+          .map((folder) => `<option value="${escapeHtml(folder.uid)}">${escapeHtml(folder.title)}</option>`)
+          .join("");
+      } catch (error) {
+        $("folderUid").innerHTML = '<option value="">General / ルート</option>';
+        setStatus(`Dashboard folder の取得に失敗しました。General / ルートに作成します。\n${error.message}`, "error");
+      }
+    }
+
     function renderMeta() {
       if (!state.proposal) {
         $("dashboardName").textContent = "パネル案";
@@ -298,8 +329,9 @@
       const label = state.proposal.dashboardType === "iot" ? "IoTデバイス監視ダッシュボード" : "保全用ダッシュボード";
       $("dashboardName").textContent = `${state.proposal.industry} ${label}`;
       const url = `https://ytsutsumi30.grafana.net/d/${state.proposal.dashboardUid}/${state.proposal.dashboardSlug}`;
+      const folderTitle = $("folderUid").selectedOptions[0]?.textContent || "General / ルート";
       $("dashboardMeta").innerHTML =
-        `名前: ${escapeHtml(state.proposal.dashboardUid)}\nURL: <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`;
+        `名前: ${escapeHtml(state.proposal.dashboardUid)}\nFolder: ${escapeHtml(folderTitle)}\nURL: <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`;
     }
 
     function updatePanel(index, key, value) {
@@ -447,6 +479,7 @@
         const result = await api("/api/create-dashboard", {
           industry: $("industry").value.trim(),
           dashboardType: $("dashboardType").value,
+          folderUid: $("folderUid").value,
           panels: state.panels,
           overwrite: $("overwriteDashboard").checked
         });
@@ -461,6 +494,9 @@
         $("create").disabled = false;
       }
     });
+
+    $("folderUid").addEventListener("change", renderMeta);
+    loadFolders();
   </script>
 </body>
 </html>

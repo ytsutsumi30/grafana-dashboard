@@ -76,6 +76,7 @@ Browser
 - ダッシュボード種別
   - 製造ライン・設備保全
   - IoTデバイス監視
+- Dashboard folder
 
 パネル案作成時の動作:
 
@@ -91,12 +92,18 @@ Browser
 
 - 板金加工業者
 - プレス加工業者
+- 表面処理業者
+- 半導体関連製造業者
+- 自動車部品製造業者
+- 化学製造業者
+- 医薬品製造業者
 - 射出成形業者
 - 食品加工業者
 
 IoTデバイス監視:
 
 - 電力監視IoTデバイス
+- 物流倉庫IoT
 
 ### 6.3 未知業種AI生成
 
@@ -135,11 +142,12 @@ IoTデバイス監視:
 
 `Grafana Cloud に作成` ボタン押下時、以下を実行する。
 
-1. `testdata` datasourceの存在を確認する
-2. 存在しない場合はTestData datasourceを作成する
-3. 編集済みパネル案からGrafana dashboard JSONを生成する
-4. Grafana Cloud HTTP API `/api/dashboards/db` へPOSTする
-5. 作成されたダッシュボードURLをUIに表示する
+1. Dashboard folder選択値を取得する
+2. `testdata` datasourceの存在を確認する
+3. 存在しない場合はTestData datasourceを作成する
+4. 編集済みパネル案からGrafana dashboard JSONを生成する
+5. Grafana Cloud HTTP API `/api/dashboards/db` へPOSTする
+6. 作成されたダッシュボードURLをUIに表示する
 
 ### 6.6 上書き制御
 
@@ -178,7 +186,26 @@ Grafana Cloudへの接続状態を確認する。
 }
 ```
 
-### 7.2 `POST /api/propose`
+### 7.2 `GET /api/folders`
+
+Grafana CloudのDashboard folder一覧を取得する。
+
+レスポンス例:
+
+```json
+{
+  "ok": true,
+  "folders": [
+    {
+      "uid": "",
+      "title": "General / ルート",
+      "id": 0
+    }
+  ]
+}
+```
+
+### 7.3 `POST /api/propose`
 
 業種・種別に応じたパネル案を作成する。
 
@@ -204,7 +231,7 @@ Grafana Cloudへの接続状態を確認する。
 | `time` | Grafana time range |
 | `panels` | パネル案配列 |
 
-### 7.3 `POST /api/create-dashboard`
+### 7.4 `POST /api/create-dashboard`
 
 Grafana Cloudにダッシュボードを作成する。
 
@@ -214,6 +241,7 @@ Grafana Cloudにダッシュボードを作成する。
 {
   "industry": "板金加工業者",
   "dashboardType": "manufacturing",
+  "folderUid": "",
   "overwrite": false,
   "panels": [
     {

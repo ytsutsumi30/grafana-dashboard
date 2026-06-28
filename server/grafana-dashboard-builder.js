@@ -48,6 +48,81 @@ const manufacturingProfiles = [
     ]
   },
   {
+    match: ["表面処理", "めっき", "メッキ", "塗装", "surface treatment", "plating", "coating"],
+    slug: "surface-treatment",
+    focus: "表面処理業者",
+    panels: [
+      ["Bath Temperature", "timeseries", "celsius", 20, 75, "処理槽温度の安定性を監視"],
+      ["Bath pH", "timeseries", "short", 2, 12, "薬液pHの逸脱を監視"],
+      ["Line Speed", "timeseries", "velocityms", 0.05, 1.2, "搬送ライン速度を監視"],
+      ["Rectifier Current", "timeseries", "amp", 100, 2500, "整流器の電流負荷を監視"],
+      ["Rinse Water Conductivity", "timeseries", "short", 5, 500, "洗浄水の導電率を監視"],
+      ["Ambient Temperature", "stat", "celsius", 10, 40, "作業場温度の最新値"],
+      ["Ambient Humidity", "stat", "percent", 20, 85, "作業場湿度の最新値"],
+      ["Exhaust Fan Load", "gauge", "percent", 20, 100, "排気設備の負荷を監視"]
+    ]
+  },
+  {
+    match: ["半導体", "semiconductor", "クリーンルーム"],
+    slug: "semiconductor",
+    focus: "半導体関連製造業者",
+    panels: [
+      ["Cleanroom Temperature", "timeseries", "celsius", 20, 25, "クリーンルーム温度の安定性を監視"],
+      ["Cleanroom Humidity", "timeseries", "percent", 35, 55, "クリーンルーム湿度の安定性を監視"],
+      ["Particle Count", "timeseries", "short", 0, 1200, "パーティクル数の増加を監視"],
+      ["Tool Utilization", "gauge", "percent", 40, 98, "製造装置の稼働率を監視"],
+      ["Vacuum Pressure", "timeseries", "pressurembar", 0.001, 10, "真空圧の異常を監視"],
+      ["Chiller Temperature", "timeseries", "celsius", 5, 25, "チラー温度を監視"],
+      ["Motor Current", "timeseries", "amp", 5, 60, "搬送・補機の電流負荷を監視"],
+      ["Alarm Count", "stat", "short", 0, 20, "現在のアラーム件数を確認"]
+    ]
+  },
+  {
+    match: ["自動車", "車載", "automotive", "auto parts"],
+    slug: "automotive",
+    focus: "自動車部品製造業者",
+    panels: [
+      ["Line Throughput", "timeseries", "ops", 100, 1200, "ライン処理数を監視"],
+      ["Cycle Time", "timeseries", "s", 8, 45, "工程サイクルのばらつきを監視"],
+      ["Robot Servo Load", "timeseries", "percent", 10, 95, "ロボットサーボ負荷を監視"],
+      ["Welding Current", "timeseries", "amp", 500, 8000, "溶接電流の安定性を監視"],
+      ["Torque Result", "timeseries", "short", 5, 120, "締付トルクのばらつきを監視"],
+      ["Ambient Temperature", "stat", "celsius", 10, 40, "作業場温度の最新値"],
+      ["Reject Rate", "gauge", "percent", 0, 5, "不良率の最新状態を監視"],
+      ["Andon Alert Count", "stat", "short", 0, 12, "現在のアンドン呼び出し件数を確認"]
+    ]
+  },
+  {
+    match: ["化学", "chemical"],
+    slug: "chemical",
+    focus: "化学製造業者",
+    panels: [
+      ["Reactor Temperature", "timeseries", "celsius", 20, 180, "反応槽温度の推移を監視"],
+      ["Reactor Pressure", "timeseries", "pressurebar", 0, 12, "反応槽圧力の異常を監視"],
+      ["Agitator Current", "timeseries", "amp", 10, 150, "撹拌機の電流負荷を監視"],
+      ["Flow Rate", "timeseries", "flowlpm", 5, 800, "流量の変動を監視"],
+      ["Tank Level", "gauge", "percent", 0, 100, "タンク液位を監視"],
+      ["Ambient Temperature", "stat", "celsius", 10, 40, "設備周辺温度の最新値"],
+      ["Exhaust Fan Load", "timeseries", "percent", 20, 100, "排気設備負荷を監視"],
+      ["Alarm Count", "stat", "short", 0, 20, "現在のアラーム件数を確認"]
+    ]
+  },
+  {
+    match: ["医薬", "製薬", "pharmaceutical", "pharma"],
+    slug: "pharmaceutical",
+    focus: "医薬品製造業者",
+    panels: [
+      ["Room Temperature", "timeseries", "celsius", 18, 28, "管理区域の温度を監視"],
+      ["Room Humidity", "timeseries", "percent", 35, 65, "管理区域の湿度を監視"],
+      ["Differential Pressure", "timeseries", "pressurepa", 0, 80, "室間差圧を監視"],
+      ["Filling Weight", "timeseries", "massg", 90, 110, "充填重量のばらつきを監視"],
+      ["Line Speed", "timeseries", "ops", 50, 900, "包装・充填ライン速度を監視"],
+      ["Particle Count", "timeseries", "short", 0, 800, "清浄度の変化を監視"],
+      ["Reject Rate", "gauge", "percent", 0, 3, "不良率の最新状態を監視"],
+      ["Batch Alarm Count", "stat", "short", 0, 10, "現在バッチのアラーム件数を確認"]
+    ]
+  },
+  {
     match: ["成形", "射出", "樹脂", "molding", "injection"],
     slug: "injection-molding",
     focus: "射出成形業者",
@@ -142,6 +217,38 @@ const iotProfiles = [
         purpose: "IoTデバイスの通信状態を確認",
         scenarioId: "csv_content",
         csvContent: "device,area,status,last_seen,message\nPM-001,Machining Center,ONLINE,2026-06-14T09:31:12+09:00,collecting normally\nPM-002,Molding Machine,ONLINE,2026-06-14T09:31:08+09:00,collecting normally\nPM-003,Air Conditioning,WARN,2026-06-14T09:28:44+09:00,delayed heartbeat\nPM-004,2F Main Feeder,ONLINE,2026-06-14T09:31:02+09:00,collecting normally\nPM-005,Lighting,ONLINE,2026-06-14T09:30:58+09:00,collecting normally\nPM-006,Compressor,WARN,2026-06-14T09:27:31+09:00,packet loss detected\nPM-007,Elevator,OFFLINE,2026-06-14T09:12:10+09:00,no data for 19 minutes"
+      }
+    ]
+  },
+  {
+    match: ["物流", "倉庫", "warehouse", "logistics", "cold chain"],
+    slug: "logistics-warehouse",
+    focus: "物流倉庫IoT",
+    panels: [
+      ["Gateway Online Rate", "stat", "percent", 80, 100, "IoTゲートウェイのオンライン率を確認"],
+      ["Temperature Sensor Trend", "timeseries", "celsius", 0, 35, "保管エリア温度の推移を監視"],
+      ["Humidity Sensor Trend", "timeseries", "percent", 20, 85, "保管エリア湿度の推移を監視"],
+      ["Door Open Count", "timeseries", "short", 0, 120, "搬入口や冷蔵庫扉の開閉回数を監視"],
+      ["Battery Level", "gauge", "percent", 0, 100, "無線センサーの電池残量を監視"],
+      {
+        title: "Device Communication Status",
+        visualization: "table",
+        unit: "short",
+        min: 0,
+        max: 1,
+        purpose: "倉庫IoTデバイスの通信状態を確認",
+        scenarioId: "csv_content",
+        csvContent: "device,area,status,last_seen,message\nGW-001,Receiving,ONLINE,2026-06-14T09:31:12+09:00,collecting normally\nTEMP-014,Cold Storage,WARN,2026-06-14T09:27:44+09:00,delayed heartbeat\nDOOR-003,Shipping,ONLINE,2026-06-14T09:30:58+09:00,collecting normally\nBATT-021,Rack A,OFFLINE,2026-06-14T09:10:10+09:00,no data for 20 minutes"
+      },
+      {
+        title: "Area Occupancy",
+        visualization: "piechart",
+        unit: "percent",
+        min: 0,
+        max: 100,
+        purpose: "エリア別の滞留・利用状況を確認",
+        scenarioId: "csv_content",
+        csvContent: "area,percent\nReceiving,22\nStorage A,34\nStorage B,18\nCold Storage,11\nShipping,15"
       }
     ]
   }
@@ -730,6 +837,16 @@ async function ensureTestData() {
   }
 }
 
+async function listFolders() {
+  const folders = await grafana("/api/folders?limit=1000");
+  return [
+    { uid: "", title: "General / ルート", id: 0 },
+    ...folders
+      .map((folder) => ({ uid: folder.uid || "", title: folder.title || folder.uid || "Untitled", id: folder.id || 0 }))
+      .sort((a, b) => a.title.localeCompare(b.title, "ja"))
+  ];
+}
+
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
   res.writeHead(status, {
@@ -767,6 +884,11 @@ async function handleApi(req, res) {
       return;
     }
 
+    if (req.method === "GET" && req.url === "/api/folders") {
+      sendJson(res, 200, { ok: true, folders: await listFolders() });
+      return;
+    }
+
     if (req.method === "POST" && req.url === "/api/propose") {
       const body = await readBody(req);
       sendJson(res, 200, await hybridProposal(body.industry, body.dashboardType));
@@ -782,11 +904,12 @@ async function handleApi(req, res) {
       dashboard.uid = identity.uid;
       dashboard.title = identity.suffix ? `${dashboard.title} ${identity.suffix}` : dashboard.title;
       await ensureTestData();
+      const folderUid = typeof body.folderUid === "string" ? body.folderUid : "";
       const result = await grafana("/api/dashboards/db", {
         method: "POST",
         body: JSON.stringify({
           dashboard,
-          folderUid: "",
+          folderUid,
           message: `Create ${proposed.industry} maintenance dashboard from sales UI`,
           overwrite
         })
