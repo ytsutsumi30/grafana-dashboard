@@ -63,6 +63,7 @@ Browser
 | `VERTEX_AI_MODEL` | 任意 | `gemini-2.5-flash-lite` | パネル案生成に使うGeminiモデル |
 | `OPENAI_API_KEY` | OpenAI利用時必須 | なし | OpenAI APIを使う場合のAPIキー |
 | `OPENAI_MODEL` | 任意 | `gpt-4.1-mini` | OpenAIを使う場合のモデル |
+| `AI_ANALYSIS_CACHE_TTL_MS` | 任意 | `60000` | センサー故障診断AIコメントのキャッシュ時間 |
 
 `GRAFANA_SERVICE_ACCOUNT_TOKEN` と `GRAFANA_CLOUD_TOKEN` の両方が設定されている場合、`GRAFANA_SERVICE_ACCOUNT_TOKEN` を優先する。
 
@@ -183,6 +184,26 @@ sheet-metal-maintenance-demo_1
 sheet-metal-maintenance-demo_2
 ```
 
+### 6.8 AndroidセンサーAI故障診断
+
+Androidスマホを振動センサーとして使うデモでは、Cloud Run APIに蓄積された直近データから保全向けの故障兆候を判定する。
+
+判定対象:
+
+- 振動加速度の平均、最大値、標準偏差
+- タップまたは衝撃イベント数
+- 通信停止またはデータ鮮度
+- バッテリー残量
+
+判定方式:
+
+1. サーバー側のルールで `riskScore` と `riskLevel` を計算する
+2. Vertex AI GeminiまたはOpenAI APIで日本語の保全コメントを生成する
+3. AI呼び出しに失敗した場合はルール判定ベースの固定コメントを返す
+4. Grafanaの短周期更新でAI費用が増えないよう、AIコメントは `AI_ANALYSIS_CACHE_TTL_MS` の間キャッシュする
+
+Grafana Cloudでは、Infinity datasourceから `/api/ai/failure-risk` を読み、`AI Maintenance Insight` パネルに表示する。
+
 ## 7. API仕様
 
 ### 7.1 `GET /api/health`
@@ -286,6 +307,56 @@ Grafana Cloudにダッシュボードを作成する。
   "url": "https://ytsutsumi30.grafana.net/d/sheet-metal-maintenance-demo/sheet-metal-machine-maintenance-demo"
 }
 ```
+
+### 7.5 `GET /api/ai/failure-risk`
+
+Grafana Infinity datasource向けに、Androidセンサーの故障兆候診断を取得する。
+
+クエリ例:
+
+```text
+/api/ai/failure-risk?deviceId=android-demo-001&windowMinutes=10
+```
+
+レスポンス例:
+
+```json
+{
+  "ok": true,
+  "data": [
+    {
+      "deviceId": "android-demo-001",
+      "windowMinutes": 10,
+      "riskLevel": "WARN",
+      "riskScore": 62,
+      "sampleCount": 240,
+      "maxMagnitude": 14.2,
+      "shockCount": 4,
+      "summary": "通常より振動変動が大きくなっています。",
+      "possibleCause": "軽微な揺れ、取り付け状態の変化、周辺振動の影響が考えられます。",
+      "recommendedAction": "直近トレンドを継続確認してください。",
+      "aiProvider": "vertex",
+      "aiCached": false
+    }
+  ]
+}
+```
+
+### 7.6 `POST /api/ai/failure-risk`
+
+ブラウザUIのAI故障診断デモ向けに、Androidセンサーの故障兆候診断を実行する。
+
+リクエスト例:
+
+```json
+{
+  "deviceId": "android-demo-001",
+  "windowMinutes": 10,
+  "useAi": true
+}
+```
+
+`useAi` を `false` にすると、生成AIを呼ばずルール判定のみを返す。
 
 ## 8. Grafana Dashboard生成仕様
 

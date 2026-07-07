@@ -257,8 +257,80 @@
       {
         "id": 7,
         "type": "table",
-        "title": "Device Communication Status",
+        "title": "AI Maintenance Insight",
         "gridPos": { "x": 0, "y": 22, "w": 24, "h": 7 },
+        "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
+        "targets": [
+          {
+            "refId": "A",
+            "type": "json",
+            "source": "url",
+            "url": "__API_BASE_URL__/api/ai/failure-risk?deviceId=android-demo-001&windowMinutes=10",
+            "url_options": { "method": "GET" },
+            "parser": "backend",
+            "root_selector": "data",
+            "format": "table",
+            "columns": [
+              { "selector": "generatedAt", "text": "generatedAt", "type": "timestamp" },
+              { "selector": "riskLevel", "text": "riskLevel", "type": "string" },
+              { "selector": "riskScore", "text": "riskScore", "type": "number" },
+              { "selector": "summary", "text": "summary", "type": "string" },
+              { "selector": "possibleCause", "text": "possibleCause", "type": "string" },
+              { "selector": "recommendedAction", "text": "recommendedAction", "type": "string" },
+              { "selector": "aiProvider", "text": "aiProvider", "type": "string" }
+            ]
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" } } },
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "riskLevel" },
+              "properties": [
+                { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+                {
+                  "id": "mappings",
+                  "value": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "OK": { "color": "green", "index": 0 },
+                        "INFO": { "color": "blue", "index": 1 },
+                        "WARN": { "color": "yellow", "index": 2 },
+                        "CRITICAL": { "color": "red", "index": 3 }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "matcher": { "id": "byName", "options": "riskScore" },
+              "properties": [
+                { "id": "unit", "value": "percent" },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "color": "green", "value": null },
+                      { "color": "blue", "value": 20 },
+                      { "color": "yellow", "value": 50 },
+                      { "color": "red", "value": 80 }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "options": { "showHeader": true, "cellHeight": "md", "footer": { "show": false } }
+      },
+      {
+        "id": 8,
+        "type": "table",
+        "title": "Device Communication Status",
+        "gridPos": { "x": 0, "y": 29, "w": 24, "h": 7 },
         "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
         "targets": [
           {

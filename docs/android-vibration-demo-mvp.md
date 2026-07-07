@@ -13,6 +13,7 @@ Android app
   -> POST /api/mobile-sensor
   -> Cloud Run receiver
   -> In-memory recent samples
+  -> AI failure-risk analysis
   -> Grafana Cloud Infinity datasource
   -> Android Vibration Sensor Demo dashboard
 ```
@@ -51,6 +52,8 @@ POST /api/mobile-sensor
 GET  /api/mobile-sensor/history
 GET  /api/mobile-sensor/latest
 GET  /api/mobile-sensor/metrics
+GET  /api/ai/failure-risk
+POST /api/ai/failure-risk
 ```
 
 `/api/mobile-sensor/history` returns recent samples for Grafana Infinity.
@@ -58,6 +61,8 @@ GET  /api/mobile-sensor/metrics
 `/api/mobile-sensor/latest` returns the latest row per device.
 
 `/api/mobile-sensor/metrics` exposes a Prometheus text view for debugging or future scraping.
+
+`/api/ai/failure-risk` calculates a maintenance risk score from recent sensor samples. It uses rule-based checks for vibration, shock events, stale communication, and battery level. When Vertex AI or OpenAI is configured, it also generates Japanese maintenance comments for Grafana and the browser UI. AI comments are cached for a short period to avoid calling the model on every Grafana refresh.
 
 ### Grafana dashboard
 
@@ -87,6 +92,7 @@ Panels:
 - Vibration Trend
 - Acceleration XYZ
 - Shock Events
+- AI Maintenance Insight
 - Device Communication Status
 
 ## Sample payload
@@ -157,11 +163,39 @@ https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app/api/mobile-sensor
 4. Keep the phone still and show a stable signal.
 5. Shake the phone and show the vibration trend.
 6. Tap the screen and show shock events.
-7. Press Stop.
+7. Show the AI Maintenance Insight panel.
+8. Use the browser UI AI故障診断デモ button to preview the same risk summary.
+9. Press Stop.
+
+## AI failure-risk example
+
+Request:
+
+```powershell
+$base="https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app"
+Invoke-RestMethod "$base/api/ai/failure-risk?deviceId=android-demo-001&windowMinutes=10"
+```
+
+Response fields:
+
+```text
+riskLevel
+riskScore
+summary
+possibleCause
+recommendedAction
+aiProvider
+sampleCount
+maxMagnitude
+shockCount
+```
+
+The diagnosis is for demo and maintenance assistance. It does not confirm an actual failure by itself.
 
 ## MVP limits
 
 - Data is stored in Cloud Run memory only.
 - Data can be lost when Cloud Run restarts.
 - The dashboard is for a live sales demo, not long-term storage.
+- The AI diagnosis is an assistance feature based on simple statistics and generated comments.
 - For production, replace memory storage with Grafana Cloud Metrics, InfluxDB, BigQuery, or another time-series store.

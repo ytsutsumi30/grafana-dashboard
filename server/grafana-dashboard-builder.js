@@ -16,9 +16,11 @@ const ROOT = path.resolve(__dirname, "..");
 const PUBLIC_DIR = path.join(ROOT, "public");
 const VISUALIZATIONS = new Set(["timeseries", "stat", "gauge", "piechart", "table"]);
 const MOBILE_SENSOR_MAX_POINTS = Number(process.env.MOBILE_SENSOR_MAX_POINTS || 5000);
+const AI_ANALYSIS_CACHE_TTL_MS = Number(process.env.AI_ANALYSIS_CACHE_TTL_MS || 60000);
 const mobileSensorState = {
   points: [],
-  devices: new Map()
+  devices: new Map(),
+  aiAnalysisCache: new Map()
 };
 
 const manufacturingProfiles = [
@@ -1014,6 +1016,264 @@ function mobileSensorPrometheusText() {
   return `${lines.join("\n")}\n`;
 }
 
+function average(values) {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
+function standardDeviation(values) {
+  if (values.length < 2) return 0;
+  const avg = average(values);
+  return Math.sqrt(average(values.map((value) => (value - avg) ** 2)));
+}
+
+function roundNumber(value, digits = 2) {
+  const multiplier = 10 ** digits;
+  return Math.round((Number(value) || 0) * multiplier) / multiplier;
+}
+
+function maintenanceAnalysisSchema() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["summary", "possibleCause", "recommendedAction"],
+    properties: {
+      summary: { type: "string" },
+      possibleCause: { type: "string" },
+      recommendedAction: { type: "string" }
+    }
+  };
+}
+
+function deterministicMaintenanceText(stats) {
+  if (!stats.sampleCount) {
+    return {
+      summary: "センサーデータがまだ受信されていません。",
+      possibleCause: "Androidアプリが停止している、またはCloud Run APIへ送信されていない可能性があります。",
+      recommendedAction: "AndroidアプリのStart状態、API URL、ネットワーク接続を確認してください。"
+    };
+  }
+  if (stats.status === "OFFLINE" || stats.staleSeconds > 120) {
+    return {
+      summary: "デバイス通信が途切れている可能性があります。",
+      possibleCause: "端末のスリープ、通信断、アプリ停止、またはCloud Runの再起動が考えられます。",
+      recommendedAction: "端末の画面ON状態、アプリの送信状態、Cloud Runの稼働状態を確認してください。"
+    };
+  }
+  if (stats.riskLevel === "CRITICAL") {
+    return {
+      summary: "振動または衝撃イベントが高い状態です。",
+      possibleCause: "設備の固定ゆるみ、軸受劣化、設置面の変化、突発的な衝撃が考えられます。",
+      recommendedAction: "デモではスマホを強く振った状態です。本番設備では停止タイミングで固定部、軸受、潤滑、異音を点検してください。"
+    };
+  }
+  if (stats.riskLevel === "WARN") {
+    return {
+      summary: "通常より振動変動が大きくなっています。",
+      possibleCause: "軽微な揺れ、取り付け状態の変化、周辺振動の影響が考えられます。",
+      recommendedAction: "直近トレンドを継続確認し、同時に電流・温度・騒音も上昇する場合は保全確認を行ってください。"
+    };
+  }
+  if (stats.riskLevel === "INFO") {
+    return {
+      summary: "軽微な振動変化を検出しています。",
+      possibleCause: "スマホの移動、画面タップ、周辺振動などの一時的な変化が考えられます。",
+      recommendedAction: "デモではこの状態からスマホをさらに振り、WARNまたはCRITICALへの変化を確認してください。"
+    };
+  }
+  return {
+    summary: "直近の振動状態は安定しています。",
+    possibleCause: "大きな衝撃や通信異常は検出されていません。",
+    recommendedAction: "デモではスマホを振る、または画面をタップして波形と診断結果の変化を確認してください。"
+  };
+}
+
+function buildMaintenanceStats(deviceId, windowMinutes) {
+  const cleanId = cleanDeviceId(deviceId);
+  const minutes = Math.max(1, Math.min(120, Number(windowMinutes) || 10));
+  const now = Date.now();
+  const windowStart = now - minutes * 60 * 1000;
+  const rows = mobileSensorHistory(2000, cleanId).filter((point) => point.epochMs >= windowStart);
+  const latest = rows.length ? rows[rows.length - 1] : mobileSensorState.devices.get(cleanId);
+  const magnitudes = rows.map((point) => point.accelMagnitude);
+  const shocks = rows.filter((point) => point.shock).length;
+  const tapDelta = rows.length ? Math.max(0, rows[rows.length - 1].tapCount - rows[0].tapCount) : 0;
+  const maxMagnitude = magnitudes.length ? Math.max(...magnitudes) : 0;
+  const avgMagnitude = average(magnitudes);
+  const stdMagnitude = standardDeviation(magnitudes);
+  const staleSeconds = latest?.epochMs ? Math.max(0, Math.round((now - latest.epochMs) / 1000)) : 0;
+  const status = latest?.status || "NO_DATA";
+  let riskScore = 0;
+
+  if (!rows.length) riskScore += 10;
+  if (status === "OFFLINE") riskScore += 80;
+  if (staleSeconds > 120) riskScore += 55;
+  else if (staleSeconds > 30) riskScore += 25;
+  if (maxMagnitude >= 16) riskScore += 35;
+  else if (maxMagnitude >= 12) riskScore += 20;
+  if (avgMagnitude >= 12) riskScore += 20;
+  if (stdMagnitude >= 2.5) riskScore += 25;
+  else if (stdMagnitude >= 1.2) riskScore += 12;
+  if (shocks >= 10 || tapDelta >= 10) riskScore += 25;
+  else if (shocks >= 3 || tapDelta >= 3) riskScore += 12;
+  if ((latest?.batteryPercent || 100) < 20) riskScore += 10;
+
+  riskScore = Math.max(0, Math.min(100, Math.round(riskScore)));
+  const riskLevel = riskScore >= 80 ? "CRITICAL" : riskScore >= 50 ? "WARN" : riskScore >= 20 ? "INFO" : "OK";
+  return {
+    deviceId: cleanId,
+    windowMinutes: minutes,
+    riskLevel,
+    riskScore,
+    sampleCount: rows.length,
+    latestTime: latest?.time || "",
+    staleSeconds,
+    status,
+    avgMagnitude: roundNumber(avgMagnitude),
+    maxMagnitude: roundNumber(maxMagnitude),
+    stdMagnitude: roundNumber(stdMagnitude),
+    shockCount: shocks,
+    tapDelta,
+    batteryPercent: roundNumber(latest?.batteryPercent || 0, 0)
+  };
+}
+
+function maintenancePrompt(stats) {
+  return [
+    "Android smartphone accelerometer data is used as a vibration sensor demo for maintenance sales.",
+    "Create concise Japanese maintenance comments for a Grafana dashboard.",
+    "Do not claim a real failure is confirmed. Present likely causes and next actions.",
+    `Stats: ${JSON.stringify(stats)}`
+  ].join("\n");
+}
+
+async function maintenanceTextWithVertex(stats) {
+  if (!VERTEX_AI_PROJECT) {
+    throw new Error("VERTEX_AI_PROJECT or GOOGLE_CLOUD_PROJECT is not set.");
+  }
+  const token = await getGoogleAccessToken();
+  const host = VERTEX_AI_LOCATION === "global" ? "aiplatform.googleapis.com" : `${VERTEX_AI_LOCATION}-aiplatform.googleapis.com`;
+  const endpoint = `https://${host}/v1/projects/${encodeURIComponent(VERTEX_AI_PROJECT)}/locations/${encodeURIComponent(VERTEX_AI_LOCATION)}/publishers/google/models/${encodeURIComponent(VERTEX_AI_MODEL)}:generateContent`;
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      systemInstruction: {
+        parts: [
+          {
+            text:
+              "You write concise Japanese maintenance diagnostics for Grafana panels. Return only JSON matching the schema."
+          }
+        ]
+      },
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: maintenancePrompt(stats) }]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: "application/json",
+        responseSchema: maintenanceAnalysisSchema()
+      }
+    })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error?.message || `Vertex AI returned ${response.status}`);
+  }
+  return JSON.parse(extractVertexText(data));
+}
+
+async function maintenanceTextWithOpenAi(stats) {
+  if (!OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not set.");
+  }
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      input: [
+        {
+          role: "system",
+          content:
+            "You write concise Japanese maintenance diagnostics for Grafana panels. Return only data matching the JSON schema."
+        },
+        {
+          role: "user",
+          content: maintenancePrompt(stats)
+        }
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "maintenance_diagnostic",
+          strict: true,
+          schema: maintenanceAnalysisSchema()
+        }
+      }
+    })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error?.message || `OpenAI API returned ${response.status}`);
+  }
+  return JSON.parse(extractResponseText(data));
+}
+
+async function buildFailureRiskAnalysis(deviceId = "android-demo-001", windowMinutes = 10, useAi = true) {
+  const stats = buildMaintenanceStats(deviceId, windowMinutes);
+  const cacheKey = `${stats.deviceId}:${stats.windowMinutes}`;
+  const cached = mobileSensorState.aiAnalysisCache.get(cacheKey);
+  if (useAi && cached && Date.now() - cached.cachedAt < AI_ANALYSIS_CACHE_TTL_MS) {
+    return {
+      ...stats,
+      ...cached.text,
+      aiProvider: cached.aiProvider,
+      aiCached: true,
+      generatedAt: cached.generatedAt
+    };
+  }
+
+  let text = deterministicMaintenanceText(stats);
+  let aiProvider = "rules";
+  if (useAi) {
+    try {
+      text = AI_PROVIDER === "openai" ? await maintenanceTextWithOpenAi(stats) : await maintenanceTextWithVertex(stats);
+      aiProvider = AI_PROVIDER;
+    } catch (error) {
+      text = {
+        ...text,
+        recommendedAction: `${text.recommendedAction} AIコメント生成は失敗したため、ルール判定を表示しています。原因: ${error.message}`
+      };
+    }
+  }
+
+  const generatedAt = new Date().toISOString();
+  if (useAi) {
+    mobileSensorState.aiAnalysisCache.set(cacheKey, {
+      cachedAt: Date.now(),
+      generatedAt,
+      aiProvider,
+      text
+    });
+  }
+  return {
+    ...stats,
+    ...text,
+    aiProvider,
+    aiCached: false,
+    generatedAt
+  };
+}
+
 async function handleApi(req, res) {
   try {
     if (req.method === "OPTIONS") {
@@ -1061,6 +1321,29 @@ async function handleApi(req, res) {
         "Access-Control-Allow-Origin": "*"
       });
       res.end(body);
+      return;
+    }
+
+    if (req.method === "GET" && req.url.startsWith("/api/ai/failure-risk")) {
+      const parsed = new URL(req.url, "http://localhost");
+      const useAi = parsed.searchParams.get("ai") !== "false";
+      const analysis = await buildFailureRiskAnalysis(
+        parsed.searchParams.get("deviceId") || "android-demo-001",
+        parsed.searchParams.get("windowMinutes") || 10,
+        useAi
+      );
+      sendJson(res, 200, { ok: true, data: [analysis] });
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/ai/failure-risk") {
+      const body = await readBody(req);
+      const analysis = await buildFailureRiskAnalysis(
+        body.deviceId || "android-demo-001",
+        body.windowMinutes || 10,
+        body.useAi !== false
+      );
+      sendJson(res, 200, { ok: true, ...analysis });
       return;
     }
 

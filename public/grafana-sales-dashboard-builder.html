@@ -156,6 +156,18 @@
     .status.ok { border-color: rgba(47, 191, 113, 0.5); color: #baf4d1; }
     .status.error { border-color: rgba(255, 92, 122, 0.5); color: #ffc2cc; }
 
+    .mini-fields {
+      display: grid;
+      grid-template-columns: 1fr 92px;
+      gap: 8px;
+    }
+
+    .ai-box {
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+    }
+
     .toolbar {
       display: flex;
       justify-content: space-between;
@@ -348,6 +360,24 @@
       </label>
 
       <div id="status" class="status">業種を入力してパネル案を作成してください。</div>
+
+      <div class="ai-box">
+        <h2>AI故障診断デモ</h2>
+        <div class="mini-fields">
+          <div>
+            <label for="aiDeviceId">Device ID</label>
+            <input id="aiDeviceId" value="android-demo-001">
+          </div>
+          <div>
+            <label for="aiWindowMinutes">分</label>
+            <input id="aiWindowMinutes" type="number" min="1" max="120" value="10">
+          </div>
+        </div>
+        <div class="actions">
+          <button id="analyzeRisk" class="secondary">AI診断を実行</button>
+        </div>
+        <div id="aiStatus" class="status">Androidセンサー送信後に診断できます。</div>
+      </div>
     </aside>
 
     <main>
@@ -740,6 +770,12 @@
         .replaceAll('"', "&quot;");
     }
 
+    function setAiStatus(message, kind = "") {
+      const el = $("aiStatus");
+      el.className = `status ${kind}`;
+      el.textContent = message;
+    }
+
     $("propose").addEventListener("click", async () => {
       const industry = $("industry").value.trim();
       if (!industry) {
@@ -777,6 +813,30 @@
         latestOnly: false
       });
       renderPanels();
+    });
+
+    $("analyzeRisk").addEventListener("click", async () => {
+      $("analyzeRisk").disabled = true;
+      setAiStatus("AI診断を実行しています...");
+      try {
+        const result = await api("/api/ai/failure-risk", {
+          deviceId: $("aiDeviceId").value.trim() || "android-demo-001",
+          windowMinutes: Number($("aiWindowMinutes").value || 10),
+          useAi: true
+        });
+        const kind = result.riskLevel === "CRITICAL" || result.riskLevel === "WARN" ? "error" : "ok";
+        setAiStatus(
+          `Risk: ${result.riskLevel} / ${result.riskScore}\n` +
+          `Provider: ${result.aiProvider}${result.aiCached ? " cached" : ""}\n` +
+          `Samples: ${result.sampleCount}, Max: ${result.maxMagnitude} m/s2, Shock: ${result.shockCount}\n\n` +
+          `${result.summary}\n\n原因候補: ${result.possibleCause}\n推奨対応: ${result.recommendedAction}`,
+          kind
+        );
+      } catch (error) {
+        setAiStatus(error.message, "error");
+      } finally {
+        $("analyzeRisk").disabled = false;
+      }
     });
 
     $("create").addEventListener("click", async () => {
