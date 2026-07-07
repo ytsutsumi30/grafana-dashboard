@@ -7,6 +7,7 @@
 - [Grafana Cloud 製造業向けダッシュボード作成支援ツール 仕様書](docs/dashboard-builder-specification.md)
 - [営業担当者向け Grafana Cloud ダッシュボード提案ツール 利用ガイド](docs/sales-user-guide.md)
 - [Android Vibration Sensor Demo MVP](docs/android-vibration-demo-mvp.md)
+- [Project Skill Application Plan](docs/skill-application-plan.md)
 
 対象記事:
 https://blog.elcamy.com/articles/0f371c89
