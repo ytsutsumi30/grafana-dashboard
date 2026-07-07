@@ -370,6 +370,8 @@ $env:OPENAI_API_KEY="<OpenAI API Key>"
 
 Androidスマホ振動センサーデモでは、直近のセンサー履歴から故障兆候をルール判定し、Vertex AIまたはOpenAIで保全コメントを生成できます。Grafanaの `AI Maintenance Insight` パネルと、ブラウザUIの `AI故障診断デモ` から確認できます。
 
+また、ブラウザUIの `AIログ解析デモ` では、パネル案作成、Grafana作成、センサー受信、APIエラーなどのアプリ内イベントログをAIで要約し、原因候補と推奨対応を確認できます。
+
 例として `板金加工業者` を入力した場合、ダッシュボード名は以下になります。
 
 ```text

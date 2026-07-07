@@ -378,6 +378,21 @@
         </div>
         <div id="aiStatus" class="status">Androidセンサー送信後に診断できます。</div>
       </div>
+
+      <div class="ai-box">
+        <h2>AIログ解析デモ</h2>
+        <div class="mini-fields">
+          <div>
+            <label for="logLimit">解析イベント数</label>
+            <input id="logLimit" type="number" min="1" max="500" value="100">
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="analyzeLog" class="secondary">解析</button>
+          </div>
+        </div>
+        <div id="logStatus" class="status">UI/API操作後にログ解析できます。</div>
+      </div>
     </aside>
 
     <main>
@@ -776,6 +791,12 @@
       el.textContent = message;
     }
 
+    function setLogStatus(message, kind = "") {
+      const el = $("logStatus");
+      el.className = `status ${kind}`;
+      el.textContent = message;
+    }
+
     $("propose").addEventListener("click", async () => {
       const industry = $("industry").value.trim();
       if (!industry) {
@@ -836,6 +857,29 @@
         setAiStatus(error.message, "error");
       } finally {
         $("analyzeRisk").disabled = false;
+      }
+    });
+
+    $("analyzeLog").addEventListener("click", async () => {
+      $("analyzeLog").disabled = true;
+      setLogStatus("AIログ解析を実行しています...");
+      try {
+        const result = await api("/api/ai/analyze-log", {
+          limit: Number($("logLimit").value || 100),
+          useAi: true
+        });
+        const kind = result.riskLevel === "CRITICAL" || result.riskLevel === "WARN" ? "error" : "ok";
+        setLogStatus(
+          `Risk: ${result.riskLevel} / ${result.riskScore}\n` +
+          `Provider: ${result.aiProvider}${result.aiCached ? " cached" : ""}\n` +
+          `Events: ${result.eventCount}, Errors: ${result.errorCount}, Recent errors: ${result.recentErrorCount}\n\n` +
+          `${result.summary}\n\n原因候補: ${result.likelyCause}\n推奨対応: ${result.recommendedAction}`,
+          kind
+        );
+      } catch (error) {
+        setLogStatus(error.message, "error");
+      } finally {
+        $("analyzeLog").disabled = false;
       }
     });
 

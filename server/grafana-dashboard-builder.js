@@ -17,10 +17,15 @@ const PUBLIC_DIR = path.join(ROOT, "public");
 const VISUALIZATIONS = new Set(["timeseries", "stat", "gauge", "piechart", "table"]);
 const MOBILE_SENSOR_MAX_POINTS = Number(process.env.MOBILE_SENSOR_MAX_POINTS || 5000);
 const AI_ANALYSIS_CACHE_TTL_MS = Number(process.env.AI_ANALYSIS_CACHE_TTL_MS || 60000);
+const APP_LOG_MAX_EVENTS = Number(process.env.APP_LOG_MAX_EVENTS || 500);
 const mobileSensorState = {
   points: [],
   devices: new Map(),
   aiAnalysisCache: new Map()
+};
+const appLogState = {
+  events: [],
+  aiLogCache: new Map()
 };
 
 const manufacturingProfiles = [
@@ -1031,6 +1036,252 @@ function roundNumber(value, digits = 2) {
   return Math.round((Number(value) || 0) * multiplier) / multiplier;
 }
 
+function truncateText(value, maxLength = 500) {
+  const text = String(value || "");
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+}
+
+function recordAppEvent(type, detail = {}) {
+  const event = {
+    time: new Date().toISOString(),
+    epochMs: Date.now(),
+    type: truncateText(type, 80),
+    level: detail.level === "error" ? "error" : detail.level === "warn" ? "warn" : "info",
+    message: truncateText(detail.message || type, 300),
+    route: truncateText(detail.route || "", 120),
+    deviceId: detail.deviceId ? cleanDeviceId(detail.deviceId) : "",
+    dashboardUid: truncateText(detail.dashboardUid || "", 120),
+    dashboardType: truncateText(detail.dashboardType || "", 80),
+    industry: truncateText(detail.industry || "", 120),
+    statusCode: Number.isFinite(Number(detail.statusCode)) ? Number(detail.statusCode) : 0,
+    durationMs: Number.isFinite(Number(detail.durationMs)) ? Number(detail.durationMs) : 0
+  };
+  appLogState.events.push(event);
+  if (appLogState.events.length > APP_LOG_MAX_EVENTS) {
+    appLogState.events.splice(0, appLogState.events.length - APP_LOG_MAX_EVENTS);
+  }
+  return event;
+}
+
+function recentAppEvents(limit = 100) {
+  return appLogState.events.slice(-Math.max(1, Math.min(500, Number(limit) || 100)));
+}
+
+function logAnalysisSchema() {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["summary", "riskLevel", "likelyCause", "recommendedAction"],
+    properties: {
+      summary: { type: "string" },
+      riskLevel: { type: "string" },
+      likelyCause: { type: "string" },
+      recommendedAction: { type: "string" }
+    }
+  };
+}
+
+function summarizeLogStats(events) {
+  const now = Date.now();
+  const errors = events.filter((event) => event.level === "error");
+  const warnings = events.filter((event) => event.level === "warn");
+  const byType = {};
+  const byRoute = {};
+  for (const event of events) {
+    byType[event.type] = (byType[event.type] || 0) + 1;
+    if (event.route) byRoute[event.route] = (byRoute[event.route] || 0) + 1;
+  }
+  const latest = events.length ? events[events.length - 1] : null;
+  const recentErrors = errors.filter((event) => now - event.epochMs <= 30 * 60 * 1000);
+  let riskLevel = "OK";
+  let riskScore = 0;
+  if (recentErrors.length >= 5) riskScore += 75;
+  else if (recentErrors.length >= 2) riskScore += 50;
+  else if (recentErrors.length === 1) riskScore += 30;
+  if (warnings.length >= 5) riskScore += 20;
+  if (events.length === 0) riskScore = 10;
+  riskScore = Math.min(100, riskScore);
+  if (riskScore >= 75) riskLevel = "CRITICAL";
+  else if (riskScore >= 50) riskLevel = "WARN";
+  else if (riskScore >= 20) riskLevel = "INFO";
+  return {
+    eventCount: events.length,
+    errorCount: errors.length,
+    warningCount: warnings.length,
+    recentErrorCount: recentErrors.length,
+    riskLevel,
+    riskScore,
+    latestTime: latest?.time || "",
+    latestMessage: latest?.message || "",
+    byType,
+    byRoute,
+    sampleEvents: events.slice(-20)
+  };
+}
+
+function deterministicLogAnalysis(stats) {
+  if (!stats.eventCount) {
+    return {
+      summary: "解析対象のアプリイベントログがまだありません。",
+      riskLevel: "INFO",
+      likelyCause: "Cloud Run起動直後、またはまだUI/API操作が行われていない状態です。",
+      recommendedAction: "パネル案作成、ダッシュボード作成、Androidセンサー送信、AI診断を実行してから再度確認してください。"
+    };
+  }
+  if (stats.riskLevel === "CRITICAL" || stats.riskLevel === "WARN") {
+    return {
+      summary: `直近ログにエラーが${stats.recentErrorCount}件あります。`,
+      riskLevel: stats.riskLevel,
+      likelyCause: "Grafana API、Vertex AI、ネットワーク、入力値、または認証設定の問題が考えられます。",
+      recommendedAction: "最新エラーのrouteとmessageを確認し、Grafana token、Vertex AI権限、Cloud Run環境変数、入力データを確認してください。"
+    };
+  }
+  return {
+    summary: "直近のアプリイベントログに大きな異常はありません。",
+    riskLevel: stats.riskLevel,
+    likelyCause: "主要APIは正常に処理されています。",
+    recommendedAction: "営業デモでは、失敗時の説明例としてGrafana APIエラーやAI生成失敗のケースを意図的に確認できます。"
+  };
+}
+
+function logAnalysisPrompt(stats) {
+  return [
+    "You are analyzing recent app events for a Grafana dashboard builder sales demo.",
+    "Write concise Japanese operational diagnostics.",
+    "Do not expose secrets. Focus on likely causes and next actions.",
+    `Stats and events: ${JSON.stringify(stats).slice(0, 8000)}`
+  ].join("\n");
+}
+
+async function logAnalysisWithVertex(stats) {
+  if (!VERTEX_AI_PROJECT) {
+    throw new Error("VERTEX_AI_PROJECT or GOOGLE_CLOUD_PROJECT is not set.");
+  }
+  const token = await getGoogleAccessToken();
+  const host = VERTEX_AI_LOCATION === "global" ? "aiplatform.googleapis.com" : `${VERTEX_AI_LOCATION}-aiplatform.googleapis.com`;
+  const endpoint = `https://${host}/v1/projects/${encodeURIComponent(VERTEX_AI_PROJECT)}/locations/${encodeURIComponent(VERTEX_AI_LOCATION)}/publishers/google/models/${encodeURIComponent(VERTEX_AI_MODEL)}:generateContent`;
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      systemInstruction: {
+        parts: [
+          {
+            text:
+              "You write concise Japanese diagnostics for app logs. Return only JSON matching the schema."
+          }
+        ]
+      },
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: logAnalysisPrompt(stats) }]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: "application/json",
+        responseSchema: logAnalysisSchema()
+      }
+    })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error?.message || `Vertex AI returned ${response.status}`);
+  }
+  return JSON.parse(extractVertexText(data));
+}
+
+async function logAnalysisWithOpenAi(stats) {
+  if (!OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not set.");
+  }
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      input: [
+        {
+          role: "system",
+          content:
+            "You write concise Japanese diagnostics for app logs. Return only data matching the JSON schema."
+        },
+        {
+          role: "user",
+          content: logAnalysisPrompt(stats)
+        }
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: "app_log_analysis",
+          strict: true,
+          schema: logAnalysisSchema()
+        }
+      }
+    })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error?.message || `OpenAI API returned ${response.status}`);
+  }
+  return JSON.parse(extractResponseText(data));
+}
+
+async function buildLogAnalysis(limit = 100, useAi = true) {
+  const events = recentAppEvents(limit);
+  const stats = summarizeLogStats(events);
+  const cacheKey = `${limit}:${stats.eventCount}:${stats.latestTime}`;
+  const cached = appLogState.aiLogCache.get(cacheKey);
+  if (useAi && cached && Date.now() - cached.cachedAt < AI_ANALYSIS_CACHE_TTL_MS) {
+    return {
+      ...stats,
+      ...cached.text,
+      aiProvider: cached.aiProvider,
+      aiCached: true,
+      generatedAt: cached.generatedAt
+    };
+  }
+
+  let text = deterministicLogAnalysis(stats);
+  let aiProvider = "rules";
+  if (useAi) {
+    try {
+      text = AI_PROVIDER === "openai" ? await logAnalysisWithOpenAi(stats) : await logAnalysisWithVertex(stats);
+      aiProvider = AI_PROVIDER;
+    } catch (error) {
+      text = {
+        ...text,
+        recommendedAction: `${text.recommendedAction} AIログ解析は失敗したため、ルール判定を表示しています。原因: ${error.message}`
+      };
+    }
+  }
+
+  const generatedAt = new Date().toISOString();
+  if (useAi) {
+    appLogState.aiLogCache.set(cacheKey, {
+      cachedAt: Date.now(),
+      generatedAt,
+      aiProvider,
+      text
+    });
+  }
+  return {
+    ...stats,
+    ...text,
+    aiProvider,
+    aiCached: false,
+    generatedAt
+  };
+}
+
 function maintenanceAnalysisSchema() {
   return {
     type: "object",
@@ -1296,6 +1547,11 @@ async function handleApi(req, res) {
       const body = await readBody(req);
       const point = buildMobileSensorPoint(body);
       storeMobileSensorPoint(point);
+      recordAppEvent("mobile_sensor_received", {
+        route: "/api/mobile-sensor",
+        deviceId: point.deviceId,
+        message: `Sensor sample accepted. magnitude=${roundNumber(point.accelMagnitude)} shock=${point.shock}`
+      });
       sendJson(res, 200, { ok: true, accepted: point });
       return;
     }
@@ -1332,6 +1588,12 @@ async function handleApi(req, res) {
         parsed.searchParams.get("windowMinutes") || 10,
         useAi
       );
+      recordAppEvent("ai_failure_risk_analyzed", {
+        route: "/api/ai/failure-risk",
+        deviceId: analysis.deviceId,
+        level: analysis.riskLevel === "CRITICAL" ? "error" : analysis.riskLevel === "WARN" ? "warn" : "info",
+        message: `Failure risk ${analysis.riskLevel} score=${analysis.riskScore}`
+      });
       sendJson(res, 200, { ok: true, data: [analysis] });
       return;
     }
@@ -1343,6 +1605,43 @@ async function handleApi(req, res) {
         body.windowMinutes || 10,
         body.useAi !== false
       );
+      recordAppEvent("ai_failure_risk_analyzed", {
+        route: "/api/ai/failure-risk",
+        deviceId: analysis.deviceId,
+        level: analysis.riskLevel === "CRITICAL" ? "error" : analysis.riskLevel === "WARN" ? "warn" : "info",
+        message: `Failure risk ${analysis.riskLevel} score=${analysis.riskScore}`
+      });
+      sendJson(res, 200, { ok: true, ...analysis });
+      return;
+    }
+
+    if (req.method === "GET" && req.url.startsWith("/api/logs/recent")) {
+      const parsed = new URL(req.url, "http://localhost");
+      sendJson(res, 200, { ok: true, data: recentAppEvents(parsed.searchParams.get("limit") || 100) });
+      return;
+    }
+
+    if (req.method === "GET" && req.url.startsWith("/api/ai/analyze-log")) {
+      const parsed = new URL(req.url, "http://localhost");
+      const useAi = parsed.searchParams.get("ai") !== "false";
+      const analysis = await buildLogAnalysis(parsed.searchParams.get("limit") || 100, useAi);
+      recordAppEvent("ai_log_analyzed", {
+        route: "/api/ai/analyze-log",
+        level: analysis.riskLevel === "CRITICAL" ? "error" : analysis.riskLevel === "WARN" ? "warn" : "info",
+        message: `Log analysis ${analysis.riskLevel} events=${analysis.eventCount} errors=${analysis.errorCount}`
+      });
+      sendJson(res, 200, { ok: true, data: [analysis] });
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/ai/analyze-log") {
+      const body = await readBody(req);
+      const analysis = await buildLogAnalysis(body.limit || 100, body.useAi !== false);
+      recordAppEvent("ai_log_analyzed", {
+        route: "/api/ai/analyze-log",
+        level: analysis.riskLevel === "CRITICAL" ? "error" : analysis.riskLevel === "WARN" ? "warn" : "info",
+        message: `Log analysis ${analysis.riskLevel} events=${analysis.eventCount} errors=${analysis.errorCount}`
+      });
       sendJson(res, 200, { ok: true, ...analysis });
       return;
     }
@@ -1354,7 +1653,16 @@ async function handleApi(req, res) {
 
     if (req.method === "POST" && req.url === "/api/propose") {
       const body = await readBody(req);
-      sendJson(res, 200, await hybridProposal(body.industry, body.dashboardType));
+      const proposal = await hybridProposal(body.industry, body.dashboardType);
+      recordAppEvent("dashboard_proposed", {
+        route: "/api/propose",
+        industry: proposal.industry,
+        dashboardType: proposal.dashboardType,
+        dashboardUid: proposal.dashboardUid,
+        level: proposal.warning ? "warn" : "info",
+        message: `Proposal created by ${proposal.source}`
+      });
+      sendJson(res, 200, proposal);
       return;
     }
 
@@ -1378,6 +1686,13 @@ async function handleApi(req, res) {
         })
       });
       const url = result.url ? `${GRAFANA_URL}${result.url}` : `${GRAFANA_URL}/d/${identity.uid}/${identity.slug}`;
+      recordAppEvent("dashboard_created", {
+        route: "/api/create-dashboard",
+        industry: proposed.industry,
+        dashboardType: proposed.dashboardType,
+        dashboardUid: identity.uid,
+        message: `Dashboard created. overwrite=${overwrite}`
+      });
       sendJson(res, 200, {
         ok: true,
         name: identity.uid,
@@ -1391,6 +1706,12 @@ async function handleApi(req, res) {
 
     sendJson(res, 404, { ok: false, error: "Not found" });
   } catch (error) {
+    recordAppEvent("api_error", {
+      route: req.url,
+      level: "error",
+      message: error.message,
+      statusCode: 500
+    });
     sendJson(res, 500, { ok: false, error: error.message });
   }
 }
