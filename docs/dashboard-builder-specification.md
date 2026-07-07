@@ -488,6 +488,28 @@ Grafana Infinity datasource向けに、アプリ内イベントログのAI解析
 - IoTデバイス通信状態テーブル
 - 日別電力推移の固定デモデータ
 
+### 8.5 Androidセンサー / AIデモダッシュボード
+
+Android振動センサーデモ用の `android-vibration-sensor-demo` は、TestDataではなくGrafana CloudのInfinity datasourceを使用する。
+
+Datasource:
+
+```text
+grafanacloud-infinity
+```
+
+Cloud Run JSON API:
+
+- `/api/mobile-sensor/latest`
+- `/api/mobile-sensor/history`
+- `/api/ai/failure-risk`
+- `/api/ai/analyze-log`
+
+AI関連パネル:
+
+- `AI Maintenance Insight`: センサー履歴から故障兆候、原因候補、推奨対応を表示
+- `AI App Log Analysis`: アプリ内イベントログからデモ運用状態、エラー傾向、推奨対応を表示
+
 ## 9. セキュリティ仕様
 
 ### 9.1 認証情報

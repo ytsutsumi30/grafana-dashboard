@@ -93,6 +93,7 @@ Panels:
 - Acceleration XYZ
 - Shock Events
 - AI Maintenance Insight
+- AI App Log Analysis
 - Device Communication Status
 
 ## Sample payload
@@ -164,8 +165,9 @@ https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app/api/mobile-sensor
 5. Shake the phone and show the vibration trend.
 6. Tap the screen and show shock events.
 7. Show the AI Maintenance Insight panel.
-8. Use the browser UI AI故障診断デモ button to preview the same risk summary.
-9. Press Stop.
+8. Show the AI App Log Analysis panel.
+9. Use the browser UI AI故障診断デモ and AIログ解析デモ buttons to preview the same summaries.
+10. Press Stop.
 
 ## AI failure-risk example
 
