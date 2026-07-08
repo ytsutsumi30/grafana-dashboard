@@ -1,0 +1,33 @@
+name: Validate
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check server/grafana-dashboard-builder.js
+          node --check scripts/setup-android-vibration-dashboard.js
+          node --check scripts/setup-shipping-inspection-dashboard.js
+          node --check scripts/validate-repository.js
+          node --check scripts/validate-shipping-inspection-api.js
+
+      - name: Validate dashboard JSON
+        run: node scripts/validate-repository.js

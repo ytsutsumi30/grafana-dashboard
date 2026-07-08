@@ -402,6 +402,14 @@ $env:SHIPPING_INSPECTION_API_BASE_URL="https://grafana-dashboard-builder-pjvjufz
 node scripts/validate-shipping-inspection-api.js
 ```
 
+リポジトリ内のダッシュボードJSON検証:
+
+```powershell
+node scripts/validate-repository.js
+```
+
+GitHub Actionsでは、Node.js構文チェックとダッシュボードJSON検証をpush / pull request時に実行します。
+
 Dashboard UID:
 
 ```text
