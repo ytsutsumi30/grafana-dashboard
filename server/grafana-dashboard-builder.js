@@ -1073,6 +1073,29 @@ function resetMobileSensorData(deviceId = "") {
   };
 }
 
+async function runDemoScenario(options = {}) {
+  const deviceId = cleanDeviceId(options.deviceId || "android-demo-001");
+  const mode = ["normal", "warn", "critical"].includes(String(options.mode || "").toLowerCase())
+    ? String(options.mode).toLowerCase()
+    : "warn";
+  const count = Math.max(10, Math.min(1000, Math.trunc(numberOrDefault(options.count, 240))));
+  const reset = resetMobileSensorData(deviceId);
+  const generated = generateDemoSensorData({
+    deviceId,
+    mode,
+    count,
+    intervalMs: options.intervalMs || 1000
+  });
+  const analysis = await buildFailureRiskAnalysis(deviceId, options.windowMinutes || 10, options.useAi !== false);
+  return {
+    deviceId,
+    mode,
+    reset,
+    generated,
+    analysis
+  };
+}
+
 function prometheusLine(name, labels, value, epochMs) {
   const labelText = Object.entries(labels)
     .map(([key, labelValue]) => `${key}="${String(labelValue).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`)
@@ -1679,6 +1702,19 @@ async function handleApi(req, res) {
         route: "/api/mobile-sensor/reset",
         deviceId: result.deviceId,
         message: `Reset ${result.resetScope} sensor data. removedPoints=${result.removedPoints} removedDevices=${result.removedDevices}`
+      });
+      sendJson(res, 200, { ok: true, ...result });
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/mobile-sensor/demo-scenario") {
+      const body = await readBody(req);
+      const result = await runDemoScenario(body);
+      recordAppEvent("mobile_sensor_demo_scenario", {
+        route: "/api/mobile-sensor/demo-scenario",
+        deviceId: result.deviceId,
+        level: result.analysis.riskLevel === "CRITICAL" ? "warn" : "info",
+        message: `Scenario ${result.mode} completed. risk=${result.analysis.riskLevel} score=${result.analysis.riskScore}`
       });
       sendJson(res, 200, { ok: true, ...result });
       return;

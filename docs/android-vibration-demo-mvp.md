@@ -54,6 +54,7 @@ GET  /api/mobile-sensor/latest
 GET  /api/mobile-sensor/metrics
 POST /api/mobile-sensor/demo-data
 POST /api/mobile-sensor/reset
+POST /api/mobile-sensor/demo-scenario
 GET  /api/ai/failure-risk
 POST /api/ai/failure-risk
 ```
@@ -67,6 +68,8 @@ POST /api/ai/failure-risk
 `/api/mobile-sensor/demo-data` generates synthetic Android vibration samples in Cloud Run memory. It is useful when an Android phone is not available during a sales demo.
 
 `/api/mobile-sensor/reset` clears recent sensor samples for one device or all devices. It is useful before starting a clean demo.
+
+`/api/mobile-sensor/demo-scenario` runs reset, demo data generation, and AI failure-risk analysis in one call.
 
 `/api/ai/failure-risk` calculates a maintenance risk score from recent sensor samples. It uses rule-based checks for vibration, shock events, stale communication, and battery level. When Vertex AI or OpenAI is configured, it also generates Japanese maintenance comments for Grafana and the browser UI. AI comments are cached for a short period to avoid calling the model on every Grafana refresh.
 
@@ -165,7 +168,7 @@ https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app/api/mobile-sensor
 ## Demo flow
 
 1. Open the Grafana dashboard.
-2. Use the browser UI 波形をリセット button to clear previous demo data.
+2. Use the browser UI シナリオ実行 button for the fastest demo path.
 3. If an Android phone is available, start the Android app and press Start.
 4. If an Android phone is not available, use the browser UI デモ波形生成 button.
 5. Keep the phone still or generate `正常` data and show a stable signal.
@@ -202,6 +205,21 @@ Reset request:
 $base="https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app"
 $payload=@{ deviceId="android-demo-001" } | ConvertTo-Json
 Invoke-RestMethod "$base/api/mobile-sensor/reset" -Method Post -ContentType "application/json" -Body $payload
+```
+
+One-click scenario request:
+
+```powershell
+$base="https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app"
+$payload=@{
+  deviceId="android-demo-001"
+  mode="critical"
+  count=240
+  intervalMs=1000
+  windowMinutes=10
+  useAi=$true
+} | ConvertTo-Json
+Invoke-RestMethod "$base/api/mobile-sensor/demo-scenario" -Method Post -ContentType "application/json" -Body $payload
 ```
 
 ## AI failure-risk example

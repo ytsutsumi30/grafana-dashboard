@@ -396,6 +396,7 @@
           </div>
         </div>
         <div class="actions">
+          <button id="runDemoScenario">シナリオ実行</button>
           <button id="generateDemoData" class="secondary">波形を生成</button>
           <button id="resetDemoData" class="secondary">波形をリセット</button>
         </div>
@@ -910,6 +911,42 @@
         setDemoDataStatus(error.message, "error");
       } finally {
         $("generateDemoData").disabled = false;
+      }
+    });
+
+    $("runDemoScenario").addEventListener("click", async () => {
+      $("runDemoScenario").disabled = true;
+      setDemoDataStatus("デモシナリオを実行しています...");
+      try {
+        const result = await api("/api/mobile-sensor/demo-scenario", {
+          deviceId: $("aiDeviceId").value.trim() || "android-demo-001",
+          mode: $("demoMode").value,
+          count: Number($("demoCount").value || 240),
+          intervalMs: 1000,
+          windowMinutes: Number($("aiWindowMinutes").value || 10),
+          useAi: true
+        });
+        const analysis = result.analysis;
+        const kind = analysis.riskLevel === "CRITICAL" || analysis.riskLevel === "WARN" ? "error" : "ok";
+        setDemoDataStatus(
+          `Scenario: ${result.mode}\n` +
+          `Samples: ${result.generated.count}, Max: ${result.generated.maxMagnitude} m/s2, Shock: ${result.generated.shockCount}\n` +
+          `Risk: ${analysis.riskLevel} / ${analysis.riskScore}\n\n` +
+          `${analysis.summary}\n\n` +
+          `Grafanaダッシュボードを更新すると、シナリオ結果を確認できます。`,
+          kind
+        );
+        setAiStatus(
+          `Risk: ${analysis.riskLevel} / ${analysis.riskScore}\n` +
+          `Provider: ${analysis.aiProvider}${analysis.aiCached ? " cached" : ""}\n` +
+          `Samples: ${analysis.sampleCount}, Max: ${analysis.maxMagnitude} m/s2, Shock: ${analysis.shockCount}\n\n` +
+          `${analysis.summary}\n\n原因候補: ${analysis.possibleCause}\n推奨対応: ${analysis.recommendedAction}`,
+          kind
+        );
+      } catch (error) {
+        setDemoDataStatus(error.message, "error");
+      } finally {
+        $("runDemoScenario").disabled = false;
       }
     });
 
