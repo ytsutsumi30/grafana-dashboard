@@ -380,6 +380,28 @@
       </div>
 
       <div class="ai-box">
+        <h2>デモ波形生成</h2>
+        <div class="mini-fields">
+          <div>
+            <label for="demoMode">状態</label>
+            <select id="demoMode">
+              <option value="normal">正常</option>
+              <option value="warn" selected>注意</option>
+              <option value="critical">異常</option>
+            </select>
+          </div>
+          <div>
+            <label for="demoCount">点数</label>
+            <input id="demoCount" type="number" min="10" max="1000" value="240">
+          </div>
+        </div>
+        <div class="actions">
+          <button id="generateDemoData" class="secondary">波形を生成</button>
+        </div>
+        <div id="demoDataStatus" class="status">Android実機なしでGrafana波形を生成できます。</div>
+      </div>
+
+      <div class="ai-box">
         <h2>AIログ解析デモ</h2>
         <div class="mini-fields">
           <div>
@@ -797,6 +819,12 @@
       el.textContent = message;
     }
 
+    function setDemoDataStatus(message, kind = "") {
+      const el = $("demoDataStatus");
+      el.className = `status ${kind}`;
+      el.textContent = message;
+    }
+
     $("propose").addEventListener("click", async () => {
       const industry = $("industry").value.trim();
       if (!industry) {
@@ -857,6 +885,30 @@
         setAiStatus(error.message, "error");
       } finally {
         $("analyzeRisk").disabled = false;
+      }
+    });
+
+    $("generateDemoData").addEventListener("click", async () => {
+      $("generateDemoData").disabled = true;
+      setDemoDataStatus("デモ波形を生成しています...");
+      try {
+        const result = await api("/api/mobile-sensor/demo-data", {
+          deviceId: $("aiDeviceId").value.trim() || "android-demo-001",
+          mode: $("demoMode").value,
+          count: Number($("demoCount").value || 240),
+          intervalMs: 1000
+        });
+        setDemoDataStatus(
+          `Mode: ${result.mode}\n` +
+          `Samples: ${result.count}, Max: ${result.maxMagnitude} m/s2, Shock: ${result.shockCount}\n` +
+          `Range: ${result.firstTime} - ${result.lastTime}\n\n` +
+          `Grafanaダッシュボードを更新すると、生成した波形を確認できます。`,
+          "ok"
+        );
+      } catch (error) {
+        setDemoDataStatus(error.message, "error");
+      } finally {
+        $("generateDemoData").disabled = false;
       }
     });
 

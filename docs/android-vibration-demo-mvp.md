@@ -52,6 +52,7 @@ POST /api/mobile-sensor
 GET  /api/mobile-sensor/history
 GET  /api/mobile-sensor/latest
 GET  /api/mobile-sensor/metrics
+POST /api/mobile-sensor/demo-data
 GET  /api/ai/failure-risk
 POST /api/ai/failure-risk
 ```
@@ -61,6 +62,8 @@ POST /api/ai/failure-risk
 `/api/mobile-sensor/latest` returns the latest row per device.
 
 `/api/mobile-sensor/metrics` exposes a Prometheus text view for debugging or future scraping.
+
+`/api/mobile-sensor/demo-data` generates synthetic Android vibration samples in Cloud Run memory. It is useful when an Android phone is not available during a sales demo.
 
 `/api/ai/failure-risk` calculates a maintenance risk score from recent sensor samples. It uses rule-based checks for vibration, shock events, stale communication, and battery level. When Vertex AI or OpenAI is configured, it also generates Japanese maintenance comments for Grafana and the browser UI. AI comments are cached for a short period to avoid calling the model on every Grafana refresh.
 
@@ -159,15 +162,35 @@ https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app/api/mobile-sensor
 ## Demo flow
 
 1. Open the Grafana dashboard.
-2. Start the Android app.
-3. Press Start.
-4. Keep the phone still and show a stable signal.
-5. Shake the phone and show the vibration trend.
-6. Tap the screen and show shock events.
-7. Show the AI Maintenance Insight panel.
-8. Show the AI App Log Analysis panel.
-9. Use the browser UI AI故障診断デモ and AIログ解析デモ buttons to preview the same summaries.
-10. Press Stop.
+2. If an Android phone is available, start the Android app and press Start.
+3. If an Android phone is not available, use the browser UI デモ波形生成 button.
+4. Keep the phone still or generate `正常` data and show a stable signal.
+5. Shake the phone, tap the screen, or generate `注意` / `異常` data and show the vibration trend.
+6. Show the AI Maintenance Insight panel.
+7. Show the AI App Log Analysis panel.
+8. Use the browser UI AI故障診断デモ and AIログ解析デモ buttons to preview the same summaries.
+9. Press Stop when using the Android app.
+
+## Demo data generation
+
+Request:
+
+```powershell
+$base="https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app"
+$payload=@{
+  deviceId="android-demo-001"
+  mode="warn"
+  count=240
+  intervalMs=1000
+} | ConvertTo-Json
+Invoke-RestMethod "$base/api/mobile-sensor/demo-data" -Method Post -ContentType "application/json" -Body $payload
+```
+
+Modes:
+
+- `normal`: stable waveform
+- `warn`: elevated vibration and occasional shock events
+- `critical`: high vibration, stronger shocks, and WARN communication status near the end
 
 ## AI failure-risk example
 

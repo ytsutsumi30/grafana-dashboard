@@ -994,6 +994,65 @@ function mobileSensorHistory(limit = 500, deviceId = "") {
   return rows.slice(-Math.max(1, Math.min(2000, Number(limit) || 500)));
 }
 
+function demoWaveValue(index, total, mode) {
+  const phase = (index / Math.max(1, total - 1)) * Math.PI * 8;
+  const base = mode === "critical" ? 13.4 : mode === "warn" ? 11.2 : 9.82;
+  const amplitude = mode === "critical" ? 4.2 : mode === "warn" ? 2.1 : 0.25;
+  const trend = mode === "critical" ? (index / Math.max(1, total - 1)) * 2.4 : mode === "warn" ? (index / Math.max(1, total - 1)) * 0.9 : 0;
+  const pulse = mode !== "normal" && index % 17 === 0 ? (mode === "critical" ? 5.5 : 2.8) : 0;
+  return Math.max(0.01, base + Math.sin(phase) * amplitude + Math.sin(phase / 3) * amplitude * 0.35 + trend + pulse);
+}
+
+function generateDemoSensorData(options = {}) {
+  const deviceId = cleanDeviceId(options.deviceId || "android-demo-001");
+  const mode = ["normal", "warn", "critical"].includes(String(options.mode || "").toLowerCase())
+    ? String(options.mode).toLowerCase()
+    : "warn";
+  const count = Math.max(10, Math.min(1000, Math.trunc(numberOrDefault(options.count, 240))));
+  const intervalMs = Math.max(100, Math.min(10000, Math.trunc(numberOrDefault(options.intervalMs, 1000))));
+  const now = Date.now();
+  const start = now - (count - 1) * intervalMs;
+  const baseTap = Math.max(0, Math.trunc(numberOrDefault(options.startTapCount, 0)));
+  const points = [];
+  let tapCount = baseTap;
+
+  for (let index = 0; index < count; index += 1) {
+    const magnitude = demoWaveValue(index, count, mode);
+    const shock = mode === "critical" ? index % 13 === 0 || magnitude >= 16 : mode === "warn" ? index % 37 === 0 || magnitude >= 13 : false;
+    if (shock) tapCount += 1;
+    const angle = index / 8;
+    const accelX = Math.sin(angle) * magnitude * 0.28;
+    const accelY = Math.cos(angle / 1.7) * magnitude * 0.22;
+    const accelZ = Math.sqrt(Math.max(0.01, magnitude * magnitude - accelX * accelX - accelY * accelY));
+    const point = buildMobileSensorPoint({
+      deviceId,
+      timestamp: new Date(start + index * intervalMs).toISOString(),
+      accelX,
+      accelY,
+      accelZ,
+      accelMagnitude: magnitude,
+      shock,
+      tapCount,
+      batteryPercent: Math.max(5, mode === "critical" ? 58 - index / count * 8 : 82 - index / count * 3),
+      status: mode === "critical" && index > count * 0.9 ? "WARN" : "ONLINE"
+    });
+    storeMobileSensorPoint(point);
+    points.push(point);
+  }
+
+  mobileSensorState.aiAnalysisCache.clear();
+  return {
+    deviceId,
+    mode,
+    count,
+    intervalMs,
+    firstTime: points[0]?.time || "",
+    lastTime: points[points.length - 1]?.time || "",
+    maxMagnitude: roundNumber(Math.max(...points.map((point) => point.accelMagnitude))),
+    shockCount: points.filter((point) => point.shock).length
+  };
+}
+
 function prometheusLine(name, labels, value, epochMs) {
   const labelText = Object.entries(labels)
     .map(([key, labelValue]) => `${key}="${String(labelValue).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`)
@@ -1577,6 +1636,19 @@ async function handleApi(req, res) {
         "Access-Control-Allow-Origin": "*"
       });
       res.end(body);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/mobile-sensor/demo-data") {
+      const body = await readBody(req);
+      const result = generateDemoSensorData(body);
+      recordAppEvent("mobile_sensor_demo_generated", {
+        route: "/api/mobile-sensor/demo-data",
+        deviceId: result.deviceId,
+        level: result.mode === "critical" ? "warn" : "info",
+        message: `Generated ${result.count} ${result.mode} demo sensor samples. max=${result.maxMagnitude} shocks=${result.shockCount}`
+      });
+      sendJson(res, 200, { ok: true, ...result });
       return;
     }
 
