@@ -8,6 +8,7 @@
 - [営業担当者向け Grafana Cloud ダッシュボード提案ツール 利用ガイド](docs/sales-user-guide.md)
 - [Android Vibration Sensor Demo MVP](docs/android-vibration-demo-mvp.md)
 - [出荷検品アプリ監視ダッシュボード デモガイド](docs/shipping-inspection-demo-guide.md)
+- [出荷検品アプリ監視API 契約書](docs/shipping-inspection-api-contract.md)
 - [Project Skill Application Plan](docs/skill-application-plan.md)
 
 対象記事:

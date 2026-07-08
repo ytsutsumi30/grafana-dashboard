@@ -80,6 +80,8 @@ GET /api/monitoring/grafana-cloud/operation-insights
 GET /api/monitoring/grafana-cloud/alert-status
 ```
 
+各エンドポイントのフィールド定義は [出荷検品アプリ監視API 契約書](shipping-inspection-api-contract.md) を参照する。
+
 ## 注意点
 
 - 現在のPoCデータはCloud Run側の固定モックデータ。
