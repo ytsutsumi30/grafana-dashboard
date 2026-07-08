@@ -395,6 +395,13 @@ $env:SHIPPING_INSPECTION_API_BASE_URL="https://grafana-dashboard-builder-pjvjufz
 node scripts/setup-shipping-inspection-dashboard.js
 ```
 
+API契約の検証:
+
+```powershell
+$env:SHIPPING_INSPECTION_API_BASE_URL="https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app"
+node scripts/validate-shipping-inspection-api.js
+```
+
 Dashboard UID:
 
 ```text

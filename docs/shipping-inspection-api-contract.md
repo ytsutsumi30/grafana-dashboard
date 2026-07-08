@@ -154,8 +154,16 @@ Fields:
 1. 本番APIが上記フィールド名でJSON配列を返す
 2. Grafana CloudからBase URLへ到達できる
 3. CORSまたは認証方式がInfinity datasourceからのアクセスを妨げない
-4. `scripts/setup-shipping-inspection-dashboard.js` で再投入する
-5. Grafana Cloudで各パネルがNo dataにならないことを確認する
+4. `scripts/validate-shipping-inspection-api.js` でAPI契約を検証する
+5. `scripts/setup-shipping-inspection-dashboard.js` で再投入する
+6. Grafana Cloudで各パネルがNo dataにならないことを確認する
+
+検証コマンド:
+
+```powershell
+$env:SHIPPING_INSPECTION_API_BASE_URL="<出荷検品アプリのAPI URL>"
+node scripts/validate-shipping-inspection-api.js
+```
 
 ## PoCモックAPI
 
