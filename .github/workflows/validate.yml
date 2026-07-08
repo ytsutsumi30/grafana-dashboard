@@ -31,3 +31,6 @@ jobs:
 
       - name: Validate dashboard JSON
         run: node scripts/validate-repository.js
+
+      - name: Build Cloud Run container
+        run: docker build -t grafana-dashboard-builder:ci .
