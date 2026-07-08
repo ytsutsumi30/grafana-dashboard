@@ -397,6 +397,7 @@
         </div>
         <div class="actions">
           <button id="generateDemoData" class="secondary">波形を生成</button>
+          <button id="resetDemoData" class="secondary">波形をリセット</button>
         </div>
         <div id="demoDataStatus" class="status">Android実機なしでGrafana波形を生成できます。</div>
       </div>
@@ -909,6 +910,27 @@
         setDemoDataStatus(error.message, "error");
       } finally {
         $("generateDemoData").disabled = false;
+      }
+    });
+
+    $("resetDemoData").addEventListener("click", async () => {
+      $("resetDemoData").disabled = true;
+      setDemoDataStatus("デモ波形をリセットしています...");
+      try {
+        const result = await api("/api/mobile-sensor/reset", {
+          deviceId: $("aiDeviceId").value.trim() || "android-demo-001"
+        });
+        setDemoDataStatus(
+          `Reset: ${result.resetScope}\n` +
+          `Removed points: ${result.removedPoints}\n` +
+          `Removed devices: ${result.removedDevices}\n\n` +
+          `Grafanaダッシュボードを更新すると、リセット後の状態を確認できます。`,
+          "ok"
+        );
+      } catch (error) {
+        setDemoDataStatus(error.message, "error");
+      } finally {
+        $("resetDemoData").disabled = false;
       }
     });
 

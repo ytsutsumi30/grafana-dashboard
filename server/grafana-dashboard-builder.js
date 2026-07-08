@@ -1053,6 +1053,26 @@ function generateDemoSensorData(options = {}) {
   };
 }
 
+function resetMobileSensorData(deviceId = "") {
+  const cleanId = deviceId ? cleanDeviceId(deviceId) : "";
+  const beforePoints = mobileSensorState.points.length;
+  const beforeDevices = mobileSensorState.devices.size;
+  if (cleanId) {
+    mobileSensorState.points = mobileSensorState.points.filter((point) => point.deviceId !== cleanId);
+    mobileSensorState.devices.delete(cleanId);
+  } else {
+    mobileSensorState.points = [];
+    mobileSensorState.devices.clear();
+  }
+  mobileSensorState.aiAnalysisCache.clear();
+  return {
+    deviceId: cleanId,
+    resetScope: cleanId ? "device" : "all",
+    removedPoints: beforePoints - mobileSensorState.points.length,
+    removedDevices: beforeDevices - mobileSensorState.devices.size
+  };
+}
+
 function prometheusLine(name, labels, value, epochMs) {
   const labelText = Object.entries(labels)
     .map(([key, labelValue]) => `${key}="${String(labelValue).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`)
@@ -1647,6 +1667,18 @@ async function handleApi(req, res) {
         deviceId: result.deviceId,
         level: result.mode === "critical" ? "warn" : "info",
         message: `Generated ${result.count} ${result.mode} demo sensor samples. max=${result.maxMagnitude} shocks=${result.shockCount}`
+      });
+      sendJson(res, 200, { ok: true, ...result });
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/mobile-sensor/reset") {
+      const body = await readBody(req);
+      const result = resetMobileSensorData(body.deviceId || "");
+      recordAppEvent("mobile_sensor_reset", {
+        route: "/api/mobile-sensor/reset",
+        deviceId: result.deviceId,
+        message: `Reset ${result.resetScope} sensor data. removedPoints=${result.removedPoints} removedDevices=${result.removedDevices}`
       });
       sendJson(res, 200, { ok: true, ...result });
       return;
