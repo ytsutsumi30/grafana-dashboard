@@ -110,9 +110,81 @@
       },
       {
         "id": 3,
+        "type": "table",
+        "title": "Alert Status",
+        "gridPos": { "x": 0, "y": 4, "w": 24, "h": 6 },
+        "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
+        "targets": [
+          {
+            "refId": "A",
+            "type": "json",
+            "source": "url",
+            "url": "__API_BASE_URL__/api/monitoring/grafana-cloud/alert-status",
+            "url_options": { "method": "GET" },
+            "parser": "backend",
+            "root_selector": "",
+            "format": "table",
+            "columns": [
+              { "selector": "area", "text": "area", "type": "string" },
+              { "selector": "status", "text": "status", "type": "string" },
+              { "selector": "severity", "text": "severity", "type": "number" },
+              { "selector": "message", "text": "message", "type": "string" },
+              { "selector": "owner", "text": "owner", "type": "string" },
+              { "selector": "updated_at", "text": "updated_at", "type": "timestamp" }
+            ]
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" } } },
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "status" },
+              "properties": [
+                { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+                {
+                  "id": "mappings",
+                  "value": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "OK": { "color": "green", "index": 0 },
+                        "WARN": { "color": "yellow", "index": 1 },
+                        "CRITICAL": { "color": "red", "index": 2 }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "matcher": { "id": "byName", "options": "severity" },
+              "properties": [
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "color": "green", "value": null },
+                      { "color": "yellow", "value": 2 },
+                      { "color": "red", "value": 3 }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "showHeader": true,
+          "cellHeight": "sm",
+          "footer": { "show": false }
+        }
+      },
+      {
+        "id": 4,
         "type": "barchart",
         "title": "Open Workload",
-        "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+        "gridPos": { "x": 0, "y": 10, "w": 12, "h": 8 },
         "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
         "targets": [
           {
@@ -158,10 +230,10 @@
         }
       },
       {
-        "id": 4,
+        "id": 5,
         "type": "timeseries",
         "title": "Operation Events Daily",
-        "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+        "gridPos": { "x": 12, "y": 10, "w": 12, "h": 8 },
         "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
         "targets": [
           {
@@ -208,10 +280,10 @@
         }
       },
       {
-        "id": 5,
+        "id": 6,
         "type": "table",
         "title": "Inventory Count Variance",
-        "gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
+        "gridPos": { "x": 0, "y": 18, "w": 24, "h": 8 },
         "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
         "targets": [
           {
@@ -254,10 +326,10 @@
         }
       },
       {
-        "id": 6,
+        "id": 7,
         "type": "table",
         "title": "Operation Insights",
-        "gridPos": { "x": 0, "y": 20, "w": 24, "h": 8 },
+        "gridPos": { "x": 0, "y": 26, "w": 24, "h": 8 },
         "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
         "targets": [
           {

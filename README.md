@@ -401,6 +401,7 @@ shipping-inspection-minimal-monitoring
 
 - API / DB Health
 - Business KPIs
+- Alert Status
 - Open Workload
 - Operation Events Daily
 - Inventory Count Variance

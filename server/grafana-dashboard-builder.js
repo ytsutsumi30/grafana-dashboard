@@ -1722,6 +1722,43 @@ function shippingOperationInsightRows() {
   ];
 }
 
+function shippingAlertStatusRows() {
+  return [
+    {
+      area: "API / DB",
+      status: "OK",
+      severity: 0,
+      message: "API and database health checks are passing.",
+      owner: "Platform",
+      updated_at: new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    },
+    {
+      area: "Shipping backlog",
+      status: "WARN",
+      severity: 2,
+      message: "Open shipment workload is above demo threshold.",
+      owner: "Shipping",
+      updated_at: new Date(Date.now() - 11 * 60 * 1000).toISOString()
+    },
+    {
+      area: "Inspection queue",
+      status: "OK",
+      severity: 1,
+      message: "Pending inspections are within expected range.",
+      owner: "Quality",
+      updated_at: new Date(Date.now() - 14 * 60 * 1000).toISOString()
+    },
+    {
+      area: "Inventory variance",
+      status: "WARN",
+      severity: 2,
+      message: "Inventory count variance requires review before daily close.",
+      owner: "Warehouse",
+      updated_at: new Date(Date.now() - 18 * 60 * 1000).toISOString()
+    }
+  ];
+}
+
 async function handleApi(req, res) {
   try {
     if (req.method === "OPTIONS") {
@@ -1762,6 +1799,11 @@ async function handleApi(req, res) {
 
     if (req.method === "GET" && req.url === "/api/monitoring/grafana-cloud/operation-insights") {
       sendJson(res, 200, shippingOperationInsightRows());
+      return;
+    }
+
+    if (req.method === "GET" && req.url === "/api/monitoring/grafana-cloud/alert-status") {
+      sendJson(res, 200, shippingAlertStatusRows());
       return;
     }
 
