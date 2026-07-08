@@ -380,12 +380,14 @@ Android実機がない場合は、ブラウザUIの `デモ波形生成` から 
 
 `dashboards/shipping-inspection-minimal-monitoring.json` は、出荷検品アプリ向けの最小監視ダッシュボードです。Grafana CloudのInfinity datasourceから、出荷検品アプリ側の監視APIを読みます。
 
+出荷検品アプリ本体のAPI URLが未確定の場合は、このGrafana Dashboard BuilderのCloud RunにあるPoC用モックAPIを使えます。
+
 投入例:
 
 ```powershell
 $env:GRAFANA_URL="https://ytsutsumi30.grafana.net"
 $env:GRAFANA_SERVICE_ACCOUNT_TOKEN=[Environment]::GetEnvironmentVariable("GRAFANA_SERVICE_ACCOUNT_TOKEN","User")
-$env:SHIPPING_INSPECTION_API_BASE_URL="<出荷検品アプリのAPI URL>"
+$env:SHIPPING_INSPECTION_API_BASE_URL="https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app"
 node scripts/setup-shipping-inspection-dashboard.js
 ```
 
@@ -393,6 +395,12 @@ Dashboard UID:
 
 ```text
 shipping-inspection-minimal-monitoring
+```
+
+PoCモックAPIで作成済みのGrafana Cloud URL:
+
+```text
+https://ytsutsumi30.grafana.net/d/shipping-inspection-minimal-monitoring/shipping-inspection-minimal-monitoring
 ```
 
 例として `板金加工業者` を入力した場合、ダッシュボード名は以下になります。

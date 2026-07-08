@@ -1627,6 +1627,72 @@ async function buildFailureRiskAnalysis(deviceId = "android-demo-001", windowMin
   };
 }
 
+function shippingKpiRows() {
+  return [
+    { metric: "api_db_health", value: 1, unit: "bool", status: "OK" },
+    { metric: "open_shipments", value: 18, unit: "count", status: "WARN" },
+    { metric: "pending_inspections", value: 7, unit: "count", status: "OK" },
+    { metric: "inventory_variance_lines", value: 4, unit: "lines", status: "WARN" },
+    { metric: "today_completed_inspections", value: 42, unit: "count", status: "OK" }
+  ];
+}
+
+function shippingBacklogRows() {
+  return [
+    { domain: "shipping", open_count: 18, open_quantity: 126 },
+    { domain: "inspection", open_count: 7, open_quantity: 39 },
+    { domain: "inventory_count", open_count: 4, open_quantity: 14 },
+    { domain: "returns", open_count: 2, open_quantity: 5 }
+  ];
+}
+
+function shippingEventsDailyRows() {
+  const rows = [];
+  const now = new Date();
+  for (let offset = 6; offset >= 0; offset -= 1) {
+    const date = new Date(now);
+    date.setUTCDate(now.getUTCDate() - offset);
+    const day = date.toISOString().slice(0, 10);
+    rows.push({ event_date: day, event_domain: "shipping", event_type: "completed", event_count: 22 + (6 - offset) * 3 });
+    rows.push({ event_date: day, event_domain: "inspection", event_type: "completed", event_count: 16 + (offset % 3) * 4 });
+    rows.push({ event_date: day, event_domain: "inventory", event_type: "variance", event_count: offset % 2 === 0 ? 2 + offset : 1 });
+  }
+  return rows;
+}
+
+function shippingInventoryVarianceRows() {
+  const now = new Date();
+  return [
+    {
+      count_no: "CNT-20260708-001",
+      count_name: "Main stock location",
+      status: "OPEN",
+      variance_lines: 4,
+      variance_quantity: -12,
+      variance_quantity_abs: 12,
+      last_counted_at: new Date(now.getTime() - 18 * 60 * 1000).toISOString()
+    },
+    {
+      count_no: "CNT-20260708-002",
+      count_name: "Shipping staging",
+      status: "REVIEW",
+      variance_lines: 2,
+      variance_quantity: 5,
+      variance_quantity_abs: 5,
+      last_counted_at: new Date(now.getTime() - 42 * 60 * 1000).toISOString()
+    },
+    {
+      count_no: "CNT-20260707-006",
+      count_name: "Return inspection shelf",
+      status: "CLOSED",
+      variance_lines: 0,
+      variance_quantity: 0,
+      variance_quantity_abs: 0,
+      last_counted_at: new Date(now.getTime() - 22 * 60 * 60 * 1000).toISOString()
+    }
+  ];
+}
+
 async function handleApi(req, res) {
   try {
     if (req.method === "OPTIONS") {
@@ -1642,6 +1708,26 @@ async function handleApi(req, res) {
     if (req.method === "GET" && req.url === "/api/health") {
       const health = await grafana("/api/health");
       sendJson(res, 200, { ok: true, grafana: health, grafanaUrl: GRAFANA_URL });
+      return;
+    }
+
+    if (req.method === "GET" && req.url === "/api/monitoring/grafana-cloud/kpis") {
+      sendJson(res, 200, shippingKpiRows());
+      return;
+    }
+
+    if (req.method === "GET" && req.url === "/api/monitoring/grafana-cloud/backlog") {
+      sendJson(res, 200, shippingBacklogRows());
+      return;
+    }
+
+    if (req.method === "GET" && req.url === "/api/monitoring/grafana-cloud/events-daily") {
+      sendJson(res, 200, shippingEventsDailyRows());
+      return;
+    }
+
+    if (req.method === "GET" && req.url === "/api/monitoring/grafana-cloud/inventory-count-variance") {
+      sendJson(res, 200, shippingInventoryVarianceRows());
       return;
     }
 
