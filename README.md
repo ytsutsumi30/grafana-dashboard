@@ -7,6 +7,7 @@
 - [Grafana Cloud 製造業向けダッシュボード作成支援ツール 仕様書](docs/dashboard-builder-specification.md)
 - [営業担当者向け Grafana Cloud ダッシュボード提案ツール 利用ガイド](docs/sales-user-guide.md)
 - [Android Vibration Sensor Demo MVP](docs/android-vibration-demo-mvp.md)
+- [出荷検品アプリ監視ダッシュボード デモガイド](docs/shipping-inspection-demo-guide.md)
 - [Project Skill Application Plan](docs/skill-application-plan.md)
 
 対象記事:
@@ -381,6 +382,8 @@ Android実機がない場合は、ブラウザUIの `デモ波形生成` から 
 `dashboards/shipping-inspection-minimal-monitoring.json` は、出荷検品アプリ向けの最小監視ダッシュボードです。Grafana CloudのInfinity datasourceから、出荷検品アプリ側の監視APIを読みます。
 
 出荷検品アプリ本体のAPI URLが未確定の場合は、このGrafana Dashboard BuilderのCloud RunにあるPoC用モックAPIを使えます。
+
+デモ時の説明順序は [出荷検品アプリ監視ダッシュボード デモガイド](docs/shipping-inspection-demo-guide.md) を参照してください。
 
 投入例:
 
