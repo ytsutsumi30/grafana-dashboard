@@ -1693,6 +1693,35 @@ function shippingInventoryVarianceRows() {
   ];
 }
 
+function shippingOperationInsightRows() {
+  return [
+    {
+      area: "Shipping",
+      risk: "WARN",
+      score: 68,
+      summary: "Open shipments are above the normal demo threshold.",
+      likely_cause: "Inspection completion is slightly behind the shipping workload.",
+      recommended_action: "Prioritize shipments with completed picking and assign one operator to inspection follow-up."
+    },
+    {
+      area: "Inventory Count",
+      risk: "WARN",
+      score: 61,
+      summary: "Several inventory count lines still have quantity variance.",
+      likely_cause: "Staging location movements and return inspection shelf updates may not be fully posted.",
+      recommended_action: "Review CNT-20260708-001 and CNT-20260708-002 before closing the daily count."
+    },
+    {
+      area: "API / DB",
+      risk: "OK",
+      score: 8,
+      summary: "API and database health are normal in the PoC monitor.",
+      likely_cause: "No connectivity issue is represented in the mock data.",
+      recommended_action: "Continue monitoring health status while replacing mock endpoints with the production API."
+    }
+  ];
+}
+
 async function handleApi(req, res) {
   try {
     if (req.method === "OPTIONS") {
@@ -1728,6 +1757,11 @@ async function handleApi(req, res) {
 
     if (req.method === "GET" && req.url === "/api/monitoring/grafana-cloud/inventory-count-variance") {
       sendJson(res, 200, shippingInventoryVarianceRows());
+      return;
+    }
+
+    if (req.method === "GET" && req.url === "/api/monitoring/grafana-cloud/operation-insights") {
+      sendJson(res, 200, shippingOperationInsightRows());
       return;
     }
 

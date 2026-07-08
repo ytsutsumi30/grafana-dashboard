@@ -252,6 +252,79 @@
           "cellHeight": "sm",
           "footer": { "show": false, "reducer": ["sum"], "countRows": false }
         }
+      },
+      {
+        "id": 6,
+        "type": "table",
+        "title": "Operation Insights",
+        "gridPos": { "x": 0, "y": 20, "w": 24, "h": 8 },
+        "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
+        "targets": [
+          {
+            "refId": "A",
+            "type": "json",
+            "source": "url",
+            "url": "__API_BASE_URL__/api/monitoring/grafana-cloud/operation-insights",
+            "url_options": { "method": "GET" },
+            "parser": "backend",
+            "root_selector": "",
+            "format": "table",
+            "columns": [
+              { "selector": "area", "text": "area", "type": "string" },
+              { "selector": "risk", "text": "risk", "type": "string" },
+              { "selector": "score", "text": "score", "type": "number" },
+              { "selector": "summary", "text": "summary", "type": "string" },
+              { "selector": "likely_cause", "text": "likely_cause", "type": "string" },
+              { "selector": "recommended_action", "text": "recommended_action", "type": "string" }
+            ]
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" } } },
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "risk" },
+              "properties": [
+                { "id": "custom.cellOptions", "value": { "type": "color-text" } },
+                {
+                  "id": "mappings",
+                  "value": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "OK": { "color": "green", "index": 0 },
+                        "WARN": { "color": "yellow", "index": 1 },
+                        "CRITICAL": { "color": "red", "index": 2 }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "matcher": { "id": "byName", "options": "score" },
+              "properties": [
+                { "id": "unit", "value": "percent" },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "color": "green", "value": null },
+                      { "color": "yellow", "value": 50 },
+                      { "color": "red", "value": 80 }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "showHeader": true,
+          "cellHeight": "md",
+          "footer": { "show": false }
+        }
       }
     ]
   },

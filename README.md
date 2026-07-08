@@ -397,6 +397,15 @@ Dashboard UID:
 shipping-inspection-minimal-monitoring
 ```
 
+主なパネル:
+
+- API / DB Health
+- Business KPIs
+- Open Workload
+- Operation Events Daily
+- Inventory Count Variance
+- Operation Insights
+
 PoCモックAPIで作成済みのGrafana Cloud URL:
 
 ```text
