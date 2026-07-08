@@ -1,0 +1,259 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "shipping-inspection-minimal-monitoring",
+    "title": "Shipping Inspection - Minimal Monitoring",
+    "tags": ["shipping-inspection", "azure-container-apps", "supabase", "poc"],
+    "timezone": "browser",
+    "schemaVersion": 41,
+    "version": 1,
+    "refresh": "30s",
+    "time": {
+      "from": "now-7d",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "type": "stat",
+        "title": "API / DB Health",
+        "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+        "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
+        "targets": [
+          {
+            "refId": "A",
+            "type": "json",
+            "source": "url",
+            "url": "__API_BASE_URL__/api/monitoring/grafana-cloud/kpis",
+            "url_options": { "method": "GET" },
+            "parser": "backend",
+            "root_selector": "",
+            "format": "table",
+            "columns": [
+              { "selector": "metric", "text": "metric", "type": "string" },
+              { "selector": "value", "text": "value", "type": "number" },
+              { "selector": "status", "text": "status", "type": "string" }
+            ],
+            "filters": [
+              { "field": "metric", "operator": "=", "value": "api_db_health" }
+            ]
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "green", "value": 1 }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "/value/" },
+          "orientation": "horizontal",
+          "textMode": "value",
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "center"
+        }
+      },
+      {
+        "id": 2,
+        "type": "stat",
+        "title": "Business KPIs",
+        "gridPos": { "x": 6, "y": 0, "w": 18, "h": 4 },
+        "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
+        "targets": [
+          {
+            "refId": "A",
+            "type": "json",
+            "source": "url",
+            "url": "__API_BASE_URL__/api/monitoring/grafana-cloud/kpis",
+            "url_options": { "method": "GET" },
+            "parser": "backend",
+            "root_selector": "",
+            "format": "table",
+            "columns": [
+              { "selector": "metric", "text": "metric", "type": "string" },
+              { "selector": "value", "text": "value", "type": "number" },
+              { "selector": "unit", "text": "unit", "type": "string" },
+              { "selector": "status", "text": "status", "type": "string" }
+            ]
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 1 },
+                { "color": "red", "value": 50 }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "/value/" },
+          "orientation": "horizontal",
+          "textMode": "name",
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "auto"
+        }
+      },
+      {
+        "id": 3,
+        "type": "barchart",
+        "title": "Open Workload",
+        "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+        "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
+        "targets": [
+          {
+            "refId": "A",
+            "type": "json",
+            "source": "url",
+            "url": "__API_BASE_URL__/api/monitoring/grafana-cloud/backlog",
+            "url_options": { "method": "GET" },
+            "parser": "backend",
+            "root_selector": "",
+            "format": "table",
+            "columns": [
+              { "selector": "domain", "text": "domain", "type": "string" },
+              { "selector": "open_count", "text": "open_count", "type": "number" },
+              { "selector": "open_quantity", "text": "open_quantity", "type": "number" }
+            ]
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": { "lineWidth": 1, "fillOpacity": 80, "gradientMode": "none" },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 10 },
+                { "color": "red", "value": 30 }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "orientation": "auto",
+          "xTickLabelRotation": 0,
+          "xTickLabelSpacing": 0,
+          "showValue": "auto",
+          "stacking": "none",
+          "groupWidth": 0.7,
+          "barWidth": 0.97,
+          "legend": { "displayMode": "list", "placement": "bottom" },
+          "tooltip": { "mode": "single", "sort": "none" }
+        }
+      },
+      {
+        "id": 4,
+        "type": "timeseries",
+        "title": "Operation Events Daily",
+        "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+        "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
+        "targets": [
+          {
+            "refId": "A",
+            "type": "json",
+            "source": "url",
+            "url": "__API_BASE_URL__/api/monitoring/grafana-cloud/events-daily",
+            "url_options": { "method": "GET" },
+            "parser": "backend",
+            "root_selector": "",
+            "format": "table",
+            "columns": [
+              { "selector": "event_date", "text": "time", "type": "timestamp" },
+              { "selector": "event_domain", "text": "event_domain", "type": "string" },
+              { "selector": "event_type", "text": "event_type", "type": "string" },
+              { "selector": "event_count", "text": "event_count", "type": "number" }
+            ]
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "showPoints": "auto"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 20 },
+                { "color": "red", "value": 100 }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull"] },
+          "tooltip": { "mode": "multi", "sort": "none" }
+        }
+      },
+      {
+        "id": 5,
+        "type": "table",
+        "title": "Inventory Count Variance",
+        "gridPos": { "x": 0, "y": 12, "w": 24, "h": 8 },
+        "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "grafanacloud-infinity" },
+        "targets": [
+          {
+            "refId": "A",
+            "type": "json",
+            "source": "url",
+            "url": "__API_BASE_URL__/api/monitoring/grafana-cloud/inventory-count-variance",
+            "url_options": { "method": "GET" },
+            "parser": "backend",
+            "root_selector": "",
+            "format": "table",
+            "columns": [
+              { "selector": "count_no", "text": "count_no", "type": "string" },
+              { "selector": "count_name", "text": "count_name", "type": "string" },
+              { "selector": "status", "text": "status", "type": "string" },
+              { "selector": "variance_lines", "text": "variance_lines", "type": "number" },
+              { "selector": "variance_quantity", "text": "variance_quantity", "type": "number" },
+              { "selector": "variance_quantity_abs", "text": "variance_quantity_abs", "type": "number" },
+              { "selector": "last_counted_at", "text": "last_counted_at", "type": "timestamp" }
+            ]
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "yellow", "value": 1 },
+                { "color": "red", "value": 10 }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "options": {
+          "showHeader": true,
+          "cellHeight": "sm",
+          "footer": { "show": false, "reducer": ["sum"], "countRows": false }
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}
