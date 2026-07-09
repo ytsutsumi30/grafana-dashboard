@@ -13,6 +13,9 @@ param(
   [string]$AppAccessTokenSecret = "",
   [int]$AppRateLimitWindowMs = 60000,
   [int]$AppRateLimitMaxRequests = 30,
+  [switch]$EnableFirestoreHistory,
+  [string]$FirestoreDatabase = "(default)",
+  [string]$FirestoreHistoryCollection = "dashboard_creation_history",
   [string]$ServiceAccount = "",
   [switch]$SkipOpenAiSecret,
   [switch]$AllowUnauthenticated
@@ -46,7 +49,8 @@ if ($AiProvider -eq "openai" -and -not $SkipOpenAiSecret) {
 if ($AppAccessTokenSecret) {
   $secretArgs = "$secretArgs,APP_ACCESS_TOKEN=$AppAccessTokenSecret`:latest"
 }
-$envArgs = "GRAFANA_URL=$GrafanaUrl,AI_PROVIDER=$AiProvider,VERTEX_AI_PROJECT=$ProjectId,VERTEX_AI_LOCATION=$VertexAiLocation,VERTEX_AI_MODEL=$VertexAiModel,APP_RATE_LIMIT_WINDOW_MS=$AppRateLimitWindowMs,APP_RATE_LIMIT_MAX_REQUESTS=$AppRateLimitMaxRequests"
+$firestoreEnabled = if ($EnableFirestoreHistory) { "true" } else { "false" }
+$envArgs = "GRAFANA_URL=$GrafanaUrl,AI_PROVIDER=$AiProvider,VERTEX_AI_PROJECT=$ProjectId,VERTEX_AI_LOCATION=$VertexAiLocation,VERTEX_AI_MODEL=$VertexAiModel,APP_RATE_LIMIT_WINDOW_MS=$AppRateLimitWindowMs,APP_RATE_LIMIT_MAX_REQUESTS=$AppRateLimitMaxRequests,FIRESTORE_HISTORY_ENABLED=$firestoreEnabled,FIRESTORE_PROJECT=$ProjectId,FIRESTORE_DATABASE=$FirestoreDatabase,FIRESTORE_HISTORY_COLLECTION=$FirestoreHistoryCollection"
 $deployArgs = @(
   "run", "deploy", $ServiceName,
   "--source", ".",

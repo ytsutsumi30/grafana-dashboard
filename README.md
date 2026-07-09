@@ -542,6 +542,8 @@ Invoke-RestMethod "https://<Cloud Run URL>/api/runtime-status"
 
 `/api/ping` はGrafana tokenなしで起動状態だけを確認します。`/api/runtime-status` は秘密情報の値を返さず、Grafana token設定有無、AI provider、レート制限、アプリ内イベント数などを返します。
 
+作成履歴をFirestoreに保存する場合は、Firestore APIとdatabaseを用意し、Cloud RunサービスアカウントにFirestore書き込み権限を付与したうえで、デプロイ時に `-EnableFirestoreHistory` を追加します。
+
 ## 環境変数
 
 必要に応じて実行時に上書きできます。

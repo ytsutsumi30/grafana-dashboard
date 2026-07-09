@@ -1106,6 +1106,8 @@
         `AI provider: ${status.aiProvider}\n` +
         `Vertex project: ${status.vertexProjectConfigured ? "configured" : "missing"}\n` +
         `OpenAI key: ${status.openAiKeyConfigured ? "configured" : "missing"}\n` +
+        `Firestore history: ${status.firestoreHistoryEnabled ? "enabled" : "disabled"}\n` +
+        `Firestore target: ${status.firestoreProjectConfigured ? status.firestoreDatabase + "/" + status.firestoreCollection : "missing"}\n` +
         `Rate limit: ${status.rateLimitMaxRequests} / ${status.rateLimitWindowMs}ms\n` +
         `Events: ${status.appLogEvents}, Sensors: ${status.mobileSensorPoints}, Devices: ${status.mobileSensorDevices}\n` +
         `Dashboard history: ${status.dashboardHistoryCount}`;

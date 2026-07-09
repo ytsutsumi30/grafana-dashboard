@@ -15,6 +15,10 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 const VERTEX_AI_PROJECT = process.env.VERTEX_AI_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || "";
 const VERTEX_AI_LOCATION = process.env.VERTEX_AI_LOCATION || "global";
 const VERTEX_AI_MODEL = process.env.VERTEX_AI_MODEL || "gemini-2.5-flash-lite";
+const FIRESTORE_HISTORY_ENABLED = String(process.env.FIRESTORE_HISTORY_ENABLED || "false").toLowerCase() === "true";
+const FIRESTORE_PROJECT = process.env.FIRESTORE_PROJECT || VERTEX_AI_PROJECT;
+const FIRESTORE_DATABASE = process.env.FIRESTORE_DATABASE || "(default)";
+const FIRESTORE_HISTORY_COLLECTION = process.env.FIRESTORE_HISTORY_COLLECTION || "dashboard_creation_history";
 const ROOT = path.resolve(__dirname, "..");
 const PUBLIC_DIR = path.join(ROOT, "public");
 const VISUALIZATIONS = new Set(["timeseries", "stat", "gauge", "piechart", "table"]);
@@ -1032,6 +1036,10 @@ function runtimeStatus() {
     vertexProjectConfigured: Boolean(VERTEX_AI_PROJECT),
     vertexLocation: VERTEX_AI_LOCATION,
     vertexModel: VERTEX_AI_MODEL,
+    firestoreHistoryEnabled: FIRESTORE_HISTORY_ENABLED,
+    firestoreProjectConfigured: Boolean(FIRESTORE_PROJECT),
+    firestoreDatabase: FIRESTORE_DATABASE,
+    firestoreCollection: FIRESTORE_HISTORY_COLLECTION,
     rateLimitWindowMs: RATE_LIMIT_WINDOW_MS,
     rateLimitMaxRequests: RATE_LIMIT_MAX_REQUESTS,
     appLogEvents: appLogState.events.length,
@@ -1412,6 +1420,89 @@ function dashboardHistory(limit = 20) {
       industry: event.industry,
       message: event.message
     }));
+}
+
+function firestoreString(value) {
+  return { stringValue: String(value || "") };
+}
+
+function firestoreDocumentFromDashboard(row) {
+  return {
+    fields: {
+      time: { timestampValue: row.time || new Date().toISOString() },
+      dashboardUid: firestoreString(row.dashboardUid),
+      dashboardTitle: firestoreString(row.dashboardTitle),
+      dashboardType: firestoreString(row.dashboardType),
+      dashboardUrl: firestoreString(row.dashboardUrl),
+      folderUid: firestoreString(row.folderUid),
+      industry: firestoreString(row.industry),
+      actor: firestoreString(row.actor),
+      message: firestoreString(row.message)
+    }
+  };
+}
+
+function firestoreFieldValue(field) {
+  if (!field) return "";
+  if (field.stringValue !== undefined) return field.stringValue;
+  if (field.timestampValue !== undefined) return field.timestampValue;
+  return "";
+}
+
+function dashboardRowFromFirestore(document) {
+  const fields = document.fields || {};
+  return {
+    time: firestoreFieldValue(fields.time),
+    dashboardUid: firestoreFieldValue(fields.dashboardUid),
+    dashboardTitle: firestoreFieldValue(fields.dashboardTitle),
+    dashboardType: firestoreFieldValue(fields.dashboardType),
+    dashboardUrl: firestoreFieldValue(fields.dashboardUrl),
+    folderUid: firestoreFieldValue(fields.folderUid),
+    industry: firestoreFieldValue(fields.industry),
+    actor: firestoreFieldValue(fields.actor),
+    message: firestoreFieldValue(fields.message)
+  };
+}
+
+function firestoreBaseUrl() {
+  if (!FIRESTORE_PROJECT) {
+    throw new Error("FIRESTORE_PROJECT, VERTEX_AI_PROJECT, GOOGLE_CLOUD_PROJECT, or GCLOUD_PROJECT is required for Firestore history.");
+  }
+  return `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(FIRESTORE_PROJECT)}/databases/${encodeURIComponent(FIRESTORE_DATABASE)}/documents/${encodeURIComponent(FIRESTORE_HISTORY_COLLECTION)}`;
+}
+
+async function saveDashboardHistoryToFirestore(row) {
+  if (!FIRESTORE_HISTORY_ENABLED) return false;
+  const token = await getGoogleAccessToken();
+  const documentId = `${Date.now()}-${String(row.dashboardUid || "dashboard").replace(/[^a-zA-Z0-9_-]/g, "_")}`.slice(0, 180);
+  const response = await fetch(`${firestoreBaseUrl()}?documentId=${encodeURIComponent(documentId)}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(firestoreDocumentFromDashboard(row))
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Firestore history save failed: ${response.status} ${text}`);
+  }
+  return true;
+}
+
+async function firestoreDashboardHistory(limit = 20) {
+  if (!FIRESTORE_HISTORY_ENABLED) return [];
+  const token = await getGoogleAccessToken();
+  const pageSize = Math.max(1, Math.min(100, Number(limit) || 20));
+  const response = await fetch(`${firestoreBaseUrl()}?pageSize=${pageSize}&orderBy=time%20desc`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Firestore history read failed: ${response.status} ${text}`);
+  }
+  const data = await response.json();
+  return (data.documents || []).map(dashboardRowFromFirestore);
 }
 
 function logAnalysisSchema() {
@@ -2214,7 +2305,18 @@ async function handleApi(req, res) {
 
     if (req.method === "GET" && req.url.startsWith("/api/dashboard-history")) {
       const parsed = new URL(req.url, "http://localhost");
-      sendJson(res, 200, { ok: true, data: dashboardHistory(parsed.searchParams.get("limit") || 20) });
+      const limit = parsed.searchParams.get("limit") || 20;
+      try {
+        const rows = await firestoreDashboardHistory(limit);
+        sendJson(res, 200, { ok: true, source: FIRESTORE_HISTORY_ENABLED ? "firestore" : "memory", data: rows.length ? rows : dashboardHistory(limit) });
+      } catch (error) {
+        recordAppEvent("dashboard_history_fallback", {
+          route: "/api/dashboard-history",
+          level: "warn",
+          message: error.message
+        });
+        sendJson(res, 200, { ok: true, source: "memory", warning: error.message, data: dashboardHistory(limit) });
+      }
       return;
     }
 
@@ -2313,7 +2415,7 @@ async function handleApi(req, res) {
         })
       });
       const url = result.url ? `${GRAFANA_URL}${result.url}` : `${GRAFANA_URL}/d/${identity.uid}/${identity.slug}`;
-      recordAppEvent("dashboard_created", {
+      const createdEvent = recordAppEvent("dashboard_created", {
         route: "/api/create-dashboard",
         industry: proposed.industry,
         dashboardType: proposed.dashboardType,
@@ -2324,6 +2426,17 @@ async function handleApi(req, res) {
         actor: requestActor(req),
         message: `Dashboard created. overwrite=${overwrite}`
       });
+      try {
+        await saveDashboardHistoryToFirestore(createdEvent);
+      } catch (error) {
+        recordAppEvent("dashboard_history_save_failed", {
+          route: "/api/create-dashboard",
+          level: "warn",
+          message: error.message,
+          dashboardUid: identity.uid,
+          dashboardUrl: url
+        });
+      }
       sendJson(res, 200, {
         ok: true,
         name: identity.uid,

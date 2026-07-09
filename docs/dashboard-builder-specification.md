@@ -61,6 +61,10 @@ Browser
 | `DASHBOARD_BUILDER_ACCESS_TOKEN` | 任意 | なし | `APP_ACCESS_TOKEN` の代替名 |
 | `APP_RATE_LIMIT_WINDOW_MS` | 任意 | `60000` | 書き込み・AI系APIのレート制限時間窓 |
 | `APP_RATE_LIMIT_MAX_REQUESTS` | 任意 | `30` | 時間窓あたりの最大リクエスト数。`0` 以下で無効 |
+| `FIRESTORE_HISTORY_ENABLED` | 任意 | `false` | 作成履歴をFirestoreへ保存するか |
+| `FIRESTORE_PROJECT` | 任意 | `VERTEX_AI_PROJECT` | FirestoreのGCP Project ID |
+| `FIRESTORE_DATABASE` | 任意 | `(default)` | Firestore database ID |
+| `FIRESTORE_HISTORY_COLLECTION` | 任意 | `dashboard_creation_history` | 作成履歴コレクション名 |
 | `AI_PROVIDER` | 任意 | `vertex` | `vertex` または `openai` |
 | `VERTEX_AI_PROJECT` | Vertex利用時必須 | なし | Vertex AIを呼び出すGCP Project ID |
 | `VERTEX_AI_LOCATION` | 任意 | `global` | Vertex AIのロケーション |
@@ -625,7 +629,7 @@ Grafana Infinity datasource向けに、アプリ内イベントログのAI解析
 }
 ```
 
-この履歴はCloud Runインスタンスのメモリ上に保持するPoC機能であり、インスタンス再起動やスケールアウト時には消える。本番化する場合はFirestore、Cloud SQL、Supabaseなどに保存する。
+この履歴は既定ではCloud Runインスタンスのメモリ上に保持するPoC機能であり、インスタンス再起動やスケールアウト時には消える。`FIRESTORE_HISTORY_ENABLED=true` の場合はFirestoreにも保存し、履歴APIはFirestoreを優先して読み込む。
 
 営業UIでは同時にブラウザのlocalStorageにも直近30件を保存する。これにより、同じPC・同じブラウザではCloud Run再起動後でも作成済みURLを確認できる。
 
