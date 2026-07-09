@@ -37,7 +37,8 @@ Invoke-RestMethod "https://grafana-dashboard-builder-577010681495.asia-northeast
 Expected result:
 
 - `ok`: `true`
-- `panelCount`: `18` or higher
+- `panelCount`: `19` or higher
+- `Alert Rule Candidates`: found
 - `MTBF / MTTR Trend`: found
 - `Quality Defect Trend`: found
 - `Top Defect Reasons`: found
@@ -66,12 +67,14 @@ Use:
 
 - `Maintenance Action Queue`
 - `MTBF / MTTR Trend`
+- `Alert Rule Candidates`
 
 Talk track:
 
 ```text
 次に、どの設備を誰がいつ確認するかをアクションキューで整理します。
 MTBF/MTTRを見ることで、保全活動が故障間隔を伸ばし、復旧時間を短くしているかを説明できます。
+最後にAlert Rule Candidatesを見せることで、本番化時にどの条件をGrafana Alertingへ移すかを具体化できます。
 ```
 
 ### 3. Explain Production Loss

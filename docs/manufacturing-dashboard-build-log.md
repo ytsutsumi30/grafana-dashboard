@@ -28,6 +28,7 @@ The dashboard starts with a manufacturing overview KPI row:
 8. `Quality Defect Trend`
 9. `Top Defect Reasons`
 10. `MTBF / MTTR Trend`
+11. `Alert Rule Candidates`
 
 The overview row is followed by industry-specific sheet metal equipment panels:
 
@@ -40,7 +41,7 @@ The overview row is followed by industry-specific sheet metal equipment panels:
 - `Motor Current`
 - `Vibration Acceleration`
 
-Total expected panel count: `18`.
+Total expected panel count: `19`.
 
 ## Build Command
 
@@ -67,7 +68,7 @@ Expected verification result:
 
 - `ok`: `true`
 - `uid`: `sheet-metal-maintenance-demo`
-- `panelCount`: `18` or higher
+- `panelCount`: `19` or higher
 - `leadingPanels`: `Overall Equipment Effectiveness, Availability / Uptime, Unplanned Downtime, Active Alarm Count`
 
 ## Demo Story
@@ -84,6 +85,7 @@ Use the overview row first to explain the line-level condition:
 - Quality Defect Trend shows whether quality issues are increasing by time window.
 - Top Defect Reasons shows which defect category should be investigated first.
 - MTBF / MTTR Trend shows whether maintenance activities are extending failure intervals and shortening recovery time.
+- Alert Rule Candidates shows which demo conditions should become Grafana Alerting rules in production.
 
 Then drill down into equipment panels:
 

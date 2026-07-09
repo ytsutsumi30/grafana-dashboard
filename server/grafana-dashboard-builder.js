@@ -423,6 +423,17 @@ function manufacturingOverviewPanels() {
       latestOnly: false,
       scenarioId: "csv_content",
       csvContent: "time,mtbf_hours,mttr_minutes\n2026-07-04T00:00:00+09:00,96,42\n2026-07-05T00:00:00+09:00,104,38\n2026-07-06T00:00:00+09:00,118,35\n2026-07-07T00:00:00+09:00,112,37\n2026-07-08T00:00:00+09:00,126,32\n2026-07-09T00:00:00+09:00,134,29\n2026-07-10T00:00:00+09:00,142,27"
+    },
+    {
+      title: "Alert Rule Candidates",
+      visualization: "table",
+      unit: "short",
+      min: 0,
+      max: 1,
+      purpose: "本番化時にGrafana Alertingへ移すべき通知条件、重要度、一次対応を整理",
+      latestOnly: true,
+      scenarioId: "csv_content",
+      csvContent: "metric,condition,severity,notify,first_action\nOEE,below 70 percent for 15 minutes,WARN,Production Manager,Check bottleneck process\nUnplanned Downtime,above 30 minutes in current shift,CRITICAL,Maintenance Lead,Dispatch maintenance team\nVibration Acceleration,above warning threshold for 10 minutes,WARN,Maintenance Lead,Inspect bearing and mounting\nCompressor Pressure,below lower limit for 5 minutes,CRITICAL,Utilities,Check leak and compressor state\nQuality Defect Trend,above 3 percent for 2 hours,WARN,Quality Engineer,Review defect reason and lot"
     }
   ].map(panelFromTuple);
 }

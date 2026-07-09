@@ -115,6 +115,7 @@ Browser
 - `Quality Defect Trend`: 時間帯ごとの不良率推移を時系列で表示
 - `Top Defect Reasons`: 主要な不良理由の件数構成をドーナツで表示
 - `MTBF / MTTR Trend`: 平均故障間隔と平均復旧時間の推移を時系列で表示
+- `Alert Rule Candidates`: 本番化時にGrafana Alertingへ移す通知条件、重要度、通知先、一次対応をTableで表示
 
 ### 6.1.1 提案メモ出力
 
