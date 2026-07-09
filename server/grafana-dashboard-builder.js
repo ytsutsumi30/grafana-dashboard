@@ -991,7 +991,7 @@ function appAccessTokenFromRequest(req) {
 
 function isProtectedUiApi(req) {
   if (!APP_ACCESS_TOKEN) return false;
-  if (req.method === "GET" && (req.url === "/api/health" || req.url === "/api/folders")) return true;
+  if (req.method === "GET" && (req.url === "/api/health" || req.url === "/api/folders" || req.url.startsWith("/api/dashboard-history"))) return true;
   if (req.method !== "POST") return false;
   return [
     "/api/propose",
@@ -1297,7 +1297,10 @@ function recordAppEvent(type, detail = {}) {
     route: truncateText(detail.route || "", 120),
     deviceId: detail.deviceId ? cleanDeviceId(detail.deviceId) : "",
     dashboardUid: truncateText(detail.dashboardUid || "", 120),
+    dashboardTitle: truncateText(detail.dashboardTitle || "", 180),
     dashboardType: truncateText(detail.dashboardType || "", 80),
+    dashboardUrl: truncateText(detail.dashboardUrl || "", 500),
+    folderUid: truncateText(detail.folderUid || "", 120),
     industry: truncateText(detail.industry || "", 120),
     statusCode: Number.isFinite(Number(detail.statusCode)) ? Number(detail.statusCode) : 0,
     durationMs: Number.isFinite(Number(detail.durationMs)) ? Number(detail.durationMs) : 0
@@ -1311,6 +1314,23 @@ function recordAppEvent(type, detail = {}) {
 
 function recentAppEvents(limit = 100) {
   return appLogState.events.slice(-Math.max(1, Math.min(500, Number(limit) || 100)));
+}
+
+function dashboardHistory(limit = 20) {
+  return recentAppEvents(500)
+    .filter((event) => event.type === "dashboard_created")
+    .slice(-Math.max(1, Math.min(100, Number(limit) || 20)))
+    .reverse()
+    .map((event) => ({
+      time: event.time,
+      dashboardUid: event.dashboardUid,
+      dashboardTitle: event.dashboardTitle,
+      dashboardType: event.dashboardType,
+      dashboardUrl: event.dashboardUrl,
+      folderUid: event.folderUid,
+      industry: event.industry,
+      message: event.message
+    }));
 }
 
 function logAnalysisSchema() {
@@ -2096,6 +2116,12 @@ async function handleApi(req, res) {
       return;
     }
 
+    if (req.method === "GET" && req.url.startsWith("/api/dashboard-history")) {
+      const parsed = new URL(req.url, "http://localhost");
+      sendJson(res, 200, { ok: true, data: dashboardHistory(parsed.searchParams.get("limit") || 20) });
+      return;
+    }
+
     if (req.method === "GET" && req.url.startsWith("/api/ai/analyze-log")) {
       const parsed = new URL(req.url, "http://localhost");
       const useAi = parsed.searchParams.get("ai") !== "false";
@@ -2172,6 +2198,9 @@ async function handleApi(req, res) {
         industry: proposed.industry,
         dashboardType: proposed.dashboardType,
         dashboardUid: identity.uid,
+        dashboardTitle: dashboard.title,
+        dashboardUrl: url,
+        folderUid,
         message: `Dashboard created. overwrite=${overwrite}`
       });
       sendJson(res, 200, {

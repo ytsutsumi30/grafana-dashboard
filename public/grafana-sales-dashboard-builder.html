@@ -156,6 +156,30 @@
     .status.ok { border-color: rgba(47, 191, 113, 0.5); color: #baf4d1; }
     .status.error { border-color: rgba(255, 92, 122, 0.5); color: #ffc2cc; }
 
+    .history-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .history-item {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      background: #0d1118;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .history-item strong {
+      display: block;
+      color: var(--text);
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
     .mini-fields {
       display: grid;
       grid-template-columns: 1fr 92px;
@@ -374,6 +398,14 @@
       <input id="appAccessToken" type="password" autocomplete="off" placeholder="Cloud Runで設定時のみ入力">
 
       <div id="status" class="status">業種を入力してパネル案を作成してください。</div>
+
+      <div class="ai-box">
+        <h2>作成履歴</h2>
+        <button id="loadDashboardHistory" class="secondary" type="button">履歴を更新</button>
+        <div id="dashboardHistory" class="history-list">
+          <div class="history-item">この画面から作成したダッシュボードURLを表示します。</div>
+        </div>
+      </div>
 
       <div class="ai-box">
         <h2>AI故障診断デモ</h2>
@@ -942,6 +974,32 @@
       el.textContent = message;
     }
 
+    function renderDashboardHistory(rows) {
+      const root = $("dashboardHistory");
+      if (!rows.length) {
+        root.innerHTML = '<div class="history-item">まだ作成履歴はありません。</div>';
+        return;
+      }
+      root.innerHTML = rows.map((row) => `
+        <div class="history-item">
+          <strong>${escapeHtml(row.dashboardTitle || row.dashboardUid || "Untitled")}</strong>
+          <div>${escapeHtml(row.industry || "")} / ${escapeHtml(row.dashboardType || "")}</div>
+          <div>${escapeHtml(new Date(row.time).toLocaleString())}</div>
+          <a href="${escapeHtml(row.dashboardUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(row.dashboardUrl)}</a>
+        </div>
+      `).join("");
+    }
+
+    async function loadDashboardHistory() {
+      if (state.accessRequired && !appAccessToken()) {
+        renderDashboardHistory([]);
+        setStatus("アクセスコードを入力すると作成履歴を取得できます。", "error");
+        return;
+      }
+      const result = await apiGet("/api/dashboard-history?limit=10");
+      renderDashboardHistory(result.data || []);
+    }
+
     $("propose").addEventListener("click", async () => {
       const industry = $("industry").value.trim();
       if (!industry) {
@@ -1140,6 +1198,7 @@
         status.className = "status ok";
         status.innerHTML =
           `名前：${escapeHtml(result.name)}\n\nGrafana Cloud に${escapeHtml($("industry").value.trim())}${label}を作成しました。\nURL:\n<a href="${escapeHtml(result.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(result.url)}</a>`;
+        await loadDashboardHistory();
       } catch (error) {
         setStatus(error.message, "error");
       } finally {
@@ -1150,6 +1209,17 @@
     $("folderUid").addEventListener("change", () => {
       renderMeta();
       renderPreview();
+    });
+
+    $("loadDashboardHistory").addEventListener("click", async () => {
+      $("loadDashboardHistory").disabled = true;
+      try {
+        await loadDashboardHistory();
+      } catch (error) {
+        setStatus(error.message, "error");
+      } finally {
+        $("loadDashboardHistory").disabled = false;
+      }
     });
 
     $("appAccessToken").addEventListener("change", () => {
@@ -1166,6 +1236,7 @@
       await loadAuthStatus();
       if (!state.accessRequired || appAccessToken()) {
         await loadFolders();
+        await loadDashboardHistory();
       }
     }
 

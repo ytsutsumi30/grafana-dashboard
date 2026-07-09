@@ -188,6 +188,8 @@ https://ytsutsumi30.grafana.net/d/sheet-metal-maintenance-demo/sheet-metal-machi
 
 表示されたURLをクリックすると、作成されたGrafana Cloudダッシュボードへ移動できます。
 
+左側の `作成履歴` には、この画面から作成した直近のダッシュボードURLが表示されます。画面を更新した後でも、Cloud Runインスタンスが同じ間は `履歴を更新` でURLを再表示できます。
+
 ## 4. 上書きチェックボックスの使い方
 
 `既存ダッシュボードを上書きする` チェックボックスで、既存ダッシュボードの扱いを選べます。
