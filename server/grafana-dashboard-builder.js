@@ -352,6 +352,32 @@ function resolveDashboardType(industry, dashboardType) {
   return key.includes("iot") || key.includes("デバイス") || key.includes("電力") ? "iot" : "manufacturing";
 }
 
+function manufacturingOverviewPanels() {
+  return [
+    ["Overall Equipment Effectiveness", "gauge", "percent", 40, 98, "設備総合効率を一目で確認"],
+    ["Availability / Uptime", "stat", "percent", 60, 100, "現在のライン稼働率を確認"],
+    ["Unplanned Downtime", "stat", "short", 0, 120, "直近の計画外停止時間を分単位で確認"],
+    ["Active Alarm Count", "stat", "short", 0, 20, "未解決アラーム件数を確認"]
+  ].map(panelFromTuple);
+}
+
+function enrichPanelsForDashboardType(panels, dashboardType) {
+  const normalized = (Array.isArray(panels) ? panels : []).map(normalizePanel);
+  const basePanels = dashboardType === "manufacturing"
+    ? [...manufacturingOverviewPanels(), ...normalized]
+    : normalized;
+  const seen = new Set();
+  return basePanels
+    .filter((panel) => {
+      const key = String(panel.title || "").trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 24)
+    .map((panel, index) => normalizePanel({ ...panel, id: index + 1 }, index));
+}
+
 function createProposalFromProfile(industry, dashboardType, profile, source = "template") {
   const resolvedType = resolveDashboardType(industry, dashboardType);
   const slugBase = slugifyIndustry(industry, profile);
@@ -366,7 +392,7 @@ function createProposalFromProfile(industry, dashboardType, profile, source = "t
     dashboardSlug: `${slugBase}-${slugSuffix}`,
     dashboardTitle: `${slugBase} ${slugSuffix.replace(/-/g, " ")}`,
     time: profile.time || { from: "now-6h", to: "now" },
-    panels: profile.panels.map(panelFromTuple)
+    panels: enrichPanelsForDashboardType(profile.panels.map(panelFromTuple), resolvedType)
   };
 }
 
@@ -482,7 +508,7 @@ function validateAiProposal(raw, industry, dashboardType) {
   const profile = fallbackProfile(resolvedType);
   const base = createProposalFromProfile(industry, resolvedType, profile, "ai");
   const panelCount = Math.min(Math.max(raw.panels.length, 5), 10);
-  const panels = raw.panels.slice(0, panelCount).map(normalizePanel);
+  const panels = enrichPanelsForDashboardType(raw.panels.slice(0, panelCount).map(normalizePanel), resolvedType);
   if (panels.length < 5) {
     throw new Error("AI proposal response returned too few panels.");
   }

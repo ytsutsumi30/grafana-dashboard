@@ -234,6 +234,10 @@ sheet-metal-maintenance-demo_2
 
 作成される主なパネル:
 
+- Overall Equipment Effectiveness
+- Availability / Uptime
+- Unplanned Downtime
+- Active Alarm Count
 - Cycle Time
 - Press Brake Load
 - Laser Cutter Power
@@ -256,6 +260,10 @@ sheet-metal-maintenance-demo_2
 
 作成される主なパネル:
 
+- Overall Equipment Effectiveness
+- Availability / Uptime
+- Unplanned Downtime
+- Active Alarm Count
 - Cycle Time
 - Maximum Press Pressure
 - Die Temperature
@@ -316,6 +324,15 @@ sheet-metal-maintenance-demo_2
 | Table | デバイス通信状態、アラート一覧、設備一覧 |
 
 迷った場合は、時間変化を見る項目は `時系列`、現在値だけでよい項目は `Stat` を選びます。
+
+製造ライン・設備保全では、顧客に全体像を説明しやすくするため、業種別センサーの前に以下の共通KPIが追加されます。
+
+| 共通KPI | 説明 |
+| --- | --- |
+| Overall Equipment Effectiveness | 設備総合効率の概況 |
+| Availability / Uptime | ラインの現在稼働率 |
+| Unplanned Downtime | 直近の計画外停止時間 |
+| Active Alarm Count | 未解決アラーム件数 |
 
 ## 7. 閾値編集の考え方
 
