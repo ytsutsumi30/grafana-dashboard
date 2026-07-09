@@ -23,6 +23,7 @@ The dashboard starts with a manufacturing overview KPI row:
 3. `Unplanned Downtime`
 4. `Active Alarm Count`
 5. `Maintenance Action Queue`
+6. `Production Loss Breakdown`
 
 The overview row is followed by industry-specific sheet metal equipment panels:
 
@@ -35,7 +36,7 @@ The overview row is followed by industry-specific sheet metal equipment panels:
 - `Motor Current`
 - `Vibration Acceleration`
 
-Total expected panel count: `13`.
+Total expected panel count: `14`.
 
 ## Build Command
 
@@ -62,7 +63,7 @@ Expected verification result:
 
 - `ok`: `true`
 - `uid`: `sheet-metal-maintenance-demo`
-- `panelCount`: `13` or higher
+- `panelCount`: `14` or higher
 - `leadingPanels`: `Overall Equipment Effectiveness, Availability / Uptime, Unplanned Downtime, Active Alarm Count`
 
 ## Demo Story
@@ -74,6 +75,7 @@ Use the overview row first to explain the line-level condition:
 - Unplanned downtime shows recent loss time.
 - Active alarms show unresolved operational issues.
 - Maintenance Action Queue translates the dashboard state into concrete next checks.
+- Production Loss Breakdown explains which loss category should be attacked first.
 
 Then drill down into equipment panels:
 

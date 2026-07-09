@@ -368,6 +368,17 @@ function manufacturingOverviewPanels() {
       latestOnly: true,
       scenarioId: "csv_content",
       csvContent: "priority,asset,status,recommendation,owner,due\nHIGH,Press Brake,WARN,Inspect hydraulic pressure and servo load,Maintenance,Today\nHIGH,Compressor,WARN,Check air pressure leak and drain status,Utilities,Today\nMEDIUM,Laser Cutter,ONLINE,Review power trend and lens contamination,Production,This week\nMEDIUM,Motor Drive,ONLINE,Plan bearing vibration check,Maintenance,This week\nLOW,Ambient Sensor,ONLINE,Confirm calibration date,Quality,Next PM"
+    },
+    {
+      title: "Production Loss Breakdown",
+      visualization: "piechart",
+      unit: "percent",
+      min: 0,
+      max: 100,
+      purpose: "停止、段取り、速度低下、品質ロスの構成比を確認",
+      latestOnly: true,
+      scenarioId: "csv_content",
+      csvContent: "loss_category,percent\nUnplanned Stop,36\nSetup Changeover,24\nMinor Stop,18\nSpeed Loss,14\nQuality Reject,8"
     }
   ].map(panelFromTuple);
 }

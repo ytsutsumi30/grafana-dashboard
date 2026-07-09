@@ -31,7 +31,7 @@ This index summarizes the source documents for the Grafana dashboard builder PoC
 - AI provider: Vertex AI Gemini
 - App access code is stored in Secret Manager and required for protected UI and AI model operations.
 - Firestore is used for dashboard creation history when `FIRESTORE_HISTORY_ENABLED=true`.
-- Manufacturing maintenance dashboards include common overview/action panels before industry-specific sensor panels: OEE, uptime, unplanned downtime, active alarms, and maintenance action queue.
+- Manufacturing maintenance dashboards include common overview/action panels before industry-specific sensor panels: OEE, uptime, unplanned downtime, active alarms, maintenance action queue, and production loss breakdown.
 
 ## Current Demo Dashboard
 
