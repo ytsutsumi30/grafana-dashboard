@@ -412,6 +412,17 @@ function manufacturingOverviewPanels() {
       latestOnly: true,
       scenarioId: "csv_content",
       csvContent: "reason,count\nBurr,18\nDimensional NG,14\nScratch,11\nBending Angle NG,9\nSurface Contamination,6"
+    },
+    {
+      title: "MTBF / MTTR Trend",
+      visualization: "timeseries",
+      unit: "short",
+      min: 0,
+      max: 180,
+      purpose: "平均故障間隔と平均復旧時間の推移を確認し、保全改善効果を説明",
+      latestOnly: false,
+      scenarioId: "csv_content",
+      csvContent: "time,mtbf_hours,mttr_minutes\n2026-07-04T00:00:00+09:00,96,42\n2026-07-05T00:00:00+09:00,104,38\n2026-07-06T00:00:00+09:00,118,35\n2026-07-07T00:00:00+09:00,112,37\n2026-07-08T00:00:00+09:00,126,32\n2026-07-09T00:00:00+09:00,134,29\n2026-07-10T00:00:00+09:00,142,27"
     }
   ].map(panelFromTuple);
 }

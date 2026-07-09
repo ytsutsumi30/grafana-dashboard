@@ -260,6 +260,7 @@ https://ytsutsumi30.grafana.net/d/sheet-metal-maintenance-demo/sheet-metal-machi
 - Shift Production Summary
 - Quality Defect Trend
 - Top Defect Reasons
+- MTBF / MTTR Trend
 - Cycle Time
 - Press Brake Load
 - Laser Cutter Power
@@ -291,6 +292,7 @@ https://ytsutsumi30.grafana.net/d/sheet-metal-maintenance-demo/sheet-metal-machi
 - Shift Production Summary
 - Quality Defect Trend
 - Top Defect Reasons
+- MTBF / MTTR Trend
 - Cycle Time
 - Maximum Press Pressure
 - Die Temperature
@@ -365,6 +367,7 @@ https://ytsutsumi30.grafana.net/d/sheet-metal-maintenance-demo/sheet-metal-machi
 | Shift Production Summary | シフト別の計画数、実績数、不良数、停止時間、達成率 |
 | Quality Defect Trend | 時間帯ごとの不良率推移 |
 | Top Defect Reasons | 主要な不良理由の件数構成 |
+| MTBF / MTTR Trend | 平均故障間隔と平均復旧時間の推移 |
 
 ## 7. 閾値編集の考え方
 
