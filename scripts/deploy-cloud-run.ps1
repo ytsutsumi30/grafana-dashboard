@@ -10,6 +10,7 @@ param(
   [string]$AiProvider = "vertex",
   [string]$VertexAiLocation = "global",
   [string]$VertexAiModel = "gemini-2.5-flash-lite",
+  [string]$AppAccessTokenSecret = "",
   [string]$ServiceAccount = "",
   [switch]$SkipOpenAiSecret,
   [switch]$AllowUnauthenticated
@@ -39,6 +40,9 @@ $authFlag = if ($AllowUnauthenticated) { "--allow-unauthenticated" } else { "--n
 $secretArgs = "GRAFANA_SERVICE_ACCOUNT_TOKEN=$GrafanaTokenSecret`:latest"
 if ($AiProvider -eq "openai" -and -not $SkipOpenAiSecret) {
   $secretArgs = "$secretArgs,OPENAI_API_KEY=$OpenAiKeySecret`:latest"
+}
+if ($AppAccessTokenSecret) {
+  $secretArgs = "$secretArgs,APP_ACCESS_TOKEN=$AppAccessTokenSecret`:latest"
 }
 $envArgs = "GRAFANA_URL=$GrafanaUrl,AI_PROVIDER=$AiProvider,VERTEX_AI_PROJECT=$ProjectId,VERTEX_AI_LOCATION=$VertexAiLocation,VERTEX_AI_MODEL=$VertexAiModel"
 $deployArgs = @(

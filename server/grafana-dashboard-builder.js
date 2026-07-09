@@ -6,6 +6,7 @@ const PORT = Number(process.env.PORT || 4173);
 const HOST = process.env.HOST || "0.0.0.0";
 const GRAFANA_URL = (process.env.GRAFANA_URL || "https://ytsutsumi30.grafana.net").replace(/\/$/, "");
 const TOKEN = process.env.GRAFANA_SERVICE_ACCOUNT_TOKEN || process.env.GRAFANA_CLOUD_TOKEN || "";
+const APP_ACCESS_TOKEN = process.env.APP_ACCESS_TOKEN || process.env.DASHBOARD_BUILDER_ACCESS_TOKEN || "";
 const AI_PROVIDER = (process.env.AI_PROVIDER || "vertex").toLowerCase();
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
@@ -971,9 +972,37 @@ function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
-    "Content-Length": Buffer.byteLength(body)
+    "Content-Length": Buffer.byteLength(body),
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-App-Access-Token"
   });
   res.end(body);
+}
+
+function appAccessTokenFromRequest(req) {
+  const direct = req.headers["x-app-access-token"];
+  if (typeof direct === "string" && direct) return direct;
+  const authorization = req.headers.authorization || "";
+  return authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+}
+
+function isProtectedUiApi(req) {
+  if (!APP_ACCESS_TOKEN) return false;
+  if (req.method === "GET" && (req.url === "/api/health" || req.url === "/api/folders")) return true;
+  if (req.method !== "POST") return false;
+  return [
+    "/api/propose",
+    "/api/create-dashboard",
+    "/api/mobile-sensor/demo-data",
+    "/api/mobile-sensor/reset",
+    "/api/mobile-sensor/demo-scenario",
+    "/api/ai/failure-risk",
+    "/api/ai/analyze-log"
+  ].includes(req.url);
+}
+
+function hasValidAppAccess(req) {
+  return !APP_ACCESS_TOKEN || appAccessTokenFromRequest(req) === APP_ACCESS_TOKEN;
 }
 
 function readBody(req) {
@@ -1833,9 +1862,23 @@ async function handleApi(req, res) {
       res.writeHead(204, {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type,Authorization"
+        "Access-Control-Allow-Headers": "Content-Type,Authorization,X-App-Access-Token"
       });
       res.end();
+      return;
+    }
+
+    if (req.method === "GET" && req.url === "/api/auth-status") {
+      sendJson(res, 200, { ok: true, required: Boolean(APP_ACCESS_TOKEN) });
+      return;
+    }
+
+    if (isProtectedUiApi(req) && !hasValidAppAccess(req)) {
+      sendJson(res, 401, {
+        ok: false,
+        error: "Access token is required.",
+        code: "APP_ACCESS_TOKEN_REQUIRED"
+      });
       return;
     }
 

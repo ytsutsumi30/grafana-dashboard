@@ -370,6 +370,9 @@
         既存ダッシュボードを上書きする
       </label>
 
+      <label for="appAccessToken">アクセスコード</label>
+      <input id="appAccessToken" type="password" autocomplete="off" placeholder="Cloud Runで設定時のみ入力">
+
       <div id="status" class="status">業種を入力してパネル案を作成してください。</div>
 
       <div class="ai-box">
@@ -459,7 +462,8 @@
     const state = {
       proposal: null,
       panels: [],
-      folders: []
+      folders: [],
+      accessRequired: false
     };
 
     const $ = (id) => document.getElementById(id);
@@ -470,13 +474,24 @@
       el.textContent = message;
     }
 
+    function appAccessToken() {
+      return $("appAccessToken")?.value.trim() || "";
+    }
+
+    function apiHeaders() {
+      const headers = { "Content-Type": "application/json" };
+      const token = appAccessToken();
+      if (token) headers["X-App-Access-Token"] = token;
+      return headers;
+    }
+
     async function api(path, payload) {
       if (window.location.protocol === "file:") {
         throw new Error("この画面は http://localhost:4173/ から開いてください。file:// で直接開くとローカルAPIに接続できません。");
       }
       const response = await fetch(path, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: apiHeaders(),
         body: JSON.stringify(payload)
       });
       const data = await response.json();
@@ -491,15 +506,34 @@
       if (window.location.protocol === "file:") {
         throw new Error("この画面は http://localhost:4173/ から開いてください。file:// で直接開くとローカルAPIに接続できません。");
       }
-      const response = await fetch(path);
+      const response = await fetch(path, { headers: apiHeaders() });
       const data = await response.json();
       if (!response.ok || data.ok === false) {
-        throw new Error(data.error || "Request failed");
+        const details = Array.isArray(data.errors) && data.errors.length ? `\n${data.errors.join("\n")}` : "";
+        throw new Error(`${data.error || "Request failed"}${details}`);
       }
       return data;
     }
 
+    async function loadAuthStatus() {
+      try {
+        const data = await apiGet("/api/auth-status");
+        state.accessRequired = Boolean(data.required);
+        const saved = sessionStorage.getItem("grafanaBuilderAccessToken") || "";
+        if (saved) $("appAccessToken").value = saved;
+        if (state.accessRequired && !saved) {
+          setStatus("アクセスコードを入力してください。", "error");
+        }
+      } catch {
+        state.accessRequired = false;
+      }
+    }
+
     async function loadFolders() {
+      if (state.accessRequired && !appAccessToken()) {
+        $("folderUid").innerHTML = '<option value="">General / ルート</option>';
+        return;
+      }
       try {
         const data = await apiGet("/api/folders");
         state.folders = data.folders || [];
@@ -914,6 +948,10 @@
         setStatus("業種を入力してください。", "error");
         return;
       }
+      if (state.accessRequired && !appAccessToken()) {
+        setStatus("アクセスコードを入力してください。", "error");
+        return;
+      }
       $("propose").disabled = true;
       setStatus("パネル案を作成しています...");
       try {
@@ -1077,6 +1115,10 @@
 
     $("create").addEventListener("click", async () => {
       if (!state.proposal || !state.panels.length) return;
+      if (state.accessRequired && !appAccessToken()) {
+        setStatus("アクセスコードを入力してください。", "error");
+        return;
+      }
       const validationErrors = validatePanels();
       if (validationErrors.length) {
         setStatus(`パネル案を修正してください。\n${validationErrors.join("\n")}`, "error");
@@ -1109,7 +1151,25 @@
       renderMeta();
       renderPreview();
     });
-    loadFolders();
+
+    $("appAccessToken").addEventListener("change", () => {
+      const token = appAccessToken();
+      if (token) {
+        sessionStorage.setItem("grafanaBuilderAccessToken", token);
+      } else {
+        sessionStorage.removeItem("grafanaBuilderAccessToken");
+      }
+      loadFolders();
+    });
+
+    async function init() {
+      await loadAuthStatus();
+      if (!state.accessRequired || appAccessToken()) {
+        await loadFolders();
+      }
+    }
+
+    init();
   </script>
 </body>
 </html>
