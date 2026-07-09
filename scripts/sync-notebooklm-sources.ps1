@@ -1,7 +1,9 @@
 param(
   [string]$NotebookId = "",
   [string]$Title = "Grafana Dashboard Builder PoC",
-  [string]$NotebookLmExe = ""
+  [string]$NotebookLmExe = "",
+  [switch]$DryRun,
+  [string]$ManifestPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,6 +37,54 @@ function Invoke-NotebookLmJson {
 }
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$sources = @(
+  "README.md",
+  "docs\notebooklm-source-index.md",
+  "docs\notebooklm-source-manifest.json",
+  "docs\manufacturing-dashboard-build-log.md",
+  "docs\manufacturing-demo-runbook.md",
+  "docs\dashboard-builder-specification.md",
+  "docs\sales-user-guide.md",
+  "docs\android-vibration-demo-mvp.md",
+  "docs\shipping-inspection-api-contract.md",
+  "docs\shipping-inspection-demo-guide.md",
+  "docs\skill-application-plan.md",
+  "scripts\create-manufacturing-demo-dashboard.ps1",
+  "scripts\verify-manufacturing-demo-dashboard.ps1"
+)
+
+$manifest = [pscustomobject]@{
+  title = $Title
+  notebookId = $NotebookId
+  dryRun = [bool]$DryRun
+  sourceCount = $sources.Count
+  generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+  sources = @(
+    foreach ($relativePath in $sources) {
+      $path = Join-Path $repoRoot $relativePath
+      $item = Get-Item -LiteralPath $path -ErrorAction SilentlyContinue
+      [pscustomobject]@{
+        relativePath = $relativePath
+        exists = [bool]$item
+        sizeBytes = if ($item) { $item.Length } else { 0 }
+      }
+    }
+  )
+}
+
+if ($ManifestPath) {
+  $manifestFile = $ManifestPath
+  if (-not [System.IO.Path]::IsPathRooted($manifestFile)) {
+    $manifestFile = Join-Path $repoRoot $manifestFile
+  }
+  $manifest | ConvertTo-Json -Depth 5 | Set-Content -Path $manifestFile -Encoding UTF8
+}
+
+if ($DryRun) {
+  $manifest | ConvertTo-Json -Depth 5
+  exit 0
+}
+
 $notebooklm = Resolve-NotebookLm -Requested $NotebookLmExe
 
 $auth = & $notebooklm auth check --test --json | ConvertFrom-Json
@@ -52,21 +102,6 @@ if (-not $NotebookId) {
     throw "Notebook was created but no notebook ID was returned."
   }
 }
-
-$sources = @(
-  "README.md",
-  "docs\notebooklm-source-index.md",
-  "docs\manufacturing-dashboard-build-log.md",
-  "docs\manufacturing-demo-runbook.md",
-  "docs\dashboard-builder-specification.md",
-  "docs\sales-user-guide.md",
-  "docs\android-vibration-demo-mvp.md",
-  "docs\shipping-inspection-api-contract.md",
-  "docs\shipping-inspection-demo-guide.md",
-  "docs\skill-application-plan.md",
-  "scripts\create-manufacturing-demo-dashboard.ps1",
-  "scripts\verify-manufacturing-demo-dashboard.ps1"
-)
 
 foreach ($relativePath in $sources) {
   $path = Join-Path $repoRoot $relativePath

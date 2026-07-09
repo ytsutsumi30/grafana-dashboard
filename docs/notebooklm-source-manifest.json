@@ -1,0 +1,74 @@
+{
+  "title": "Grafana Dashboard Builder PoC",
+  "notebookId": "",
+  "dryRun": true,
+  "sourceCount": 13,
+  "generatedAt": "2026-07-09T17:56:52.2487200Z",
+  "sources": [
+    {
+      "relativePath": "README.md",
+      "exists": true,
+      "sizeBytes": 29741
+    },
+    {
+      "relativePath": "docs\\notebooklm-source-index.md",
+      "exists": true,
+      "sizeBytes": 2903
+    },
+    {
+      "relativePath": "docs\\notebooklm-source-manifest.json",
+      "exists": true,
+      "sizeBytes": 1691
+    },
+    {
+      "relativePath": "docs\\manufacturing-dashboard-build-log.md",
+      "exists": true,
+      "sizeBytes": 3774
+    },
+    {
+      "relativePath": "docs\\manufacturing-demo-runbook.md",
+      "exists": true,
+      "sizeBytes": 4842
+    },
+    {
+      "relativePath": "docs\\dashboard-builder-specification.md",
+      "exists": true,
+      "sizeBytes": 29827
+    },
+    {
+      "relativePath": "docs\\sales-user-guide.md",
+      "exists": true,
+      "sizeBytes": 19336
+    },
+    {
+      "relativePath": "docs\\android-vibration-demo-mvp.md",
+      "exists": true,
+      "sizeBytes": 6890
+    },
+    {
+      "relativePath": "docs\\shipping-inspection-api-contract.md",
+      "exists": true,
+      "sizeBytes": 5142
+    },
+    {
+      "relativePath": "docs\\shipping-inspection-demo-guide.md",
+      "exists": true,
+      "sizeBytes": 4027
+    },
+    {
+      "relativePath": "docs\\skill-application-plan.md",
+      "exists": true,
+      "sizeBytes": 2935
+    },
+    {
+      "relativePath": "scripts\\create-manufacturing-demo-dashboard.ps1",
+      "exists": true,
+      "sizeBytes": 2090
+    },
+    {
+      "relativePath": "scripts\\verify-manufacturing-demo-dashboard.ps1",
+      "exists": true,
+      "sizeBytes": 3070
+    }
+  ]
+}

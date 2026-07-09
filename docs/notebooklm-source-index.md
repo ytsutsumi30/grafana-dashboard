@@ -7,6 +7,7 @@ This index summarizes the source documents for the Grafana dashboard builder PoC
 - `README.md`: setup, local execution, Cloud Run deployment, Secret Manager, cost and operational notes.
 - `docs/manufacturing-dashboard-build-log.md`: current Grafana Cloud manufacturing dashboard build state, panel structure, verification command, and demo story.
 - `docs/manufacturing-demo-runbook.md`: demo flow, talk track, pre-demo checklist, customer Q&A, and limits for the manufacturing Grafana demo.
+- `docs/notebooklm-source-manifest.json`: machine-readable source list for NotebookLM sync dry runs.
 - `docs/dashboard-builder-specification.md`: system specification for the sales dashboard builder, API endpoints, security model, Firestore history, Grafana Cloud integration, and AI behavior.
 - `docs/sales-user-guide.md`: sales representative guide for creating customer-specific manufacturing and IoT monitoring dashboards.
 

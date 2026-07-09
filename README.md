@@ -588,6 +588,12 @@ notebooklm login
 .\scripts\sync-notebooklm-sources.ps1 -NotebookId "<Notebook ID>"
 ```
 
+同期前に対象ファイルだけ確認する場合:
+
+```powershell
+.\scripts\sync-notebooklm-sources.ps1 -DryRun -ManifestPath "docs\notebooklm-source-manifest.json"
+```
+
 連携対象は `README.md`、仕様書、営業担当者向けガイド、製造デモランブック、Androidセンサーデモ、出荷検品デモ、Skill適用計画、NotebookLM用索引です。Secret値やAPIキーは連携対象に含めないでください。
 
 ## 環境変数
