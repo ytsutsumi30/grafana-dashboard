@@ -180,6 +180,22 @@
       margin-bottom: 4px;
     }
 
+    .replacement-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .replacement-table th,
+    .replacement-table td {
+      border-bottom: 1px solid var(--line);
+      padding: 6px;
+      text-align: left;
+      vertical-align: top;
+    }
+
     .mini-fields {
       display: grid;
       grid-template-columns: 1fr 92px;
@@ -380,6 +396,12 @@
         <option value="iot">IoTデバイス監視</option>
       </select>
 
+      <label for="projectLabel">顧客/案件ラベル</label>
+      <input id="projectLabel" placeholder="例: A工場 PoC">
+
+      <label for="salesOwner">営業担当者</label>
+      <input id="salesOwner" placeholder="例: 営業担当">
+
       <label for="folderUid">Dashboard folder</label>
       <select id="folderUid">
         <option value="">General / ルート</option>
@@ -405,6 +427,19 @@
         <div id="dashboardHistory" class="history-list">
           <div class="history-item">この画面から作成したダッシュボードURLを表示します。</div>
         </div>
+      </div>
+
+      <div class="ai-box">
+        <h2>実データソース差し替え</h2>
+        <label for="datasourceUid">Target datasource</label>
+        <select id="datasourceUid">
+          <option value="">データソース取得前</option>
+        </select>
+        <div class="actions">
+          <button id="loadDatasources" class="secondary" type="button">データソース取得</button>
+          <button id="buildReplacementPlan" class="secondary" type="button" disabled>差し替え表を作成</button>
+        </div>
+        <div id="replacementPlan" class="status">パネル案作成後、本番データソースへ差し替える確認表を作成できます。</div>
       </div>
 
       <div class="ai-box">
@@ -471,7 +506,10 @@
           <h2 id="dashboardName">パネル案</h2>
           <div id="dashboardMeta" class="status">未作成</div>
         </div>
-        <button id="addPanel" class="secondary" disabled>+ パネル追加</button>
+        <div class="actions" style="margin-top:0;">
+          <button id="printProposal" class="secondary" disabled>提案メモ印刷</button>
+          <button id="addPanel" class="secondary" disabled>+ パネル追加</button>
+        </div>
       </section>
 
       <section class="preview">
@@ -495,6 +533,7 @@
       proposal: null,
       panels: [],
       folders: [],
+      datasources: [],
       accessRequired: false
     };
 
@@ -664,6 +703,8 @@
 
     function updateCreateState() {
       $("create").disabled = !state.proposal || validatePanels().length > 0;
+      $("printProposal").disabled = !state.proposal || !state.panels.length;
+      $("buildReplacementPlan").disabled = !state.panels.length || !state.datasources.length;
     }
 
     function previewSize(panel) {
@@ -974,6 +1015,31 @@
       el.textContent = message;
     }
 
+    function localDashboardHistory() {
+      try {
+        const rows = JSON.parse(localStorage.getItem("grafanaBuilderDashboardHistory") || "[]");
+        return Array.isArray(rows) ? rows : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveLocalDashboardHistory(row) {
+      const rows = [row, ...localDashboardHistory()]
+        .filter((item) => item && item.dashboardUrl)
+        .filter((item, index, all) => all.findIndex((other) => other.dashboardUrl === item.dashboardUrl) === index)
+        .slice(0, 30);
+      localStorage.setItem("grafanaBuilderDashboardHistory", JSON.stringify(rows));
+    }
+
+    function mergeDashboardHistory(serverRows) {
+      const rows = [...(serverRows || []), ...localDashboardHistory()]
+        .filter((item) => item && item.dashboardUrl)
+        .filter((item, index, all) => all.findIndex((other) => other.dashboardUrl === item.dashboardUrl) === index)
+        .sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
+      return rows.slice(0, 30);
+    }
+
     function renderDashboardHistory(rows) {
       const root = $("dashboardHistory");
       if (!rows.length) {
@@ -983,7 +1049,7 @@
       root.innerHTML = rows.map((row) => `
         <div class="history-item">
           <strong>${escapeHtml(row.dashboardTitle || row.dashboardUid || "Untitled")}</strong>
-          <div>${escapeHtml(row.industry || "")} / ${escapeHtml(row.dashboardType || "")}</div>
+          <div>${escapeHtml(row.projectLabel || row.industry || "")} / ${escapeHtml(row.dashboardType || "")}</div>
           <div>${escapeHtml(new Date(row.time).toLocaleString())}</div>
           <a href="${escapeHtml(row.dashboardUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(row.dashboardUrl)}</a>
         </div>
@@ -992,12 +1058,136 @@
 
     async function loadDashboardHistory() {
       if (state.accessRequired && !appAccessToken()) {
-        renderDashboardHistory([]);
+        renderDashboardHistory(mergeDashboardHistory([]));
         setStatus("アクセスコードを入力すると作成履歴を取得できます。", "error");
         return;
       }
-      const result = await apiGet("/api/dashboard-history?limit=10");
-      renderDashboardHistory(result.data || []);
+      try {
+        const result = await apiGet("/api/dashboard-history?limit=10");
+        renderDashboardHistory(mergeDashboardHistory(result.data || []));
+      } catch {
+        renderDashboardHistory(mergeDashboardHistory([]));
+      }
+    }
+
+    function renderDatasources() {
+      const selected = $("datasourceUid").value;
+      $("datasourceUid").innerHTML = state.datasources.length
+        ? state.datasources.map((datasource) => {
+            const label = `${datasource.name} (${datasource.type}${datasource.isDefault ? ", default" : ""})`;
+            return `<option value="${escapeHtml(datasource.uid)}" ${datasource.uid === selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
+          }).join("")
+        : '<option value="">データソースがありません</option>';
+      $("buildReplacementPlan").disabled = !state.panels.length || !state.datasources.length;
+    }
+
+    async function loadDatasources() {
+      if (state.accessRequired && !appAccessToken()) {
+        setStatus("アクセスコードを入力するとデータソースを取得できます。", "error");
+        return;
+      }
+      const result = await apiGet("/api/datasources");
+      state.datasources = result.datasources || [];
+      renderDatasources();
+    }
+
+    function renderReplacementPlan(rows) {
+      if (!rows.length) {
+        $("replacementPlan").textContent = "差し替え対象のパネルがありません。";
+        return;
+      }
+      $("replacementPlan").innerHTML = `
+        <table class="replacement-table">
+          <thead><tr><th>Panel</th><th>Target</th><th>Query hint</th><th>確認点</th></tr></thead>
+          <tbody>
+            ${rows.map((row) => `
+              <tr>
+                <td>${escapeHtml(row.panelTitle)}<br>${escapeHtml(row.visualization)} / ${escapeHtml(row.unit)}</td>
+                <td>${escapeHtml(row.targetDatasourceName)}<br>${escapeHtml(row.targetDatasourceType)}</td>
+                <td>${escapeHtml(row.queryHint)}</td>
+                <td>${escapeHtml(row.validationPoint)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+
+    function printProposalMemo() {
+      if (!state.proposal || !state.panels.length) return;
+      const projectLabel = $("projectLabel").value.trim();
+      const salesOwner = $("salesOwner").value.trim();
+      const folderTitle = $("folderUid").selectedOptions[0]?.textContent || "General / ルート";
+      const dashboardUrl = `https://ytsutsumi30.grafana.net/d/${state.proposal.dashboardUid}/${state.proposal.dashboardSlug}`;
+      const rows = state.panels.map((panel, index) => `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${escapeHtml(panel.title)}</td>
+          <td>${escapeHtml(panel.visualization)}</td>
+          <td>${escapeHtml(panel.unit)}</td>
+          <td>${escapeHtml(panel.min)} - ${escapeHtml(panel.max)}</td>
+          <td>${escapeHtml(panel.warningThreshold ?? "")} / ${escapeHtml(panel.criticalThreshold ?? "")}</td>
+          <td>${escapeHtml(panel.purpose || "")}</td>
+        </tr>
+      `).join("");
+      const html = `<!doctype html>
+        <html lang="ja">
+        <head>
+          <meta charset="utf-8">
+          <title>${escapeHtml(state.proposal.dashboardUid)} proposal</title>
+          <style>
+            body { font-family: "Segoe UI", Meiryo, sans-serif; color: #111827; line-height: 1.5; padding: 24px; }
+            h1 { font-size: 22px; margin: 0 0 12px; }
+            h2 { font-size: 16px; margin-top: 24px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th, td { border: 1px solid #d1d5db; padding: 6px; text-align: left; vertical-align: top; }
+            th { background: #f3f4f6; }
+            .meta { display: grid; grid-template-columns: 160px 1fr; gap: 4px 12px; font-size: 13px; }
+            .note { color: #4b5563; font-size: 12px; margin-top: 16px; }
+          </style>
+        </head>
+        <body>
+          <h1>Grafana Dashboard Proposal</h1>
+          <div class="meta">
+            <strong>顧客/案件ラベル</strong><span>${escapeHtml(projectLabel || "-")}</span>
+            <strong>営業担当者</strong><span>${escapeHtml(salesOwner || "-")}</span>
+            <strong>業種/監視対象</strong><span>${escapeHtml(state.proposal.industry)}</span>
+            <strong>Dashboard UID</strong><span>${escapeHtml(state.proposal.dashboardUid)}</span>
+            <strong>Dashboard folder</strong><span>${escapeHtml(folderTitle)}</span>
+            <strong>想定URL</strong><span>${escapeHtml(dashboardUrl)}</span>
+            <strong>作成方式</strong><span>${escapeHtml(state.proposal.source || "")}</span>
+          </div>
+          <h2>Panel Plan</h2>
+          <table>
+            <thead><tr><th>#</th><th>Panel</th><th>Visualization</th><th>Unit</th><th>Range</th><th>Warning / Critical</th><th>Purpose</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <p class="note">この提案メモは営業デモ用です。作成される値はTestData datasourceによるモックであり、実データ化にはデータソース設定とクエリ調整が必要です。</p>
+        </body>
+        </html>`;
+      const win = window.open("", "_blank");
+      if (!win) {
+        setStatus("ポップアップがブロックされました。ブラウザ設定を確認してください。", "error");
+        return;
+      }
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      win.print();
+    }
+
+    async function buildReplacementPlan() {
+      const datasource = state.datasources.find((item) => item.uid === $("datasourceUid").value);
+      if (!datasource) {
+        setStatus("データソースを選択してください。", "error");
+        return;
+      }
+      const result = await api("/api/datasource-replacement-plan", {
+        panels: state.panels,
+        datasource
+      });
+      renderReplacementPlan(result.plan || []);
     }
 
     $("propose").addEventListener("click", async () => {
@@ -1198,6 +1388,17 @@
         status.className = "status ok";
         status.innerHTML =
           `名前：${escapeHtml(result.name)}\n\nGrafana Cloud に${escapeHtml($("industry").value.trim())}${label}を作成しました。\nURL:\n<a href="${escapeHtml(result.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(result.url)}</a>`;
+        saveLocalDashboardHistory({
+          time: new Date().toISOString(),
+          dashboardUid: result.name,
+          dashboardTitle: result.title,
+          dashboardType: state.proposal.dashboardType,
+          dashboardUrl: result.url,
+          folderUid: $("folderUid").value,
+          industry: $("industry").value.trim(),
+          projectLabel: $("projectLabel").value.trim(),
+          salesOwner: $("salesOwner").value.trim()
+        });
         await loadDashboardHistory();
       } catch (error) {
         setStatus(error.message, "error");
@@ -1222,6 +1423,32 @@
       }
     });
 
+    $("loadDatasources").addEventListener("click", async () => {
+      $("loadDatasources").disabled = true;
+      try {
+        await loadDatasources();
+      } catch (error) {
+        setStatus(error.message, "error");
+      } finally {
+        $("loadDatasources").disabled = false;
+      }
+    });
+
+    $("buildReplacementPlan").addEventListener("click", async () => {
+      $("buildReplacementPlan").disabled = true;
+      try {
+        await buildReplacementPlan();
+      } catch (error) {
+        setStatus(error.message, "error");
+      } finally {
+        updateCreateState();
+      }
+    });
+
+    $("printProposal").addEventListener("click", () => {
+      printProposalMemo();
+    });
+
     $("appAccessToken").addEventListener("change", () => {
       const token = appAccessToken();
       if (token) {
@@ -1237,6 +1464,9 @@
       if (!state.accessRequired || appAccessToken()) {
         await loadFolders();
         await loadDashboardHistory();
+        await loadDatasources();
+      } else {
+        renderDashboardHistory(mergeDashboardHistory([]));
       }
     }
 

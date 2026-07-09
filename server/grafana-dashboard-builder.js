@@ -971,6 +971,54 @@ async function listFolders() {
   ];
 }
 
+async function listDatasources() {
+  const datasources = await grafana("/api/datasources");
+  return datasources
+    .map((datasource) => ({
+      uid: datasource.uid || "",
+      name: datasource.name || datasource.uid || "Untitled",
+      type: datasource.type || "",
+      isDefault: Boolean(datasource.isDefault),
+      access: datasource.access || ""
+    }))
+    .sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name, "ja"));
+}
+
+function queryHintForDatasource(type, panel) {
+  const name = String(panel.title || "metric").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "metric";
+  if (type.includes("prometheus")) {
+    return `${name}{device_id="$device"} or avg_over_time(${name}[5m])`;
+  }
+  if (type.includes("influx")) {
+    return `from(bucket: "factory") |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "${name}")`;
+  }
+  if (type.includes("postgres") || type.includes("mysql") || type.includes("mssql")) {
+    return `select time, value from sensor_readings where metric = '${name}' order by time`;
+  }
+  if (type.includes("infinity")) {
+    return `/api/metrics/${name}`;
+  }
+  return `Replace TestData random_walk with the production metric for ${panel.title || name}.`;
+}
+
+function datasourceReplacementPlan(panels, datasource) {
+  const rows = (Array.isArray(panels) && panels.length ? panels : []).map(normalizePanel);
+  return rows.map((panel) => ({
+    panelTitle: panel.title,
+    visualization: panel.visualization,
+    currentDatasourceUid: "testdata",
+    targetDatasourceUid: datasource.uid || "",
+    targetDatasourceName: datasource.name || "",
+    targetDatasourceType: datasource.type || "",
+    unit: panel.unit,
+    expectedRange: `${panel.min}-${panel.max}`,
+    queryHint: queryHintForDatasource(String(datasource.type || ""), panel),
+    validationPoint: panel.latestOnly
+      ? "最新値が想定範囲内で取得できることを確認する"
+      : "時系列のtimestamp/valueがGrafanaの選択時間範囲で取得できることを確認する"
+  }));
+}
+
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
   res.writeHead(status, {
@@ -991,10 +1039,11 @@ function appAccessTokenFromRequest(req) {
 
 function isProtectedUiApi(req) {
   if (!APP_ACCESS_TOKEN) return false;
-  if (req.method === "GET" && (req.url === "/api/health" || req.url === "/api/folders" || req.url.startsWith("/api/dashboard-history"))) return true;
+  if (req.method === "GET" && (req.url === "/api/health" || req.url === "/api/folders" || req.url === "/api/datasources" || req.url.startsWith("/api/dashboard-history"))) return true;
   if (req.method !== "POST") return false;
   return [
     "/api/propose",
+    "/api/datasource-replacement-plan",
     "/api/create-dashboard",
     "/api/mobile-sensor/demo-data",
     "/api/mobile-sensor/reset",
@@ -1008,6 +1057,14 @@ function hasValidAppAccess(req) {
   return !APP_ACCESS_TOKEN || appAccessTokenFromRequest(req) === APP_ACCESS_TOKEN;
 }
 
+function requestActor(req) {
+  const iapEmail = req.headers["x-goog-authenticated-user-email"];
+  if (typeof iapEmail === "string" && iapEmail) return truncateText(iapEmail.replace(/^accounts\.google\.com:/, ""), 160);
+  const forwardedEmail = req.headers["x-forwarded-email"];
+  if (typeof forwardedEmail === "string" && forwardedEmail) return truncateText(forwardedEmail, 160);
+  return "";
+}
+
 function clientAddress(req) {
   const forwarded = req.headers["x-forwarded-for"];
   if (typeof forwarded === "string" && forwarded) return forwarded.split(",")[0].trim();
@@ -1019,6 +1076,7 @@ function isRateLimitedApi(req) {
   if (req.method !== "POST") return false;
   return [
     "/api/propose",
+    "/api/datasource-replacement-plan",
     "/api/create-dashboard",
     "/api/mobile-sensor/demo-data",
     "/api/mobile-sensor/reset",
@@ -1302,6 +1360,7 @@ function recordAppEvent(type, detail = {}) {
     dashboardUrl: truncateText(detail.dashboardUrl || "", 500),
     folderUid: truncateText(detail.folderUid || "", 120),
     industry: truncateText(detail.industry || "", 120),
+    actor: truncateText(detail.actor || "", 160),
     statusCode: Number.isFinite(Number(detail.statusCode)) ? Number(detail.statusCode) : 0,
     durationMs: Number.isFinite(Number(detail.durationMs)) ? Number(detail.durationMs) : 0
   };
@@ -1936,7 +1995,7 @@ async function handleApi(req, res) {
     }
 
     if (req.method === "GET" && req.url === "/api/auth-status") {
-      sendJson(res, 200, { ok: true, required: Boolean(APP_ACCESS_TOKEN) });
+      sendJson(res, 200, { ok: true, required: Boolean(APP_ACCESS_TOKEN), actor: requestActor(req) });
       return;
     }
 
@@ -2043,6 +2102,7 @@ async function handleApi(req, res) {
       recordAppEvent("mobile_sensor_demo_generated", {
         route: "/api/mobile-sensor/demo-data",
         deviceId: result.deviceId,
+        actor: requestActor(req),
         level: result.mode === "critical" ? "warn" : "info",
         message: `Generated ${result.count} ${result.mode} demo sensor samples. max=${result.maxMagnitude} shocks=${result.shockCount}`
       });
@@ -2056,6 +2116,7 @@ async function handleApi(req, res) {
       recordAppEvent("mobile_sensor_reset", {
         route: "/api/mobile-sensor/reset",
         deviceId: result.deviceId,
+        actor: requestActor(req),
         message: `Reset ${result.resetScope} sensor data. removedPoints=${result.removedPoints} removedDevices=${result.removedDevices}`
       });
       sendJson(res, 200, { ok: true, ...result });
@@ -2068,6 +2129,7 @@ async function handleApi(req, res) {
       recordAppEvent("mobile_sensor_demo_scenario", {
         route: "/api/mobile-sensor/demo-scenario",
         deviceId: result.deviceId,
+        actor: requestActor(req),
         level: result.analysis.riskLevel === "CRITICAL" ? "warn" : "info",
         message: `Scenario ${result.mode} completed. risk=${result.analysis.riskLevel} score=${result.analysis.riskScore}`
       });
@@ -2086,6 +2148,7 @@ async function handleApi(req, res) {
       recordAppEvent("ai_failure_risk_analyzed", {
         route: "/api/ai/failure-risk",
         deviceId: analysis.deviceId,
+        actor: requestActor(req),
         level: analysis.riskLevel === "CRITICAL" ? "error" : analysis.riskLevel === "WARN" ? "warn" : "info",
         message: `Failure risk ${analysis.riskLevel} score=${analysis.riskScore}`
       });
@@ -2103,6 +2166,7 @@ async function handleApi(req, res) {
       recordAppEvent("ai_failure_risk_analyzed", {
         route: "/api/ai/failure-risk",
         deviceId: analysis.deviceId,
+        actor: requestActor(req),
         level: analysis.riskLevel === "CRITICAL" ? "error" : analysis.riskLevel === "WARN" ? "warn" : "info",
         message: `Failure risk ${analysis.riskLevel} score=${analysis.riskScore}`
       });
@@ -2128,6 +2192,7 @@ async function handleApi(req, res) {
       const analysis = await buildLogAnalysis(parsed.searchParams.get("limit") || 100, useAi);
       recordAppEvent("ai_log_analyzed", {
         route: "/api/ai/analyze-log",
+        actor: requestActor(req),
         level: analysis.riskLevel === "CRITICAL" ? "error" : analysis.riskLevel === "WARN" ? "warn" : "info",
         message: `Log analysis ${analysis.riskLevel} events=${analysis.eventCount} errors=${analysis.errorCount}`
       });
@@ -2140,6 +2205,7 @@ async function handleApi(req, res) {
       const analysis = await buildLogAnalysis(body.limit || 100, body.useAi !== false);
       recordAppEvent("ai_log_analyzed", {
         route: "/api/ai/analyze-log",
+        actor: requestActor(req),
         level: analysis.riskLevel === "CRITICAL" ? "error" : analysis.riskLevel === "WARN" ? "warn" : "info",
         message: `Log analysis ${analysis.riskLevel} events=${analysis.eventCount} errors=${analysis.errorCount}`
       });
@@ -2152,6 +2218,11 @@ async function handleApi(req, res) {
       return;
     }
 
+    if (req.method === "GET" && req.url === "/api/datasources") {
+      sendJson(res, 200, { ok: true, datasources: await listDatasources() });
+      return;
+    }
+
     if (req.method === "POST" && req.url === "/api/propose") {
       const body = await readBody(req);
       const proposal = await hybridProposal(body.industry, body.dashboardType);
@@ -2160,10 +2231,27 @@ async function handleApi(req, res) {
         industry: proposal.industry,
         dashboardType: proposal.dashboardType,
         dashboardUid: proposal.dashboardUid,
+        actor: requestActor(req),
         level: proposal.warning ? "warn" : "info",
         message: `Proposal created by ${proposal.source}`
       });
       sendJson(res, 200, proposal);
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/api/datasource-replacement-plan") {
+      const body = await readBody(req);
+      const panels = Array.isArray(body.panels) ? body.panels : [];
+      const validationErrors = validatePanelDrafts(panels);
+      if (validationErrors.length) {
+        sendJson(res, 400, { ok: false, error: "Panel validation failed.", errors: validationErrors });
+        return;
+      }
+      sendJson(res, 200, {
+        ok: true,
+        datasource: body.datasource || {},
+        plan: datasourceReplacementPlan(panels, body.datasource || {})
+      });
       return;
     }
 
@@ -2201,6 +2289,7 @@ async function handleApi(req, res) {
         dashboardTitle: dashboard.title,
         dashboardUrl: url,
         folderUid,
+        actor: requestActor(req),
         message: `Dashboard created. overwrite=${overwrite}`
       });
       sendJson(res, 200, {
