@@ -565,6 +565,14 @@ https://ytsutsumi30.grafana.net/d/sheet-metal-maintenance-demo/sheet-metal-machi
 
 `-Overwrite` を外すと、既存UIDがある場合は `_1`, `_2` のような連番UIDで新規作成します。アクセスコードは `GRAFANA_DASHBOARD_BUILDER_ACCESS_TOKEN` または Secret Manager の `grafana-dashboard-builder-access-token` から取得します。Secret値は画面やログに出力しません。
 
+作成後の検証:
+
+```powershell
+.\scripts\verify-manufacturing-demo-dashboard.ps1
+```
+
+この検証では、Grafana Cloud APIから `sheet-metal-maintenance-demo` を取得し、パネル数と先頭の製造共通KPI行を確認します。
+
 ## NotebookLM 連携
 
 ドキュメントをNotebookLMへ連携する場合は、NotebookLM CLIの認証後に同期スクリプトを実行します。

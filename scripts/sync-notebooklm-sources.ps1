@@ -56,13 +56,15 @@ if (-not $NotebookId) {
 $sources = @(
   "README.md",
   "docs\notebooklm-source-index.md",
+  "docs\manufacturing-dashboard-build-log.md",
   "docs\dashboard-builder-specification.md",
   "docs\sales-user-guide.md",
   "docs\android-vibration-demo-mvp.md",
   "docs\shipping-inspection-api-contract.md",
   "docs\shipping-inspection-demo-guide.md",
   "docs\skill-application-plan.md",
-  "scripts\create-manufacturing-demo-dashboard.ps1"
+  "scripts\create-manufacturing-demo-dashboard.ps1",
+  "scripts\verify-manufacturing-demo-dashboard.ps1"
 )
 
 foreach ($relativePath in $sources) {

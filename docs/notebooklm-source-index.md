@@ -5,6 +5,7 @@ This index summarizes the source documents for the Grafana dashboard builder PoC
 ## Project Overview
 
 - `README.md`: setup, local execution, Cloud Run deployment, Secret Manager, cost and operational notes.
+- `docs/manufacturing-dashboard-build-log.md`: current Grafana Cloud manufacturing dashboard build state, panel structure, verification command, and demo story.
 - `docs/dashboard-builder-specification.md`: system specification for the sales dashboard builder, API endpoints, security model, Firestore history, Grafana Cloud integration, and AI behavior.
 - `docs/sales-user-guide.md`: sales representative guide for creating customer-specific manufacturing and IoT monitoring dashboards.
 
@@ -35,6 +36,7 @@ This index summarizes the source documents for the Grafana dashboard builder PoC
 ## Current Demo Dashboard
 
 - Standard manufacturing demo script: `scripts/create-manufacturing-demo-dashboard.ps1`
+- Standard manufacturing verification script: `scripts/verify-manufacturing-demo-dashboard.ps1`
 - Current sheet metal demo UID: `sheet-metal-maintenance-demo`
 - Current sheet metal demo URL: `https://ytsutsumi30.grafana.net/d/sheet-metal-maintenance-demo/sheet-metal-machine-maintenance-demo`
 
