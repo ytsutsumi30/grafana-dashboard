@@ -57,6 +57,7 @@ $sources = @(
   "README.md",
   "docs\notebooklm-source-index.md",
   "docs\manufacturing-dashboard-build-log.md",
+  "docs\manufacturing-demo-runbook.md",
   "docs\dashboard-builder-specification.md",
   "docs\sales-user-guide.md",
   "docs\android-vibration-demo-mvp.md",

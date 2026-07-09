@@ -588,7 +588,7 @@ notebooklm login
 .\scripts\sync-notebooklm-sources.ps1 -NotebookId "<Notebook ID>"
 ```
 
-連携対象は `README.md`、仕様書、営業担当者向けガイド、Androidセンサーデモ、出荷検品デモ、Skill適用計画、NotebookLM用索引です。Secret値やAPIキーは連携対象に含めないでください。
+連携対象は `README.md`、仕様書、営業担当者向けガイド、製造デモランブック、Androidセンサーデモ、出荷検品デモ、Skill適用計画、NotebookLM用索引です。Secret値やAPIキーは連携対象に含めないでください。
 
 ## 環境変数
 
