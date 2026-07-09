@@ -61,7 +61,8 @@ $sources = @(
   "docs\android-vibration-demo-mvp.md",
   "docs\shipping-inspection-api-contract.md",
   "docs\shipping-inspection-demo-guide.md",
-  "docs\skill-application-plan.md"
+  "docs\skill-application-plan.md",
+  "scripts\create-manufacturing-demo-dashboard.ps1"
 )
 
 foreach ($relativePath in $sources) {

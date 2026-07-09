@@ -32,6 +32,12 @@ This index summarizes the source documents for the Grafana dashboard builder PoC
 - Firestore is used for dashboard creation history when `FIRESTORE_HISTORY_ENABLED=true`.
 - Manufacturing maintenance dashboards include a common KPI row before industry-specific sensor panels: OEE, uptime, unplanned downtime, and active alarms.
 
+## Current Demo Dashboard
+
+- Standard manufacturing demo script: `scripts/create-manufacturing-demo-dashboard.ps1`
+- Current sheet metal demo UID: `sheet-metal-maintenance-demo`
+- Current sheet metal demo URL: `https://ytsutsumi30.grafana.net/d/sheet-metal-maintenance-demo/sheet-metal-machine-maintenance-demo`
+
 ## Important Security Notes
 
 - Do not store Grafana service account tokens, OpenAI keys, app access codes, or Google credentials in NotebookLM sources.

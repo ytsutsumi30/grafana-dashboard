@@ -228,6 +228,23 @@ sheet-metal-maintenance-demo_2
 
 ## 5. パネル案の例
 
+### 5.0 実演用ダッシュボードを事前更新する
+
+デモ前に標準の板金加工業者向けダッシュボードを作り直す場合は、管理者が以下を実行します。
+
+```powershell
+.\scripts\create-manufacturing-demo-dashboard.ps1 `
+  -Industry "板金加工業者" `
+  -DashboardType manufacturing `
+  -Overwrite
+```
+
+作成/更新されるURL:
+
+```text
+https://ytsutsumi30.grafana.net/d/sheet-metal-maintenance-demo/sheet-metal-machine-maintenance-demo
+```
+
 ### 5.1 板金加工業者
 
 種別: 製造ライン・設備保全

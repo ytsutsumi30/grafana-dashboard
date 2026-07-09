@@ -223,6 +223,19 @@ UIではエラーがあるパネルに検証メッセージを表示し、`Grafa
 6. Grafana Cloud HTTP API `/api/dashboards/db` へPOSTする
 7. 作成されたダッシュボードURLをUIに表示する
 
+運用補助として、Cloud Run上の同じAPIを呼び出す `scripts/create-manufacturing-demo-dashboard.ps1` を用意する。このスクリプトはアクセスコードを環境変数またはSecret Managerから取得し、製造向けデモダッシュボードを作成/更新する。
+
+例:
+
+```powershell
+.\scripts\create-manufacturing-demo-dashboard.ps1 `
+  -Industry "板金加工業者" `
+  -DashboardType manufacturing `
+  -Overwrite
+```
+
+この例では `sheet-metal-maintenance-demo` を更新し、先頭にOEE、稼働率、計画外停止、アラーム件数の共通KPIを持つダッシュボードを作成する。
+
 ### 6.7 上書き制御
 
 UIには `既存ダッシュボードを上書きする` チェックボックスを持つ。

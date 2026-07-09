@@ -546,6 +546,25 @@ Invoke-RestMethod "https://<Cloud Run URL>/api/runtime-status"
 
 作成履歴をFirestoreに保存する場合は、Firestore APIとdatabaseを用意し、Cloud RunサービスアカウントにFirestore書き込み権限を付与したうえで、デプロイ時に `-EnableFirestoreHistory` を追加します。
 
+## 製造向けデモダッシュボードの作成/更新
+
+Cloud Run上のDashboard Builder APIを使って、製造向けデモダッシュボードをGrafana Cloudへ作成または更新できます。
+
+```powershell
+.\scripts\create-manufacturing-demo-dashboard.ps1 `
+  -Industry "板金加工業者" `
+  -DashboardType manufacturing `
+  -Overwrite
+```
+
+既定では `sheet-metal-maintenance-demo` を更新し、以下のようなURLを返します。
+
+```text
+https://ytsutsumi30.grafana.net/d/sheet-metal-maintenance-demo/sheet-metal-machine-maintenance-demo
+```
+
+`-Overwrite` を外すと、既存UIDがある場合は `_1`, `_2` のような連番UIDで新規作成します。アクセスコードは `GRAFANA_DASHBOARD_BUILDER_ACCESS_TOKEN` または Secret Manager の `grafana-dashboard-builder-access-token` から取得します。Secret値は画面やログに出力しません。
+
 ## NotebookLM 連携
 
 ドキュメントをNotebookLMへ連携する場合は、NotebookLM CLIの認証後に同期スクリプトを実行します。
