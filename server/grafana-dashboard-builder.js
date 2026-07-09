@@ -398,6 +398,74 @@ function normalizePanel(panel, index) {
   };
 }
 
+function hasValue(value) {
+  return value !== undefined && value !== null && value !== "";
+}
+
+function validatePanelDrafts(panels) {
+  const errors = [];
+  if (!Array.isArray(panels) || panels.length === 0) {
+    return ["At least one panel is required."];
+  }
+  if (panels.length > 24) {
+    errors.push("Panel count must be 24 or fewer.");
+  }
+
+  panels.forEach((panel, index) => {
+    const label = `Panel ${index + 1}`;
+    if (!panel || typeof panel !== "object") {
+      errors.push(`${label}: panel must be an object.`);
+      return;
+    }
+    if (!String(panel.title || "").trim()) {
+      errors.push(`${label}: title is required.`);
+    }
+    if (String(panel.title || "").length > 80) {
+      errors.push(`${label}: title must be 80 characters or fewer.`);
+    }
+    if (!VISUALIZATIONS.has(panel.visualization)) {
+      errors.push(`${label}: visualization must be one of ${Array.from(VISUALIZATIONS).join(", ")}.`);
+    }
+
+    const min = Number(panel.min);
+    const max = Number(panel.max);
+    if (!Number.isFinite(min)) {
+      errors.push(`${label}: min must be a number.`);
+    }
+    if (!Number.isFinite(max)) {
+      errors.push(`${label}: max must be a number.`);
+    }
+    if (Number.isFinite(min) && Number.isFinite(max) && max <= min) {
+      errors.push(`${label}: max must be greater than min.`);
+    }
+
+    const warningInput = Number(panel.warningThreshold);
+    const criticalInput = Number(panel.criticalThreshold);
+    if (hasValue(panel.warningThreshold) && !Number.isFinite(warningInput)) {
+      errors.push(`${label}: warning threshold must be a number.`);
+    }
+    if (hasValue(panel.criticalThreshold) && !Number.isFinite(criticalInput)) {
+      errors.push(`${label}: critical threshold must be a number.`);
+    }
+    if (Number.isFinite(min) && Number.isFinite(max)) {
+      const defaults = thresholdValues(min, max, panel.unit);
+      const warning = Number.isFinite(warningInput) ? warningInput : defaults.warning;
+      const critical = Number.isFinite(criticalInput) ? criticalInput : defaults.critical;
+      if (warning >= critical) {
+        errors.push(`${label}: warning threshold must be lower than critical threshold.`);
+      }
+      if (Number.isFinite(warning) && (warning < min || warning > max)) {
+        errors.push(`${label}: warning threshold must be within min and max.`);
+      }
+      if (Number.isFinite(critical) && (critical < min || critical > max)) {
+        errors.push(`${label}: critical threshold must be within min and max.`);
+      }
+    }
+  });
+
+  return errors;
+}
+
 function validateAiProposal(raw, industry, dashboardType) {
   if (!raw || typeof raw !== "object" || !Array.isArray(raw.panels)) {
     throw new Error("AI proposal response did not include panels.");
@@ -1971,9 +2039,15 @@ async function handleApi(req, res) {
     if (req.method === "POST" && req.url === "/api/create-dashboard") {
       const body = await readBody(req);
       const proposed = proposePanels(body.industry, body.dashboardType);
+      const draftPanels = Array.isArray(body.panels) && body.panels.length ? body.panels : proposed.panels;
+      const validationErrors = validatePanelDrafts(draftPanels);
+      if (validationErrors.length) {
+        sendJson(res, 400, { ok: false, error: "Panel validation failed.", errors: validationErrors });
+        return;
+      }
       const overwrite = body.overwrite === true;
       const identity = await resolveDashboardIdentity(proposed, overwrite);
-      const dashboard = buildDashboard(body.industry, body.panels, body.dashboardType);
+      const dashboard = buildDashboard(body.industry, draftPanels, body.dashboardType);
       dashboard.uid = identity.uid;
       dashboard.title = identity.suffix ? `${dashboard.title} ${identity.suffix}` : dashboard.title;
       await ensureTestData();

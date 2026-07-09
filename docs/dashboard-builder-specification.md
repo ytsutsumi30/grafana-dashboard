@@ -142,6 +142,22 @@ IoTデバイス監視:
 
 また、パネルの追加と削除ができる。
 
+### 6.4.1 作成前バリデーション
+
+UIとサーバーの両方で、Grafana Cloudへ投入する前にパネル案を検証する。
+
+検証項目:
+
+- パネル数が1以上24以下であること
+- パネル名が空ではなく、80文字以内であること
+- 可視化方式が `timeseries` / `stat` / `gauge` / `piechart` / `table` のいずれかであること
+- 最小値と最大値が数値であり、最大値が最小値より大きいこと
+- Warning / Critical 閾値が入力されている場合は数値であること
+- 実際に使われるWarning閾値がCritical閾値より小さいこと
+- Warning / Critical 閾値が最小値と最大値の範囲内であること
+
+UIではエラーがあるパネルに検証メッセージを表示し、`Grafana Cloud に作成` ボタンを無効化する。サーバー側でも同じ検証を行い、不正なリクエストはHTTP 400で拒否する。
+
 ### 6.5 生成前プレビュー
 
 パネル案作成後、Grafana Cloudに作成する前に、UI上でダッシュボードの簡易レイアウトプレビューを表示する。
@@ -161,11 +177,12 @@ IoTデバイス監視:
 `Grafana Cloud に作成` ボタン押下時、以下を実行する。
 
 1. Dashboard folder選択値を取得する
-2. `testdata` datasourceの存在を確認する
-3. 存在しない場合はTestData datasourceを作成する
-4. 編集済みパネル案からGrafana dashboard JSONを生成する
-5. Grafana Cloud HTTP API `/api/dashboards/db` へPOSTする
-6. 作成されたダッシュボードURLをUIに表示する
+2. 編集済みパネル案を検証する
+3. `testdata` datasourceの存在を確認する
+4. 存在しない場合はTestData datasourceを作成する
+5. 編集済みパネル案からGrafana dashboard JSONを生成する
+6. Grafana Cloud HTTP API `/api/dashboards/db` へPOSTする
+7. 作成されたダッシュボードURLをUIに表示する
 
 ### 6.7 上書き制御
 

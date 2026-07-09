@@ -302,6 +302,17 @@
       gap: 10px;
     }
 
+    .validation-list {
+      margin: 0;
+      padding: 8px 10px 8px 24px;
+      border: 1px solid rgba(255, 92, 122, 0.45);
+      border-radius: 6px;
+      color: #ffc2cc;
+      background: rgba(255, 92, 122, 0.08);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
     .meta {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -470,7 +481,8 @@
       });
       const data = await response.json();
       if (!response.ok || data.ok === false) {
-        throw new Error(data.error || "Request failed");
+        const details = Array.isArray(data.errors) && data.errors.length ? `\n${data.errors.join("\n")}` : "";
+        throw new Error(`${data.error || "Request failed"}${details}`);
       }
       return data;
     }
@@ -516,13 +528,76 @@
 
     function updatePanel(index, key, value) {
       if (key === "min" || key === "max" || key === "warningThreshold" || key === "criticalThreshold") {
-        state.panels[index][key] = Number(value);
+        state.panels[index][key] = String(value).trim() === "" ? "" : Number(value);
       } else if (key === "latestOnly") {
         state.panels[index][key] = value;
       } else {
         state.panels[index][key] = value;
       }
       renderPreview();
+      updateCreateState();
+    }
+
+    function hasValue(value) {
+      return value !== undefined && value !== null && value !== "";
+    }
+
+    function panelValidationErrors(panel, index) {
+      const errors = [];
+      const label = `Panel ${index + 1}`;
+      if (!String(panel.title || "").trim()) errors.push(`${label}: パネル名を入力してください。`);
+      if (String(panel.title || "").length > 80) errors.push(`${label}: パネル名は80文字以内にしてください。`);
+      if (!["timeseries", "stat", "gauge", "piechart", "table"].includes(panel.visualization)) {
+        errors.push(`${label}: 可視化タイプが不正です。`);
+      }
+      const min = Number(panel.min);
+      const max = Number(panel.max);
+      if (!Number.isFinite(min)) errors.push(`${label}: 最小値は数値で入力してください。`);
+      if (!Number.isFinite(max)) errors.push(`${label}: 最大値は数値で入力してください。`);
+      if (Number.isFinite(min) && Number.isFinite(max) && max <= min) {
+        errors.push(`${label}: 最大値は最小値より大きくしてください。`);
+      }
+      const warningInput = Number(panel.warningThreshold);
+      const criticalInput = Number(panel.criticalThreshold);
+      if (hasValue(panel.warningThreshold) && !Number.isFinite(warningInput)) {
+        errors.push(`${label}: Warning閾値は数値で入力してください。`);
+      }
+      if (hasValue(panel.criticalThreshold) && !Number.isFinite(criticalInput)) {
+        errors.push(`${label}: Critical閾値は数値で入力してください。`);
+      }
+      if (Number.isFinite(min) && Number.isFinite(max)) {
+        const defaults = thresholdDefaults(min, max, panel.unit);
+        const warning = Number.isFinite(warningInput) ? warningInput : defaults.warning;
+        const critical = Number.isFinite(criticalInput) ? criticalInput : defaults.critical;
+        if (warning >= critical) {
+          errors.push(`${label}: Warning閾値はCritical閾値より小さくしてください。`);
+        }
+        if (Number.isFinite(warning) && (warning < min || warning > max)) {
+          errors.push(`${label}: Warning閾値は最小値と最大値の範囲内にしてください。`);
+        }
+        if (Number.isFinite(critical) && (critical < min || critical > max)) {
+          errors.push(`${label}: Critical閾値は最小値と最大値の範囲内にしてください。`);
+        }
+      }
+      return errors;
+    }
+
+    function validatePanels() {
+      if (!state.panels.length) return ["パネル案を作成または追加してください。"];
+      if (state.panels.length > 24) return ["パネル数は24個以内にしてください。"];
+      return state.panels.flatMap(panelValidationErrors);
+    }
+
+    function thresholdDefaults(min, max, unit) {
+      const span = max - min;
+      if (unit === "celsius" || unit === "amp" || unit === "dB" || unit === "accMS2") {
+        return { warning: min + span * 0.75, critical: min + span * 0.9 };
+      }
+      return { warning: min + span * 0.8, critical: max };
+    }
+
+    function updateCreateState() {
+      $("create").disabled = !state.proposal || validatePanels().length > 0;
     }
 
     function previewSize(panel) {
@@ -719,18 +794,23 @@
         return;
       }
 
-      $("create").disabled = false;
+      updateCreateState();
       $("addPanel").disabled = false;
       root.innerHTML = "";
 
       state.panels.forEach((panel, index) => {
         const card = document.createElement("article");
+        const errors = panelValidationErrors(panel, index);
+        const validationHtml = errors.length
+          ? `<ul class="validation-list">${errors.map((error) => `<li>${escapeHtml(error)}</li>`).join("")}</ul>`
+          : "";
         card.className = "panel-card";
         card.innerHTML = `
           <div class="panel-head">
             <strong>Panel ${index + 1}</strong>
             <button class="danger" type="button">削除</button>
           </div>
+          ${validationHtml}
           <label>パネル名</label>
           <input data-key="title" value="${escapeHtml(panel.title)}">
           <div class="meta">
@@ -791,6 +871,7 @@
             const value = key === "latestOnly" ? input.value === "true" : input.value;
             updatePanel(index, key, value);
           });
+          input.addEventListener("change", () => renderPanels());
         });
 
         root.appendChild(card);
@@ -996,6 +1077,12 @@
 
     $("create").addEventListener("click", async () => {
       if (!state.proposal || !state.panels.length) return;
+      const validationErrors = validatePanels();
+      if (validationErrors.length) {
+        setStatus(`パネル案を修正してください。\n${validationErrors.join("\n")}`, "error");
+        renderPanels();
+        return;
+      }
       $("create").disabled = true;
       setStatus("Grafana Cloud にダッシュボードを作成しています...");
       try {
