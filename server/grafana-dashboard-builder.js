@@ -379,6 +379,17 @@ function manufacturingOverviewPanels() {
       latestOnly: true,
       scenarioId: "csv_content",
       csvContent: "loss_category,percent\nUnplanned Stop,36\nSetup Changeover,24\nMinor Stop,18\nSpeed Loss,14\nQuality Reject,8"
+    },
+    {
+      title: "Shift Production Summary",
+      visualization: "table",
+      unit: "short",
+      min: 0,
+      max: 1,
+      purpose: "シフト別の計画数、実績数、不良数、停止時間、達成率を確認",
+      latestOnly: true,
+      scenarioId: "csv_content",
+      csvContent: "shift,planned_units,actual_units,reject_units,downtime_min,attainment_percent\nDay,620,594,8,18,95.8\nEvening,580,552,11,24,95.2\nNight,520,493,7,31,94.8\nToday Total,1720,1639,26,73,95.3"
     }
   ].map(panelFromTuple);
 }

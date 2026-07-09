@@ -111,6 +111,7 @@ Browser
 - `Active Alarm Count`: 未解決アラーム件数をStatで表示
 - `Maintenance Action Queue`: 優先度、設備、状態、推奨対応、担当、期限をTableで表示
 - `Production Loss Breakdown`: 停止、段取り、速度低下、品質ロスの構成比をドーナツで表示
+- `Shift Production Summary`: シフト別の計画数、実績数、不良数、停止時間、達成率をTableで表示
 
 ### 6.1.1 提案メモ出力
 

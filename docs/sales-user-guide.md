@@ -257,6 +257,7 @@ https://ytsutsumi30.grafana.net/d/sheet-metal-maintenance-demo/sheet-metal-machi
 - Active Alarm Count
 - Maintenance Action Queue
 - Production Loss Breakdown
+- Shift Production Summary
 - Cycle Time
 - Press Brake Load
 - Laser Cutter Power
@@ -285,6 +286,7 @@ https://ytsutsumi30.grafana.net/d/sheet-metal-maintenance-demo/sheet-metal-machi
 - Active Alarm Count
 - Maintenance Action Queue
 - Production Loss Breakdown
+- Shift Production Summary
 - Cycle Time
 - Maximum Press Pressure
 - Die Temperature
@@ -356,6 +358,7 @@ https://ytsutsumi30.grafana.net/d/sheet-metal-maintenance-demo/sheet-metal-machi
 | Active Alarm Count | 未解決アラーム件数 |
 | Maintenance Action Queue | 保全担当が次に確認する設備、優先度、推奨対応 |
 | Production Loss Breakdown | 停止、段取り、速度低下、品質ロスの構成比 |
+| Shift Production Summary | シフト別の計画数、実績数、不良数、停止時間、達成率 |
 
 ## 7. 閾値編集の考え方
 
