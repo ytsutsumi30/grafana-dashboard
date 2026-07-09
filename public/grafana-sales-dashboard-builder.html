@@ -162,6 +162,18 @@
       margin-top: 10px;
     }
 
+    .history-toolbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: end;
+      margin-top: 8px;
+    }
+
+    .history-toolbar input {
+      margin-bottom: 0;
+    }
+
     .history-item {
       border: 1px solid var(--line);
       border-radius: 6px;
@@ -178,6 +190,31 @@
       color: var(--text);
       font-size: 13px;
       margin-bottom: 4px;
+    }
+
+    .history-meta {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 6px;
+    }
+
+    .history-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+    }
+
+    .history-actions a {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .history-source {
+      color: var(--muted);
+      font-size: 11px;
+      flex: 0 0 auto;
     }
 
     .replacement-table {
@@ -423,7 +460,11 @@
 
       <div class="ai-box">
         <h2>作成履歴</h2>
-        <button id="loadDashboardHistory" class="secondary" type="button">履歴を更新</button>
+        <div class="history-toolbar">
+          <input id="dashboardHistoryFilter" placeholder="履歴を検索: 業種、タイトル、URL">
+          <button id="loadDashboardHistory" class="secondary" type="button">履歴を更新</button>
+        </div>
+        <div id="dashboardHistorySummary" class="history-meta">Firestore有効時はCloud Runをまたいで履歴を表示します。</div>
         <div id="dashboardHistory" class="history-list">
           <div class="history-item">この画面から作成したダッシュボードURLを表示します。</div>
         </div>
@@ -540,6 +581,8 @@
       panels: [],
       folders: [],
       datasources: [],
+      dashboardHistoryRows: [],
+      dashboardHistorySource: "local",
       accessRequired: false
     };
 
@@ -1046,33 +1089,67 @@
       return rows.slice(0, 30);
     }
 
+    function filteredDashboardHistoryRows() {
+      const query = ($("dashboardHistoryFilter")?.value || "").trim().toLowerCase();
+      if (!query) return state.dashboardHistoryRows;
+      return state.dashboardHistoryRows.filter((row) => [
+        row.dashboardTitle,
+        row.dashboardUid,
+        row.dashboardType,
+        row.dashboardUrl,
+        row.folderUid,
+        row.industry,
+        row.actor,
+        row.salesOwner,
+        row.message
+      ].some((value) => String(value || "").toLowerCase().includes(query)));
+    }
+
     function renderDashboardHistory(rows) {
       const root = $("dashboardHistory");
-      if (!rows.length) {
+      const visibleRows = rows || filteredDashboardHistoryRows();
+      $("dashboardHistorySummary").textContent =
+        `Source: ${state.dashboardHistorySource} / 表示 ${visibleRows.length} 件 / 保持 ${state.dashboardHistoryRows.length} 件`;
+      if (!visibleRows.length) {
         root.innerHTML = '<div class="history-item">まだ作成履歴はありません。</div>';
         return;
       }
-      root.innerHTML = rows.map((row) => `
+      root.innerHTML = visibleRows.map((row) => `
         <div class="history-item">
           <strong>${escapeHtml(row.dashboardTitle || row.dashboardUid || "Untitled")}</strong>
           <div>${escapeHtml(row.projectLabel || row.industry || "")} / ${escapeHtml(row.dashboardType || "")}</div>
           <div>${escapeHtml(new Date(row.time).toLocaleString())}</div>
-          <a href="${escapeHtml(row.dashboardUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(row.dashboardUrl)}</a>
+          <div class="history-meta">
+            UID: ${escapeHtml(row.dashboardUid || "-")}
+            ${row.folderUid ? ` / Folder: ${escapeHtml(row.folderUid)}` : ""}
+            ${row.actor ? ` / Actor: ${escapeHtml(row.actor)}` : ""}
+            ${row.salesOwner ? ` / Sales: ${escapeHtml(row.salesOwner)}` : ""}
+          </div>
+          <div class="history-actions">
+            <a href="${escapeHtml(row.dashboardUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(row.dashboardUrl)}</a>
+            <span class="history-source">${escapeHtml(row.message || "")}</span>
+          </div>
         </div>
       `).join("");
     }
 
     async function loadDashboardHistory() {
       if (state.accessRequired && !appAccessToken()) {
-        renderDashboardHistory(mergeDashboardHistory([]));
+        state.dashboardHistorySource = "local";
+        state.dashboardHistoryRows = mergeDashboardHistory([]);
+        renderDashboardHistory();
         setStatus("アクセスコードを入力すると作成履歴を取得できます。", "error");
         return;
       }
       try {
-        const result = await apiGet("/api/dashboard-history?limit=10");
-        renderDashboardHistory(mergeDashboardHistory(result.data || []));
+        const result = await apiGet("/api/dashboard-history?limit=30");
+        state.dashboardHistorySource = result.source || "server";
+        state.dashboardHistoryRows = mergeDashboardHistory(result.data || []);
+        renderDashboardHistory();
       } catch {
-        renderDashboardHistory(mergeDashboardHistory([]));
+        state.dashboardHistorySource = "local";
+        state.dashboardHistoryRows = mergeDashboardHistory([]);
+        renderDashboardHistory();
       }
     }
 
@@ -1452,6 +1529,10 @@
       } finally {
         $("loadDashboardHistory").disabled = false;
       }
+    });
+
+    $("dashboardHistoryFilter").addEventListener("input", () => {
+      renderDashboardHistory();
     });
 
     $("loadDatasources").addEventListener("click", async () => {

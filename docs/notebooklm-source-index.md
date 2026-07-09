@@ -1,0 +1,38 @@
+# NotebookLM Source Index
+
+This index summarizes the source documents for the Grafana dashboard builder PoC.
+
+## Project Overview
+
+- `README.md`: setup, local execution, Cloud Run deployment, Secret Manager, cost and operational notes.
+- `docs/dashboard-builder-specification.md`: system specification for the sales dashboard builder, API endpoints, security model, Firestore history, Grafana Cloud integration, and AI behavior.
+- `docs/sales-user-guide.md`: sales representative guide for creating customer-specific manufacturing and IoT monitoring dashboards.
+
+## Android Sensor Demo
+
+- `docs/android-vibration-demo-mvp.md`: Android vibration sensor app, Cloud Run receiver API, Grafana Cloud dashboard, AI maintenance analysis, and demo commands.
+
+## Shipping Inspection Demo
+
+- `docs/shipping-inspection-api-contract.md`: shipping inspection demo API contract.
+- `docs/shipping-inspection-demo-guide.md`: shipping inspection demo operation guide.
+
+## Skills And Development Plan
+
+- `docs/skill-application-plan.md`: Codex skills usage plan for this application and related development workflows.
+
+## Current Operating Assumptions
+
+- Cloud Run service: `grafana-dashboard-builder`
+- GCP project: `modern-replica-465803-n8`
+- Region: `asia-northeast1`
+- Grafana Cloud URL: `https://ytsutsumi30.grafana.net`
+- AI provider: Vertex AI Gemini
+- App access code is stored in Secret Manager and required for protected UI and AI model operations.
+- Firestore is used for dashboard creation history when `FIRESTORE_HISTORY_ENABLED=true`.
+
+## Important Security Notes
+
+- Do not store Grafana service account tokens, OpenAI keys, app access codes, or Google credentials in NotebookLM sources.
+- Public Grafana JSON endpoints used by dashboards should default to rule-based responses.
+- AI model calls require explicit UI action or `ai=true` with the app access code.

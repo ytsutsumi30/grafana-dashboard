@@ -545,6 +545,23 @@ Invoke-RestMethod "https://<Cloud Run URL>/api/runtime-status"
 
 作成履歴をFirestoreに保存する場合は、Firestore APIとdatabaseを用意し、Cloud RunサービスアカウントにFirestore書き込み権限を付与したうえで、デプロイ時に `-EnableFirestoreHistory` を追加します。
 
+## NotebookLM 連携
+
+ドキュメントをNotebookLMへ連携する場合は、NotebookLM CLIの認証後に同期スクリプトを実行します。
+
+```powershell
+notebooklm login
+.\scripts\sync-notebooklm-sources.ps1
+```
+
+既存Notebookへ追加する場合:
+
+```powershell
+.\scripts\sync-notebooklm-sources.ps1 -NotebookId "<Notebook ID>"
+```
+
+連携対象は `README.md`、仕様書、営業担当者向けガイド、Androidセンサーデモ、出荷検品デモ、Skill適用計画、NotebookLM用索引です。Secret値やAPIキーは連携対象に含めないでください。
+
 ## 環境変数
 
 必要に応じて実行時に上書きできます。
