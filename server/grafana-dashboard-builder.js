@@ -7,6 +7,8 @@ const HOST = process.env.HOST || "0.0.0.0";
 const GRAFANA_URL = (process.env.GRAFANA_URL || "https://ytsutsumi30.grafana.net").replace(/\/$/, "");
 const TOKEN = process.env.GRAFANA_SERVICE_ACCOUNT_TOKEN || process.env.GRAFANA_CLOUD_TOKEN || "";
 const APP_ACCESS_TOKEN = process.env.APP_ACCESS_TOKEN || process.env.DASHBOARD_BUILDER_ACCESS_TOKEN || "";
+const RATE_LIMIT_WINDOW_MS = Number(process.env.APP_RATE_LIMIT_WINDOW_MS || 60000);
+const RATE_LIMIT_MAX_REQUESTS = Number(process.env.APP_RATE_LIMIT_MAX_REQUESTS || 30);
 const AI_PROVIDER = (process.env.AI_PROVIDER || "vertex").toLowerCase();
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
@@ -28,6 +30,7 @@ const appLogState = {
   events: [],
   aiLogCache: new Map()
 };
+const rateLimitState = new Map();
 
 const manufacturingProfiles = [
   {
@@ -1005,6 +1008,50 @@ function hasValidAppAccess(req) {
   return !APP_ACCESS_TOKEN || appAccessTokenFromRequest(req) === APP_ACCESS_TOKEN;
 }
 
+function clientAddress(req) {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded) return forwarded.split(",")[0].trim();
+  return req.socket?.remoteAddress || "unknown";
+}
+
+function isRateLimitedApi(req) {
+  if (RATE_LIMIT_MAX_REQUESTS <= 0 || RATE_LIMIT_WINDOW_MS <= 0) return false;
+  if (req.method !== "POST") return false;
+  return [
+    "/api/propose",
+    "/api/create-dashboard",
+    "/api/mobile-sensor/demo-data",
+    "/api/mobile-sensor/reset",
+    "/api/mobile-sensor/demo-scenario",
+    "/api/ai/failure-risk",
+    "/api/ai/analyze-log"
+  ].includes(req.url);
+}
+
+function rateLimitResult(req) {
+  const now = Date.now();
+  const windowMs = Number.isFinite(RATE_LIMIT_WINDOW_MS) ? RATE_LIMIT_WINDOW_MS : 60000;
+  const maxRequests = Number.isFinite(RATE_LIMIT_MAX_REQUESTS) ? RATE_LIMIT_MAX_REQUESTS : 30;
+  const key = `${clientAddress(req)}:${req.url}`;
+  let entry = rateLimitState.get(key);
+  if (!entry || entry.resetAt <= now) {
+    entry = { count: 0, resetAt: now + windowMs };
+  }
+  entry.count += 1;
+  rateLimitState.set(key, entry);
+
+  for (const [entryKey, value] of rateLimitState.entries()) {
+    if (value.resetAt <= now) rateLimitState.delete(entryKey);
+  }
+
+  return {
+    limited: entry.count > maxRequests,
+    limit: maxRequests,
+    remaining: Math.max(0, maxRequests - entry.count),
+    retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - now) / 1000))
+  };
+}
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -1880,6 +1927,21 @@ async function handleApi(req, res) {
         code: "APP_ACCESS_TOKEN_REQUIRED"
       });
       return;
+    }
+
+    if (isRateLimitedApi(req)) {
+      const rate = rateLimitResult(req);
+      if (rate.limited) {
+        res.setHeader("Retry-After", String(rate.retryAfterSeconds));
+        sendJson(res, 429, {
+          ok: false,
+          error: `Rate limit exceeded. Try again in ${rate.retryAfterSeconds} seconds.`,
+          code: "RATE_LIMIT_EXCEEDED",
+          limit: rate.limit,
+          retryAfterSeconds: rate.retryAfterSeconds
+        });
+        return;
+      }
     }
 
     if (req.method === "GET" && req.url === "/api/health") {

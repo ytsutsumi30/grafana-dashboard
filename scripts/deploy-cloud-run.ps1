@@ -11,6 +11,8 @@ param(
   [string]$VertexAiLocation = "global",
   [string]$VertexAiModel = "gemini-2.5-flash-lite",
   [string]$AppAccessTokenSecret = "",
+  [int]$AppRateLimitWindowMs = 60000,
+  [int]$AppRateLimitMaxRequests = 30,
   [string]$ServiceAccount = "",
   [switch]$SkipOpenAiSecret,
   [switch]$AllowUnauthenticated
@@ -44,7 +46,7 @@ if ($AiProvider -eq "openai" -and -not $SkipOpenAiSecret) {
 if ($AppAccessTokenSecret) {
   $secretArgs = "$secretArgs,APP_ACCESS_TOKEN=$AppAccessTokenSecret`:latest"
 }
-$envArgs = "GRAFANA_URL=$GrafanaUrl,AI_PROVIDER=$AiProvider,VERTEX_AI_PROJECT=$ProjectId,VERTEX_AI_LOCATION=$VertexAiLocation,VERTEX_AI_MODEL=$VertexAiModel"
+$envArgs = "GRAFANA_URL=$GrafanaUrl,AI_PROVIDER=$AiProvider,VERTEX_AI_PROJECT=$ProjectId,VERTEX_AI_LOCATION=$VertexAiLocation,VERTEX_AI_MODEL=$VertexAiModel,APP_RATE_LIMIT_WINDOW_MS=$AppRateLimitWindowMs,APP_RATE_LIMIT_MAX_REQUESTS=$AppRateLimitMaxRequests"
 $deployArgs = @(
   "run", "deploy", $ServiceName,
   "--source", ".",
