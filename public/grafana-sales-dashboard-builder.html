@@ -430,6 +430,12 @@
       </div>
 
       <div class="ai-box">
+        <h2>運用診断</h2>
+        <button id="loadRuntimeStatus" class="secondary" type="button">設定状態を確認</button>
+        <div id="runtimeStatus" class="status">Cloud Run起動状態やAI/Grafana設定を確認できます。</div>
+      </div>
+
+      <div class="ai-box">
         <h2>実データソース差し替え</h2>
         <label for="datasourceUid">Target datasource</label>
         <select id="datasourceUid">
@@ -1091,6 +1097,29 @@
       renderDatasources();
     }
 
+    function renderRuntimeStatus(status) {
+      $("runtimeStatus").textContent =
+        `Service: ${status.service}\n` +
+        `Grafana URL: ${status.grafanaUrl}\n` +
+        `Grafana token: ${status.grafanaTokenConfigured ? "configured" : "missing"}\n` +
+        `Access code: ${status.appAccessTokenEnabled ? "enabled" : "disabled"}\n` +
+        `AI provider: ${status.aiProvider}\n` +
+        `Vertex project: ${status.vertexProjectConfigured ? "configured" : "missing"}\n` +
+        `OpenAI key: ${status.openAiKeyConfigured ? "configured" : "missing"}\n` +
+        `Rate limit: ${status.rateLimitMaxRequests} / ${status.rateLimitWindowMs}ms\n` +
+        `Events: ${status.appLogEvents}, Sensors: ${status.mobileSensorPoints}, Devices: ${status.mobileSensorDevices}\n` +
+        `Dashboard history: ${status.dashboardHistoryCount}`;
+    }
+
+    async function loadRuntimeStatus() {
+      if (state.accessRequired && !appAccessToken()) {
+        setStatus("アクセスコードを入力すると設定状態を確認できます。", "error");
+        return;
+      }
+      const result = await apiGet("/api/runtime-status");
+      renderRuntimeStatus(result);
+    }
+
     function renderReplacementPlan(rows) {
       if (!rows.length) {
         $("replacementPlan").textContent = "差し替え対象のパネルがありません。";
@@ -1445,6 +1474,17 @@
       }
     });
 
+    $("loadRuntimeStatus").addEventListener("click", async () => {
+      $("loadRuntimeStatus").disabled = true;
+      try {
+        await loadRuntimeStatus();
+      } catch (error) {
+        setStatus(error.message, "error");
+      } finally {
+        $("loadRuntimeStatus").disabled = false;
+      }
+    });
+
     $("printProposal").addEventListener("click", () => {
       printProposalMemo();
     });
@@ -1465,6 +1505,7 @@
         await loadFolders();
         await loadDashboardHistory();
         await loadDatasources();
+        await loadRuntimeStatus();
       } else {
         renderDashboardHistory(mergeDashboardHistory([]));
       }

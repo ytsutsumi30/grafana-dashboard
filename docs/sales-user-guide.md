@@ -418,6 +418,14 @@ Cloud RunのURLが正しいか確認してください。
 https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app
 ```
 
+起動状態だけ確認する場合は、以下を開きます。
+
+```text
+https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app/api/ping
+```
+
+画面左側の `運用診断` で `設定状態を確認` を押すと、Grafana token設定有無、AI provider、レート制限、アプリ内イベント数を確認できます。
+
 ### ダッシュボード作成に失敗する
 
 以下の可能性があります。

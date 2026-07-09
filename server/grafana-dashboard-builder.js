@@ -1019,6 +1019,28 @@ function datasourceReplacementPlan(panels, datasource) {
   }));
 }
 
+function runtimeStatus() {
+  return {
+    ok: true,
+    service: "grafana-dashboard-builder",
+    time: new Date().toISOString(),
+    grafanaUrl: GRAFANA_URL,
+    grafanaTokenConfigured: Boolean(TOKEN),
+    appAccessTokenEnabled: Boolean(APP_ACCESS_TOKEN),
+    aiProvider: AI_PROVIDER,
+    openAiKeyConfigured: Boolean(OPENAI_API_KEY),
+    vertexProjectConfigured: Boolean(VERTEX_AI_PROJECT),
+    vertexLocation: VERTEX_AI_LOCATION,
+    vertexModel: VERTEX_AI_MODEL,
+    rateLimitWindowMs: RATE_LIMIT_WINDOW_MS,
+    rateLimitMaxRequests: RATE_LIMIT_MAX_REQUESTS,
+    appLogEvents: appLogState.events.length,
+    mobileSensorPoints: mobileSensorState.points.length,
+    mobileSensorDevices: mobileSensorState.devices.size,
+    dashboardHistoryCount: dashboardHistory(100).length
+  };
+}
+
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
   res.writeHead(status, {
@@ -1039,7 +1061,7 @@ function appAccessTokenFromRequest(req) {
 
 function isProtectedUiApi(req) {
   if (!APP_ACCESS_TOKEN) return false;
-  if (req.method === "GET" && (req.url === "/api/health" || req.url === "/api/folders" || req.url === "/api/datasources" || req.url.startsWith("/api/dashboard-history"))) return true;
+  if (req.method === "GET" && (req.url === "/api/health" || req.url === "/api/runtime-status" || req.url === "/api/folders" || req.url === "/api/datasources" || req.url.startsWith("/api/dashboard-history"))) return true;
   if (req.method !== "POST") return false;
   return [
     "/api/propose",
@@ -1999,6 +2021,11 @@ async function handleApi(req, res) {
       return;
     }
 
+    if (req.method === "GET" && req.url === "/api/ping") {
+      sendJson(res, 200, { ok: true, service: "grafana-dashboard-builder", time: new Date().toISOString() });
+      return;
+    }
+
     if (isProtectedUiApi(req) && !hasValidAppAccess(req)) {
       sendJson(res, 401, {
         ok: false,
@@ -2021,6 +2048,11 @@ async function handleApi(req, res) {
         });
         return;
       }
+    }
+
+    if (req.method === "GET" && req.url === "/api/runtime-status") {
+      sendJson(res, 200, runtimeStatus());
+      return;
     }
 
     if (req.method === "GET" && req.url === "/api/health") {
