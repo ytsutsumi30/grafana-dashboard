@@ -109,6 +109,7 @@ Browser
 - `Availability / Uptime`: 現在のライン稼働率をStatで表示
 - `Unplanned Downtime`: 直近の計画外停止時間をStatで表示
 - `Active Alarm Count`: 未解決アラーム件数をStatで表示
+- `Maintenance Action Queue`: 優先度、設備、状態、推奨対応、担当、期限をTableで表示
 
 ### 6.1.1 提案メモ出力
 

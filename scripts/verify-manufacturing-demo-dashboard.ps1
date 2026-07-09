@@ -2,12 +2,15 @@ param(
   [string]$GrafanaUrl = "https://ytsutsumi30.grafana.net",
   [string]$ProjectId = "modern-replica-465803-n8",
   [string]$DashboardUid = "sheet-metal-maintenance-demo",
-  [int]$ExpectedMinPanels = 12,
+  [int]$ExpectedMinPanels = 13,
   [string[]]$ExpectedLeadingPanels = @(
     "Overall Equipment Effectiveness",
     "Availability / Uptime",
     "Unplanned Downtime",
     "Active Alarm Count"
+  ),
+  [string[]]$ExpectedPanels = @(
+    "Maintenance Action Queue"
   ),
   [string]$GrafanaToken = ""
 )
@@ -57,6 +60,11 @@ for ($i = 0; $i -lt $ExpectedLeadingPanels.Count; $i += 1) {
     $errors += "Leading panel $($i + 1) mismatch. expected=$($ExpectedLeadingPanels[$i]) actual=$($leadingTitles[$i])"
   }
 }
+foreach ($expectedPanel in $ExpectedPanels) {
+  if (-not ($panels | Where-Object { $_.title -eq $expectedPanel })) {
+    $errors += "Expected panel was not found: $expectedPanel"
+  }
+}
 
 $result = [pscustomobject]@{
   ok = $errors.Count -eq 0
@@ -64,6 +72,7 @@ $result = [pscustomobject]@{
   title = $dashboard.title
   panelCount = $panels.Count
   leadingPanels = $leadingTitles -join ", "
+  expectedPanelsFound = ($ExpectedPanels | ForEach-Object { $name = $_; [pscustomobject]@{ title = $name; found = [bool]($panels | Where-Object { $_.title -eq $name }) } })
   grafanaUrl = "$base$($response.meta.url)"
   errors = $errors
 }

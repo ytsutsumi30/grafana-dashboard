@@ -357,7 +357,18 @@ function manufacturingOverviewPanels() {
     ["Overall Equipment Effectiveness", "gauge", "percent", 40, 98, "設備総合効率を一目で確認"],
     ["Availability / Uptime", "stat", "percent", 60, 100, "現在のライン稼働率を確認"],
     ["Unplanned Downtime", "stat", "short", 0, 120, "直近の計画外停止時間を分単位で確認"],
-    ["Active Alarm Count", "stat", "short", 0, 20, "未解決アラーム件数を確認"]
+    ["Active Alarm Count", "stat", "short", 0, 20, "未解決アラーム件数を確認"],
+    {
+      title: "Maintenance Action Queue",
+      visualization: "table",
+      unit: "short",
+      min: 0,
+      max: 1,
+      purpose: "保全担当が次に確認する設備、優先度、推奨対応を一覧化",
+      latestOnly: true,
+      scenarioId: "csv_content",
+      csvContent: "priority,asset,status,recommendation,owner,due\nHIGH,Press Brake,WARN,Inspect hydraulic pressure and servo load,Maintenance,Today\nHIGH,Compressor,WARN,Check air pressure leak and drain status,Utilities,Today\nMEDIUM,Laser Cutter,ONLINE,Review power trend and lens contamination,Production,This week\nMEDIUM,Motor Drive,ONLINE,Plan bearing vibration check,Maintenance,This week\nLOW,Ambient Sensor,ONLINE,Confirm calibration date,Quality,Next PM"
+    }
   ].map(panelFromTuple);
 }
 
