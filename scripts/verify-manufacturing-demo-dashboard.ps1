@@ -2,7 +2,7 @@ param(
   [string]$GrafanaUrl = "https://ytsutsumi30.grafana.net",
   [string]$ProjectId = "modern-replica-465803-n8",
   [string]$DashboardUid = "sheet-metal-maintenance-demo",
-  [int]$ExpectedMinPanels = 15,
+  [int]$ExpectedMinPanels = 17,
   [string[]]$ExpectedLeadingPanels = @(
     "Overall Equipment Effectiveness",
     "Availability / Uptime",
@@ -12,7 +12,9 @@ param(
   [string[]]$ExpectedPanels = @(
     "Maintenance Action Queue",
     "Production Loss Breakdown",
-    "Shift Production Summary"
+    "Shift Production Summary",
+    "Quality Defect Trend",
+    "Top Defect Reasons"
   ),
   [string]$GrafanaToken = ""
 )

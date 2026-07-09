@@ -390,6 +390,28 @@ function manufacturingOverviewPanels() {
       latestOnly: true,
       scenarioId: "csv_content",
       csvContent: "shift,planned_units,actual_units,reject_units,downtime_min,attainment_percent\nDay,620,594,8,18,95.8\nEvening,580,552,11,24,95.2\nNight,520,493,7,31,94.8\nToday Total,1720,1639,26,73,95.3"
+    },
+    {
+      title: "Quality Defect Trend",
+      visualization: "timeseries",
+      unit: "percent",
+      min: 0,
+      max: 6,
+      purpose: "時間帯ごとの不良率推移を確認し、設備状態やシフト差との関係を見る",
+      latestOnly: false,
+      scenarioId: "csv_content",
+      csvContent: "time,defect_rate_percent\n2026-07-10T08:00:00+09:00,1.2\n2026-07-10T09:00:00+09:00,1.5\n2026-07-10T10:00:00+09:00,2.1\n2026-07-10T11:00:00+09:00,1.8\n2026-07-10T12:00:00+09:00,2.6\n2026-07-10T13:00:00+09:00,3.4\n2026-07-10T14:00:00+09:00,2.9\n2026-07-10T15:00:00+09:00,2.2\n2026-07-10T16:00:00+09:00,1.9\n2026-07-10T17:00:00+09:00,2.4\n2026-07-10T18:00:00+09:00,3.1\n2026-07-10T19:00:00+09:00,2.7"
+    },
+    {
+      title: "Top Defect Reasons",
+      visualization: "piechart",
+      unit: "short",
+      min: 0,
+      max: 100,
+      purpose: "主要な不良理由を構成比で確認し、品質改善テーマを決める",
+      latestOnly: true,
+      scenarioId: "csv_content",
+      csvContent: "reason,count\nBurr,18\nDimensional NG,14\nScratch,11\nBending Angle NG,9\nSurface Contamination,6"
     }
   ].map(panelFromTuple);
 }

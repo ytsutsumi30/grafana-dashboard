@@ -25,6 +25,8 @@ The dashboard starts with a manufacturing overview KPI row:
 5. `Maintenance Action Queue`
 6. `Production Loss Breakdown`
 7. `Shift Production Summary`
+8. `Quality Defect Trend`
+9. `Top Defect Reasons`
 
 The overview row is followed by industry-specific sheet metal equipment panels:
 
@@ -37,7 +39,7 @@ The overview row is followed by industry-specific sheet metal equipment panels:
 - `Motor Current`
 - `Vibration Acceleration`
 
-Total expected panel count: `15`.
+Total expected panel count: `17`.
 
 ## Build Command
 
@@ -64,7 +66,7 @@ Expected verification result:
 
 - `ok`: `true`
 - `uid`: `sheet-metal-maintenance-demo`
-- `panelCount`: `15` or higher
+- `panelCount`: `17` or higher
 - `leadingPanels`: `Overall Equipment Effectiveness, Availability / Uptime, Unplanned Downtime, Active Alarm Count`
 
 ## Demo Story
@@ -78,6 +80,8 @@ Use the overview row first to explain the line-level condition:
 - Maintenance Action Queue translates the dashboard state into concrete next checks.
 - Production Loss Breakdown explains which loss category should be attacked first.
 - Shift Production Summary connects equipment condition to production plan attainment.
+- Quality Defect Trend shows whether quality issues are increasing by time window.
+- Top Defect Reasons shows which defect category should be investigated first.
 
 Then drill down into equipment panels:
 
