@@ -71,7 +71,7 @@ POST /api/ai/failure-risk
 
 `/api/mobile-sensor/demo-scenario` runs reset, demo data generation, and AI failure-risk analysis in one call.
 
-`/api/ai/failure-risk` calculates a maintenance risk score from recent sensor samples. It uses rule-based checks for vibration, shock events, stale communication, and battery level. When Vertex AI or OpenAI is configured, it also generates Japanese maintenance comments for Grafana and the browser UI. AI comments are cached for a short period to avoid calling the model on every Grafana refresh.
+`/api/ai/failure-risk` calculates a maintenance risk score from recent sensor samples. It uses rule-based checks for vibration, shock events, stale communication, and battery level. Public GET requests default to rule-based output so Grafana auto-refresh does not call the AI model. Add `ai=true` only for controlled demos; when the app access code is enabled, `ai=true` requires `X-App-Access-Token`. Browser UI POST actions can still request AI comments with `useAi: true`.
 
 ### Grafana dashboard
 
@@ -228,7 +228,7 @@ Request:
 
 ```powershell
 $base="https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app"
-Invoke-RestMethod "$base/api/ai/failure-risk?deviceId=android-demo-001&windowMinutes=10"
+Invoke-RestMethod "$base/api/ai/failure-risk?deviceId=android-demo-001&windowMinutes=10&ai=false"
 ```
 
 Response fields:

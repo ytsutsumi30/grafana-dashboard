@@ -1067,8 +1067,17 @@ function appAccessTokenFromRequest(req) {
   return authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
 }
 
+function isAiGetWithModelRequest(req) {
+  if (req.method !== "GET") return false;
+  if (!req.url.startsWith("/api/ai/failure-risk") && !req.url.startsWith("/api/ai/analyze-log")) return false;
+  const parsed = new URL(req.url, "http://localhost");
+  return parsed.searchParams.get("ai") === "true";
+}
+
 function isProtectedUiApi(req) {
   if (!APP_ACCESS_TOKEN) return false;
+  if (req.method === "GET" && req.url.startsWith("/api/logs/recent")) return true;
+  if (isAiGetWithModelRequest(req)) return true;
   if (req.method === "GET" && (req.url === "/api/health" || req.url === "/api/runtime-status" || req.url === "/api/folders" || req.url === "/api/datasources" || req.url.startsWith("/api/dashboard-history"))) return true;
   if (req.method !== "POST") return false;
   return [
@@ -2262,7 +2271,7 @@ async function handleApi(req, res) {
 
     if (req.method === "GET" && req.url.startsWith("/api/ai/failure-risk")) {
       const parsed = new URL(req.url, "http://localhost");
-      const useAi = parsed.searchParams.get("ai") !== "false";
+      const useAi = parsed.searchParams.get("ai") === "true";
       const analysis = await buildFailureRiskAnalysis(
         parsed.searchParams.get("deviceId") || "android-demo-001",
         parsed.searchParams.get("windowMinutes") || 10,
@@ -2322,7 +2331,7 @@ async function handleApi(req, res) {
 
     if (req.method === "GET" && req.url.startsWith("/api/ai/analyze-log")) {
       const parsed = new URL(req.url, "http://localhost");
-      const useAi = parsed.searchParams.get("ai") !== "false";
+      const useAi = parsed.searchParams.get("ai") === "true";
       const analysis = await buildLogAnalysis(parsed.searchParams.get("limit") || 100, useAi);
       recordAppEvent("ai_log_analyzed", {
         route: "/api/ai/analyze-log",
