@@ -2,6 +2,13 @@
 
 const { spawn } = require("node:child_process");
 
+function parseArgs(argv) {
+  return {
+    force: argv.includes("--force"),
+    clean: argv.includes("--clean"),
+  };
+}
+
 class JsonLineMcpClient {
   constructor() {
     this.nextId = 1;
@@ -75,6 +82,7 @@ function parseToolResult(result) {
 }
 
 async function main() {
+  const options = parseArgs(process.argv.slice(2));
   const client = new JsonLineMcpClient();
   try {
     await client.request("initialize", {
@@ -87,16 +95,30 @@ async function main() {
     const health = parseToolResult(
       await client.request("tools/call", { name: "get_health", arguments: {} })
     );
-    if (health?.data?.authenticated) {
+    if (health?.data?.authenticated && !options.force && !options.clean) {
       console.log("NotebookLM MCP is already authenticated.");
       return;
+    }
+
+    if (options.clean) {
+      const cleanup = parseToolResult(
+        await client.request(
+          "tools/call",
+          {
+            name: "cleanup_data",
+            arguments: { confirm: true, preserve_library: true },
+          },
+          120000
+        )
+      );
+      console.log(JSON.stringify(cleanup, null, 2));
     }
 
     const setup = parseToolResult(
       await client.request(
         "tools/call",
         {
-          name: "setup_auth",
+          name: options.force || options.clean ? "re_auth" : "setup_auth",
           arguments: {
             show_browser: true,
             browser_options: { show: true, headless: false, timeout_ms: 30000 },

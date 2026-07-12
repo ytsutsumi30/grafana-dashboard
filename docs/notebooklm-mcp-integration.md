@@ -66,6 +66,18 @@ node .\scripts\setup-notebooklm-mcp-auth.js
 
 Complete Google login in the opened browser. Then rerun the sync command so the direct MCP profile has a valid Google login.
 
+If source sync redirects to the Google login page even though `get_health` reports authenticated, force re-authentication:
+
+```powershell
+node .\scripts\setup-notebooklm-mcp-auth.js --force
+```
+
+If the browser profile remains inconsistent, clear only NotebookLM MCP auth/browser state while preserving the local notebook library:
+
+```powershell
+node .\scripts\setup-notebooklm-mcp-auth.js --clean
+```
+
 ## Operational Rules
 
 - Do not upload secrets, API keys, service account tokens, `.env` files, or local auth cookies.
