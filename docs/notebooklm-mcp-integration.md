@@ -50,6 +50,8 @@ Primary sync command for MCP:
 node .\scripts\sync-notebooklm-mcp-sources.js --notebook-url https://notebooklm.google.com/notebook/e6ec4685-1b9b-47ab-a7fd-d4464e1a2324
 ```
 
+Both MCP helper scripts force `BROWSER_CHANNEL=chromium` unless the environment already sets a channel. This keeps the browser used for authentication and the browser used for source sync consistent.
+
 Dry run:
 
 ```powershell

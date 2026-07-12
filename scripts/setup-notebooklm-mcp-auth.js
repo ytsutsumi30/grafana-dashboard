@@ -8,8 +8,10 @@ class JsonLineMcpClient {
     this.pending = new Map();
     this.buffer = "";
     this.stderr = "";
+    const env = { ...process.env, BROWSER_CHANNEL: process.env.BROWSER_CHANNEL || "chromium" };
     this.child = spawn("cmd.exe", ["/d", "/s", "/c", "npx notebooklm-mcp@latest"], {
       stdio: ["pipe", "pipe", "pipe"],
+      env,
     });
     this.child.stdout.on("data", (chunk) => this.onStdout(chunk));
     this.child.stderr.on("data", (chunk) => {

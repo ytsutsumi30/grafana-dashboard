@@ -595,6 +595,8 @@ node .\scripts\setup-notebooklm-mcp-auth.js
 node .\scripts\sync-notebooklm-mcp-sources.js --notebook-url https://notebooklm.google.com/notebook/e6ec4685-1b9b-47ab-a7fd-d4464e1a2324
 ```
 
+このスクリプトは NotebookLM MCP のブラウザ起動を `BROWSER_CHANNEL=chromium` に固定します。認証に使うブラウザと同期に使うブラウザを一致させるため、認証後に同期がログイン画面へ戻る場合は `setup-notebooklm-mcp-auth.js` から再ログインしてください。
+
 同期前に対象ファイルだけ確認する場合:
 
 ```powershell

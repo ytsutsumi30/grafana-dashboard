@@ -16,6 +16,8 @@ function parseArgs(argv) {
     manifestPath: DEFAULT_MANIFEST,
     dryRun: false,
     showBrowser: false,
+    startAt: "",
+    limit: 0,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -25,6 +27,8 @@ function parseArgs(argv) {
     else if (arg === "--notebook-id") result.notebookId = argv[++i];
     else if (arg === "--notebook-url") result.notebookUrl = argv[++i];
     else if (arg === "--manifest") result.manifestPath = argv[++i];
+    else if (arg === "--start-at") result.startAt = argv[++i];
+    else if (arg === "--limit") result.limit = Number.parseInt(argv[++i], 10);
     else if (arg === "--help") {
       console.log(`Usage:
   node scripts/sync-notebooklm-mcp-sources.js [options]
@@ -35,6 +39,8 @@ Options:
   --notebook-id <id>        NotebookLM MCP library notebook id
   --notebook-url <url>      Direct NotebookLM URL
   --manifest <path>         Source manifest path
+  --start-at <path>         Skip sources before this relative path
+  --limit <count>           Add at most this many sources
 `);
       process.exit(0);
     } else {
@@ -43,6 +49,17 @@ Options:
   }
 
   return result;
+}
+
+function selectSourceWindow(sources, options) {
+  let selected = sources;
+  if (options.startAt) {
+    const index = selected.findIndex((source) => source.relativePath === options.startAt);
+    if (index < 0) throw new Error(`--start-at was not found in manifest: ${options.startAt}`);
+    selected = selected.slice(index);
+  }
+  if (options.limit > 0) selected = selected.slice(0, options.limit);
+  return selected;
 }
 
 function readManifest(repoRoot, manifestPath) {
@@ -63,7 +80,8 @@ class JsonLineMcpClient {
     this.pending = new Map();
     this.buffer = "";
     this.stderr = "";
-    this.child = spawn(command, args, { stdio: ["pipe", "pipe", "pipe"] });
+    const env = { ...process.env, BROWSER_CHANNEL: process.env.BROWSER_CHANNEL || "chromium" };
+    this.child = spawn(command, args, { stdio: ["pipe", "pipe", "pipe"], env });
     this.child.stdout.on("data", (chunk) => this.onStdout(chunk));
     this.child.stderr.on("data", (chunk) => {
       this.stderr += chunk.toString();
@@ -133,12 +151,51 @@ function extractToolText(result) {
   }
 }
 
+async function ensureNotebook(client, options) {
+  if (options.notebookId) return options.notebookId;
+
+  const added = extractToolText(
+    await client.request(
+      "tools/call",
+      {
+        name: "add_notebook",
+        arguments: {
+          url: options.notebookUrl,
+          name: "Grafana Dashboard Builder PoC",
+          description:
+            "Grafana Cloud, Cloud Run, Android sensor demo, and manufacturing dashboard builder documentation.",
+          topics: [
+            "Grafana dashboards",
+            "Manufacturing monitoring",
+            "IoT device monitoring",
+            "Cloud Run",
+            "NotebookLM integration",
+          ],
+          content_types: ["documentation", "runbooks", "implementation notes"],
+          use_cases: [
+            "Review Grafana dashboard builder specifications",
+            "Plan manufacturing monitoring dashboard improvements",
+            "Explain sales demo operations",
+          ],
+          tags: ["grafana", "manufacturing", "cloud-run", "notebooklm"],
+        },
+      },
+      60000
+    )
+  );
+  const id = added?.data?.notebook?.id;
+  if (!id) throw new Error(`Could not register notebook URL: ${JSON.stringify(added)}`);
+  await client.request("tools/call", { name: "select_notebook", arguments: { id } }, 60000);
+  return id;
+}
+
 async function main() {
   const repoRoot = path.resolve(__dirname, "..");
   const options = parseArgs(process.argv.slice(2));
-  const { sources, fullPath } = readManifest(repoRoot, options.manifestPath);
+  const manifest = readManifest(repoRoot, options.manifestPath);
+  const sources = selectSourceWindow(manifest.sources, options);
 
-  console.log(`Manifest: ${fullPath}`);
+  console.log(`Manifest: ${manifest.fullPath}`);
   console.log(`Notebook: ${options.notebookId || options.notebookUrl}`);
   console.log(`Sources: ${sources.length}`);
 
@@ -169,6 +226,9 @@ async function main() {
       throw new Error("NotebookLM MCP is not authenticated. Run setup_auth from the MCP tool first.");
     }
 
+    const notebookId = await ensureNotebook(client, options);
+    console.log(`Using NotebookLM MCP library id: ${notebookId}`);
+
     for (const source of sources) {
       const sourcePath = path.join(repoRoot, source.relativePath);
       const content = fs.readFileSync(sourcePath, "utf8");
@@ -183,8 +243,7 @@ async function main() {
               type: "text",
               title,
               content,
-              notebook_id: options.notebookId || undefined,
-              notebook_url: options.notebookId ? undefined : options.notebookUrl,
+              notebook_id: notebookId,
               show_browser: options.showBrowser,
             },
           },
