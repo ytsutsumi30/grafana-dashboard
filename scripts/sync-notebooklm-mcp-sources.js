@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 
 const DEFAULT_NOTEBOOK_URL =
@@ -18,12 +19,14 @@ function parseArgs(argv) {
     showBrowser: false,
     startAt: "",
     limit: 0,
+    directUi: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--dry-run") result.dryRun = true;
     else if (arg === "--show-browser") result.showBrowser = true;
+    else if (arg === "--direct-ui") result.directUi = true;
     else if (arg === "--notebook-id") result.notebookId = argv[++i];
     else if (arg === "--notebook-url") result.notebookUrl = argv[++i];
     else if (arg === "--manifest") result.manifestPath = argv[++i];
@@ -36,6 +39,7 @@ function parseArgs(argv) {
 Options:
   --dry-run                 Print sources without uploading
   --show-browser            Show NotebookLM browser automation
+  --direct-ui               Upload through NotebookLM UI instead of MCP add_source
   --notebook-id <id>        NotebookLM MCP library notebook id
   --notebook-url <url>      Direct NotebookLM URL
   --manifest <path>         Source manifest path
@@ -49,6 +53,50 @@ Options:
   }
 
   return result;
+}
+
+function findNodeModule(moduleName) {
+  try {
+    return require(moduleName);
+  } catch {
+    // Continue to npx cache lookup.
+  }
+
+  const npxRoot = path.join(process.env.LOCALAPPDATA || "", "npm-cache", "_npx");
+  if (!fs.existsSync(npxRoot)) {
+    throw new Error(`${moduleName} was not found. Run: npx notebooklm-mcp@latest`);
+  }
+
+  const stack = [npxRoot];
+  while (stack.length) {
+    const current = stack.pop();
+    const entries = fs.readdirSync(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      if (!entry.isDirectory()) continue;
+      if (entry.name === moduleName && fullPath.includes(`${path.sep}node_modules${path.sep}`)) {
+        return require(fullPath);
+      }
+      if (entry.name === "node_modules" || !current.includes(`${path.sep}node_modules${path.sep}`)) {
+        stack.push(fullPath);
+      }
+    }
+  }
+
+  throw new Error(`${moduleName} was not found under ${npxRoot}`);
+}
+
+function killNotebookLmChromeProcesses() {
+  if (process.platform !== "win32") return;
+  spawnSync("powershell.exe", [
+    "-NoProfile",
+    "-Command",
+    "$p = Get-CimInstance Win32_Process -Filter \"name = 'chrome.exe'\" | Where-Object { $_.CommandLine -like '*notebooklm-mcp*' }; $p | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+  ], { stdio: "ignore" });
+}
+
+async function wait(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function selectSourceWindow(sources, options) {
@@ -189,6 +237,81 @@ async function ensureNotebook(client, options) {
   return id;
 }
 
+async function fillTextareaWithEvents(page, selector, value) {
+  await page.locator(selector).first().waitFor({ state: "visible", timeout: 30000 });
+  await page.locator(selector).first().evaluate((element, text) => {
+    element.focus();
+    element.value = text;
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+  }, value);
+}
+
+async function openCopiedTextDialog(page, notebookUrl) {
+  const url = notebookUrl.includes("?")
+    ? `${notebookUrl}&addSource=true`
+    : `${notebookUrl}?addSource=true`;
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.waitForTimeout(8000);
+
+  const copiedTextButton = page
+    .locator("mat-dialog-container button, [role='dialog'] button, .cdk-overlay-pane button")
+    .filter({ hasText: "コピーしたテキスト" })
+    .first();
+  if (await copiedTextButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await copiedTextButton.click();
+    return;
+  }
+
+  await page
+    .locator("button.add-source-button, button[aria-label*='ソースを追加'], button[aria-label*='Add source']")
+    .first()
+    .click({ timeout: 10000 });
+  await page
+    .locator("mat-dialog-container button, [role='dialog'] button, .cdk-overlay-pane button")
+    .filter({ hasText: "コピーしたテキスト" })
+    .first()
+    .click({ timeout: 10000 });
+}
+
+async function uploadSourcesViaNotebookUi(repoRoot, options, sources) {
+  const { chromium } = findNodeModule("patchright");
+  killNotebookLmChromeProcesses();
+  await wait(2500);
+
+  const profile = path.join(os.homedir(), "AppData", "Local", "notebooklm-mcp", "Data", "chrome_profile");
+  const context = await chromium.launchPersistentContext(profile, {
+    channel: process.env.BROWSER_CHANNEL || "chromium",
+    headless: !options.showBrowser,
+    viewport: { width: 1600, height: 1000 },
+  });
+  const page = await context.newPage();
+
+  try {
+    for (const source of sources) {
+      const sourcePath = path.join(repoRoot, source.relativePath);
+      const title = `Grafana Project - ${source.relativePath.replace(/\\/g, "/")}`;
+      const content = fs.readFileSync(sourcePath, "utf8");
+      const sourceText = `${title}\n\n${content}`;
+
+      console.log(`Adding source via UI: ${title}`);
+      await openCopiedTextDialog(page, options.notebookUrl);
+      await page.waitForTimeout(1000);
+      await fillTextareaWithEvents(page, "textarea[aria-label='貼り付けたテキスト']", sourceText);
+
+      const insertButton = page
+        .locator("mat-dialog-container button, [role='dialog'] button, .cdk-overlay-pane button")
+        .filter({ hasText: "挿入" })
+        .first();
+      await insertButton.waitFor({ state: "visible", timeout: 10000 });
+      await insertButton.click({ timeout: 10000 });
+      await page.waitForTimeout(8000);
+    }
+  } finally {
+    await context.close();
+  }
+}
+
 async function main() {
   const repoRoot = path.resolve(__dirname, "..");
   const options = parseArgs(process.argv.slice(2));
@@ -201,6 +324,12 @@ async function main() {
 
   if (options.dryRun) {
     for (const source of sources) console.log(`DRY-RUN ${source.relativePath}`);
+    return;
+  }
+
+  if (options.directUi) {
+    await uploadSourcesViaNotebookUi(repoRoot, options, sources);
+    console.log("NotebookLM UI source sync completed.");
     return;
   }
 
@@ -256,6 +385,12 @@ async function main() {
     }
 
     console.log("NotebookLM MCP source sync completed.");
+  } catch (error) {
+    console.warn(`${error.message}`);
+    console.warn("Falling back to direct NotebookLM UI upload.");
+    client.close();
+    await uploadSourcesViaNotebookUi(repoRoot, options, sources);
+    console.log("NotebookLM UI source sync completed.");
   } finally {
     client.close();
   }

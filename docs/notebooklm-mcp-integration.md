@@ -52,6 +52,12 @@ node .\scripts\sync-notebooklm-mcp-sources.js --notebook-url https://notebooklm.
 
 Both MCP helper scripts force `BROWSER_CHANNEL=chromium` unless the environment already sets a channel. This keeps the browser used for authentication and the browser used for source sync consistent.
 
+If the MCP server's built-in `add_source` cannot open the current NotebookLM add-source dialog, `scripts/sync-notebooklm-mcp-sources.js` can fall back to direct UI automation. The direct UI path opens the notebook, selects `コピーしたテキスト`, pastes the source body, and clicks `挿入`.
+
+```powershell
+node .\scripts\sync-notebooklm-mcp-sources.js --direct-ui --notebook-url https://notebooklm.google.com/notebook/e6ec4685-1b9b-47ab-a7fd-d4464e1a2324
+```
+
 Dry run:
 
 ```powershell
