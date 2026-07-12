@@ -7,7 +7,9 @@ This index summarizes the source documents for the Grafana dashboard builder PoC
 - `README.md`: setup, local execution, Cloud Run deployment, Secret Manager, cost and operational notes.
 - `docs/manufacturing-dashboard-build-log.md`: current Grafana Cloud manufacturing dashboard build state, panel structure, verification command, and demo story.
 - `docs/manufacturing-demo-runbook.md`: demo flow, talk track, pre-demo checklist, customer Q&A, and limits for the manufacturing Grafana demo.
+- `docs/manufacturing-datasource-mapping.md`: production datasource mapping guide for replacing Grafana TestData with real manufacturing data.
 - `docs/notebooklm-source-manifest.json`: machine-readable source list for NotebookLM sync dry runs.
+- `docs/notebooklm-mcp-integration.md`: NotebookLM MCP findings, target notebook, sync strategy, and current limitations.
 - `docs/dashboard-builder-specification.md`: system specification for the sales dashboard builder, API endpoints, security model, Firestore history, Grafana Cloud integration, and AI behavior.
 - `docs/sales-user-guide.md`: sales representative guide for creating customer-specific manufacturing and IoT monitoring dashboards.
 
@@ -39,6 +41,8 @@ This index summarizes the source documents for the Grafana dashboard builder PoC
 
 - Standard manufacturing demo script: `scripts/create-manufacturing-demo-dashboard.ps1`
 - Standard manufacturing verification script: `scripts/verify-manufacturing-demo-dashboard.ps1`
+- NotebookLM MCP auth setup script: `scripts/setup-notebooklm-mcp-auth.js`
+- NotebookLM MCP source sync script: `scripts/sync-notebooklm-mcp-sources.js`
 - Current sheet metal demo UID: `sheet-metal-maintenance-demo`
 - Current sheet metal demo URL: `https://ytsutsumi30.grafana.net/d/sheet-metal-maintenance-demo/sheet-metal-machine-maintenance-demo`
 

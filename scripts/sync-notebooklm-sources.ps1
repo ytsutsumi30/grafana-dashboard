@@ -41,8 +41,10 @@ $sources = @(
   "README.md",
   "docs\notebooklm-source-index.md",
   "docs\notebooklm-source-manifest.json",
+  "docs\notebooklm-mcp-integration.md",
   "docs\manufacturing-dashboard-build-log.md",
   "docs\manufacturing-demo-runbook.md",
+  "docs\manufacturing-datasource-mapping.md",
   "docs\dashboard-builder-specification.md",
   "docs\sales-user-guide.md",
   "docs\android-vibration-demo-mvp.md",
@@ -50,7 +52,9 @@ $sources = @(
   "docs\shipping-inspection-demo-guide.md",
   "docs\skill-application-plan.md",
   "scripts\create-manufacturing-demo-dashboard.ps1",
-  "scripts\verify-manufacturing-demo-dashboard.ps1"
+  "scripts\verify-manufacturing-demo-dashboard.ps1",
+  "scripts\setup-notebooklm-mcp-auth.js",
+  "scripts\sync-notebooklm-mcp-sources.js"
 )
 
 $manifest = [pscustomobject]@{

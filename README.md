@@ -588,13 +588,20 @@ notebooklm login
 .\scripts\sync-notebooklm-sources.ps1 -NotebookId "<Notebook ID>"
 ```
 
+NotebookLM MCP 経由で指定Notebookへ連携する場合:
+
+```powershell
+node .\scripts\setup-notebooklm-mcp-auth.js
+node .\scripts\sync-notebooklm-mcp-sources.js --notebook-id grafana-dashboard-builder-poc
+```
+
 同期前に対象ファイルだけ確認する場合:
 
 ```powershell
 .\scripts\sync-notebooklm-sources.ps1 -DryRun -ManifestPath "docs\notebooklm-source-manifest.json"
 ```
 
-連携対象は `README.md`、仕様書、営業担当者向けガイド、製造デモランブック、Androidセンサーデモ、出荷検品デモ、Skill適用計画、NotebookLM用索引です。Secret値やAPIキーは連携対象に含めないでください。
+連携対象は `README.md`、仕様書、営業担当者向けガイド、製造デモランブック、製造データソース差し替えマッピング、Androidセンサーデモ、出荷検品デモ、Skill適用計画、NotebookLM用索引、NotebookLM MCP連携メモ、NotebookLM MCP認証・同期スクリプトです。Secret値やAPIキーは連携対象に含めないでください。
 
 ## 環境変数
 

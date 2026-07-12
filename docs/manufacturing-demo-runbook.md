@@ -130,6 +130,7 @@ Talk track:
 ### Can this use real data?
 
 Yes. The current dashboard uses Grafana TestData for the demo. For production, replace `testdata` panels with the customer's datasource and map each panel to the real metric query.
+Use `docs/manufacturing-datasource-mapping.md` as the starting point for panel-to-metric mapping and query examples.
 
 ### Can this support other manufacturing industries?
 
