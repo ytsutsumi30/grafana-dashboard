@@ -47,13 +47,13 @@ The project keeps a source manifest at:
 Primary sync command for MCP:
 
 ```powershell
-node .\scripts\sync-notebooklm-mcp-sources.js --notebook-id grafana-dashboard-builder-poc
+node .\scripts\sync-notebooklm-mcp-sources.js --notebook-url https://notebooklm.google.com/notebook/e6ec4685-1b9b-47ab-a7fd-d4464e1a2324
 ```
 
 Dry run:
 
 ```powershell
-node .\scripts\sync-notebooklm-mcp-sources.js --dry-run --notebook-id grafana-dashboard-builder-poc
+node .\scripts\sync-notebooklm-mcp-sources.js --dry-run --notebook-url https://notebooklm.google.com/notebook/e6ec4685-1b9b-47ab-a7fd-d4464e1a2324
 ```
 
 If direct MCP auth is missing, run NotebookLM MCP auth setup, then rerun the sync command:
@@ -77,5 +77,5 @@ Complete Google login in the opened browser. Then rerun the sync command so the 
 ```powershell
 .\scripts\sync-notebooklm-sources.ps1 -DryRun -NotebookId grafana-dashboard-builder-poc -ManifestPath docs\notebooklm-source-manifest.json
 node --check .\scripts\sync-notebooklm-mcp-sources.js
-node .\scripts\sync-notebooklm-mcp-sources.js --dry-run --notebook-id grafana-dashboard-builder-poc
+node .\scripts\sync-notebooklm-mcp-sources.js --dry-run --notebook-url https://notebooklm.google.com/notebook/e6ec4685-1b9b-47ab-a7fd-d4464e1a2324
 ```

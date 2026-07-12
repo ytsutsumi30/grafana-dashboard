@@ -6,7 +6,7 @@ const path = require("node:path");
 
 const DEFAULT_NOTEBOOK_URL =
   "https://notebooklm.google.com/notebook/e6ec4685-1b9b-47ab-a7fd-d4464e1a2324";
-const DEFAULT_NOTEBOOK_ID = "grafana-dashboard-builder-poc";
+const DEFAULT_NOTEBOOK_ID = "";
 const DEFAULT_MANIFEST = path.join("docs", "notebooklm-source-manifest.json");
 
 function parseArgs(argv) {

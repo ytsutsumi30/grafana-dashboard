@@ -100,7 +100,7 @@ async function main() {
             browser_options: { show: true, headless: false, timeout_ms: 30000 },
           },
         },
-        60000
+        660000
       )
     );
     console.log(JSON.stringify(setup, null, 2));

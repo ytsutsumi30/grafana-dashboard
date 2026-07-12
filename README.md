@@ -592,7 +592,7 @@ NotebookLM MCP 経由で指定Notebookへ連携する場合:
 
 ```powershell
 node .\scripts\setup-notebooklm-mcp-auth.js
-node .\scripts\sync-notebooklm-mcp-sources.js --notebook-id grafana-dashboard-builder-poc
+node .\scripts\sync-notebooklm-mcp-sources.js --notebook-url https://notebooklm.google.com/notebook/e6ec4685-1b9b-47ab-a7fd-d4464e1a2324
 ```
 
 同期前に対象ファイルだけ確認する場合:
