@@ -2,28 +2,33 @@
   "title": "Grafana Dashboard Builder PoC",
   "notebookId": "grafana-dashboard-builder-poc",
   "dryRun": true,
-  "sourceCount": 17,
-  "generatedAt": "2026-07-12T14:23:28.9902155Z",
+  "sourceCount": 19,
+  "generatedAt": "2026-07-16T16:05:48.7641566Z",
   "sources": [
     {
       "relativePath": "README.md",
       "exists": true,
-      "sizeBytes": 30086
+      "sizeBytes": 31398
     },
     {
       "relativePath": "docs\\notebooklm-source-index.md",
       "exists": true,
-      "sizeBytes": 3422
+      "sizeBytes": 3636
     },
     {
       "relativePath": "docs\\notebooklm-source-manifest.json",
       "exists": true,
-      "sizeBytes": 2232
+      "sizeBytes": 2359
     },
     {
       "relativePath": "docs\\notebooklm-mcp-integration.md",
       "exists": true,
-      "sizeBytes": 3550
+      "sizeBytes": 4762
+    },
+    {
+      "relativePath": "docs\\ui-change-verification-loop.md",
+      "exists": true,
+      "sizeBytes": 2463
     },
     {
       "relativePath": "docs\\manufacturing-dashboard-build-log.md",
@@ -83,12 +88,17 @@
     {
       "relativePath": "scripts\\setup-notebooklm-mcp-auth.js",
       "exists": true,
-      "sizeBytes": 3192
+      "sizeBytes": 3892
     },
     {
       "relativePath": "scripts\\sync-notebooklm-mcp-sources.js",
       "exists": true,
-      "sizeBytes": 6318
+      "sizeBytes": 13556
+    },
+    {
+      "relativePath": "scripts\\verify-ui-change-loop.js",
+      "exists": true,
+      "sizeBytes": 11280
     }
   ]
 }

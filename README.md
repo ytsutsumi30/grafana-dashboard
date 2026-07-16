@@ -618,6 +618,16 @@ node .\scripts\setup-notebooklm-mcp-auth.js --clean
 
 連携対象は `README.md`、仕様書、営業担当者向けガイド、製造デモランブック、製造データソース差し替えマッピング、Androidセンサーデモ、出荷検品デモ、Skill適用計画、NotebookLM用索引、NotebookLM MCP連携メモ、NotebookLM MCP認証・同期スクリプトです。Secret値やAPIキーは連携対象に含めないでください。
 
+## UI変更後の検証ループ
+
+UI変更後は、dev server起動、対象画面確認、ブラウザconsole error 0件、関連テストをまとめて確認します。
+
+```powershell
+node .\scripts\verify-ui-change-loop.js
+```
+
+ループ設計と停止条件は `docs/ui-change-verification-loop.md` に記録しています。
+
 ## 環境変数
 
 必要に応じて実行時に上書きできます。

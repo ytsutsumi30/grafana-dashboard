@@ -42,6 +42,7 @@ $sources = @(
   "docs\notebooklm-source-index.md",
   "docs\notebooklm-source-manifest.json",
   "docs\notebooklm-mcp-integration.md",
+  "docs\ui-change-verification-loop.md",
   "docs\manufacturing-dashboard-build-log.md",
   "docs\manufacturing-demo-runbook.md",
   "docs\manufacturing-datasource-mapping.md",
@@ -54,7 +55,8 @@ $sources = @(
   "scripts\create-manufacturing-demo-dashboard.ps1",
   "scripts\verify-manufacturing-demo-dashboard.ps1",
   "scripts\setup-notebooklm-mcp-auth.js",
-  "scripts\sync-notebooklm-mcp-sources.js"
+  "scripts\sync-notebooklm-mcp-sources.js",
+  "scripts\verify-ui-change-loop.js"
 )
 
 $manifest = [pscustomobject]@{
