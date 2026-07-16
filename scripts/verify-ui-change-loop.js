@@ -472,6 +472,24 @@ async function verifyBrowser(apiEvidence) {
       fail(`Panel filter check failed: ${JSON.stringify(panelFilterState)}`);
     }
 
+    const panelOrderState = await evaluate(client, `(() => {
+      const before = state.panels.slice(0, 2).map((panel) => panel.title);
+      const firstUpDisabled = document.querySelector("#panels .panel-card .move-up")?.disabled === true;
+      document.querySelector("#panels .panel-card .move-down").click();
+      const moved = state.panels.slice(0, 2).map((panel) => panel.title);
+      const movedPreview = Array.from(document.querySelectorAll("#previewBoard .preview-title")).slice(0, 2).map((element) => element.textContent);
+      document.querySelectorAll("#panels .panel-card")[1].querySelector(".move-up").click();
+      const restored = state.panels.slice(0, 2).map((panel) => panel.title);
+      return { before, moved, movedPreview, restored, firstUpDisabled };
+    })()`);
+    if (!panelOrderState?.firstUpDisabled ||
+        panelOrderState.moved[0] !== panelOrderState.before[1] ||
+        panelOrderState.moved[1] !== panelOrderState.before[0] ||
+        panelOrderState.movedPreview[0] !== panelOrderState.moved[0] ||
+        JSON.stringify(panelOrderState.restored) !== JSON.stringify(panelOrderState.before)) {
+      fail(`Panel reorder check failed: ${JSON.stringify(panelOrderState)}`);
+    }
+
     const grafanaUrlState = await evaluate(client, `(() => {
       const originalUrl = state.grafanaUrl;
       state.grafanaUrl = "https://tenant-check.grafana.net";
@@ -624,6 +642,7 @@ async function verifyBrowser(apiEvidence) {
       api: apiEvidence,
       desktop: desktopState,
       panelFilter: panelFilterState,
+      panelOrder: panelOrderState,
       grafanaUrl: grafanaUrlState,
       mobile: mobileState,
       draftRestore: draftRestoreState,

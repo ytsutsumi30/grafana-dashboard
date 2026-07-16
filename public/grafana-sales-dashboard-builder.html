@@ -517,6 +517,25 @@
       gap: 10px;
     }
 
+    .panel-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .panel-actions .icon-button {
+      width: 36px;
+      min-height: 36px;
+      padding: 0;
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--line);
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .panel-actions .danger { min-height: 36px; padding: 7px 10px; }
+
     .validation-list {
       margin: 0;
       padding: 8px 10px 8px 24px;
@@ -1327,7 +1346,11 @@
         card.innerHTML = `
           <div class="panel-head">
             <strong>Panel ${index + 1}</strong>
-            <button class="danger" type="button">削除</button>
+            <div class="panel-actions">
+              <button class="icon-button move-up" type="button" title="上へ移動" aria-label="Panel ${index + 1}を上へ移動" ${index === 0 ? "disabled" : ""}>↑</button>
+              <button class="icon-button move-down" type="button" title="下へ移動" aria-label="Panel ${index + 1}を下へ移動" ${index === state.panels.length - 1 ? "disabled" : ""}>↓</button>
+              <button class="danger" type="button">削除</button>
+            </div>
           </div>
           ${validationHtml}
           <label>パネル名</label>
@@ -1385,6 +1408,9 @@
           scheduleDraftSave();
         });
 
+        card.querySelector(".move-up").addEventListener("click", () => movePanel(index, -1));
+        card.querySelector(".move-down").addEventListener("click", () => movePanel(index, 1));
+
         card.querySelectorAll("[data-key]").forEach((input) => {
           input.addEventListener("input", () => {
             const key = input.dataset.key;
@@ -1396,6 +1422,14 @@
 
         root.appendChild(card);
       });
+    }
+
+    function movePanel(index, direction) {
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= state.panels.length) return;
+      [state.panels[index], state.panels[targetIndex]] = [state.panels[targetIndex], state.panels[index]];
+      renderPanels();
+      scheduleDraftSave();
     }
 
     function option(value, label, selected) {

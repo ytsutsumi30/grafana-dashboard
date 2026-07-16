@@ -118,7 +118,7 @@ The user requested five consecutive finite improvement loops. Each cycle uses th
 | ---: | --- | --- | --- |
 | 1 | Use the runtime Grafana URL instead of a tenant-specific hardcode | Change `state.grafanaUrl`, render metadata, and confirm the generated link follows it | Completed |
 | 2 | Filter a long panel editor list | Filter 19 panels and restore the complete list | Completed |
-| 3 | Move panels up and down | Reorder state and preview, then restore original order | Planned |
+| 3 | Move panels up and down | Reorder state and preview, then restore original order | Completed |
 | 4 | Reject expired or malformed browser drafts | Reload an expired draft and confirm it is removed | Planned |
 | 5 | Enforce input limits and focus actionable errors | Submit an overlong industry and confirm focused error status | Planned |
 
@@ -135,3 +135,10 @@ The user requested five consecutive finite improvement loops. Each cycle uses th
 - Change: add a client-side search over panel title, purpose, unit, and visualization.
 - Data behavior: filtering changes only rendered editor cards; preview, panel state, order, and draft data remain unchanged.
 - Recovery: clear the filter automatically when creating a new proposal, adding a panel, or discarding a draft.
+
+### Cycle 3 Decision
+
+- Problem: users could add or delete panels but could not change their order before Grafana creation.
+- Change: add fixed-size up/down controls to each panel editor with accessible labels and hover titles.
+- State behavior: swap entries in `state.panels`, then regenerate the editor list and 24-column preview and autosave the new order.
+- Guardrail: disable upward movement for the first panel and downward movement for the final panel.
