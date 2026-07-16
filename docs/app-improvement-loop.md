@@ -120,7 +120,7 @@ The user requested five consecutive finite improvement loops. Each cycle uses th
 | 2 | Filter a long panel editor list | Filter 19 panels and restore the complete list | Completed |
 | 3 | Move panels up and down | Reorder state and preview, then restore original order | Completed |
 | 4 | Reject expired or malformed browser drafts | Reload an expired draft and confirm it is removed | Completed |
-| 5 | Enforce input limits and focus actionable errors | Submit an overlong industry and confirm focused error status | Planned |
+| 5 | Enforce input limits and focus actionable errors | Submit an overlong industry and confirm focused error status | Completed |
 
 ### Cycle 1 Decision
 
@@ -149,3 +149,10 @@ The user requested five consecutive finite improvement loops. Each cycle uses th
 - Change: expire drafts after seven days and sanitize identity, strings, numeric fields, visualization types, scenarios, and panel count before restoration.
 - Recovery: remove invalid, expired, or excessively future-dated drafts from localStorage and return the workflow to `条件入力`.
 - Verification: replace a valid draft timestamp with an eight-day-old value, reload the page, and confirm both storage removal and an empty editor.
+
+### Cycle 5 Decision
+
+- Problem: browser inputs did not expose their server-side limits, and button-triggered validation errors did not move keyboard focus to the actionable message.
+- Change: apply explicit limits to industry, proposal metadata, panel title, unit, and purpose fields; reject an overlong industry before any API request.
+- Accessibility: mark the invalid industry and move focus from the triggering button to the live status region while preserving the button for immediate retry.
+- Verification: submit 121 characters, confirm the 120-character message and focused status, then generate a normal proposal and validate all dynamic field limits.

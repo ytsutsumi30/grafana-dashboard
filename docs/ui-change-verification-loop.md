@@ -45,7 +45,11 @@ node scripts\verify-ui-change-loop.js
   - Confirm three workflow steps and at least six collapsible auxiliary sections.
   - Generate the known `板金加工業者` manufacturing proposal.
   - Confirm at least eight preview panels and panel edit cards render.
+  - Confirm the dashboard URL follows the runtime Grafana URL instead of a tenant hardcode.
+  - Filter the panel editor list, restore it, and reorder panels while keeping the preview synchronized.
+  - Submit an overlong industry, confirm input limits, and confirm focus moves to the actionable error status.
   - Edit a panel title and project label, immediately reload before the debounce completes, and confirm both values are restored.
+  - Replace the draft timestamp with an expired value, reload, and confirm the draft is removed.
   - Confirm the application access code is not persisted or restored with the draft.
   - Simulate a stalled fetch and a connection failure, then confirm finite timeout and retry-guidance messages.
   - Confirm the workflow advances to step 2.

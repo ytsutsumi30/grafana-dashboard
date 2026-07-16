@@ -417,6 +417,43 @@ async function verifyBrowser(apiEvidence) {
     if (initialState.openToolSectionCount > 1) fail("Auxiliary tool sections must be collapsed except the creation history section.");
 
     await evaluate(client, `(() => {
+      const industry = document.querySelector("#industry");
+      const propose = document.querySelector("#propose");
+      industry.value = "x".repeat(121);
+      propose.focus();
+      propose.click();
+      return true;
+    })()`);
+    await waitForBrowserCondition(
+      client,
+      `document.activeElement === document.querySelector("#status") && document.querySelector("#status").textContent.includes("120文字以内")`,
+      "overlong industry error focus"
+    );
+    const coreInputConstraintState = await evaluate(client, `(() => {
+      const industry = document.querySelector("#industry");
+      const result = {
+        industryMaxLength: industry.maxLength,
+        projectLabelMaxLength: document.querySelector("#projectLabel").maxLength,
+        salesOwnerMaxLength: document.querySelector("#salesOwner").maxLength,
+        statusTabIndex: document.querySelector("#status").tabIndex,
+        statusFocused: document.activeElement === document.querySelector("#status"),
+        industryInvalid: industry.getAttribute("aria-invalid"),
+        proposeEnabled: !document.querySelector("#propose").disabled
+      };
+      industry.value = "板金加工業者";
+      return result;
+    })()`);
+    if (coreInputConstraintState?.industryMaxLength !== 120 ||
+        coreInputConstraintState.projectLabelMaxLength !== 80 ||
+        coreInputConstraintState.salesOwnerMaxLength !== 80 ||
+        coreInputConstraintState.statusTabIndex !== -1 ||
+        !coreInputConstraintState.statusFocused ||
+        coreInputConstraintState.industryInvalid !== "true" ||
+        !coreInputConstraintState.proposeEnabled) {
+      fail(`Core input constraint check failed: ${JSON.stringify(coreInputConstraintState)}`);
+    }
+
+    await evaluate(client, `(() => {
       document.querySelector("#industry").value = "板金加工業者";
       document.querySelector("#dashboardType").value = "manufacturing";
       document.querySelector("#propose").click();
@@ -449,6 +486,19 @@ async function verifyBrowser(apiEvidence) {
     if (desktopState.activeStep !== "2") fail(`Workflow must advance to step 2 after proposal: ${JSON.stringify(desktopState)}`);
     if (desktopState.asideWidth < 300 || desktopState.mainWidth < 700 || desktopState.documentOverflow) {
       fail(`Desktop layout check failed: ${JSON.stringify(desktopState)}`);
+    }
+
+    const panelInputConstraintState = await evaluate(client, `(() => ({
+      titleMaxLength: document.querySelector('#panels input[data-key="title"]')?.maxLength,
+      unitMaxLength: document.querySelector('#panels input[data-key="unit"]')?.maxLength,
+      purposeMaxLength: document.querySelector('#panels textarea[data-key="purpose"]')?.maxLength,
+      industryInvalidCleared: !document.querySelector("#industry").hasAttribute("aria-invalid")
+    }))()`);
+    if (panelInputConstraintState?.titleMaxLength !== 80 ||
+        panelInputConstraintState.unitMaxLength !== 32 ||
+        panelInputConstraintState.purposeMaxLength !== 160 ||
+        !panelInputConstraintState.industryInvalidCleared) {
+      fail(`Panel input constraint check failed: ${JSON.stringify(panelInputConstraintState)}`);
     }
 
     const panelFilterState = await evaluate(client, `(() => {
@@ -677,6 +727,10 @@ async function verifyBrowser(apiEvidence) {
       panelFilter: panelFilterState,
       panelOrder: panelOrderState,
       grafanaUrl: grafanaUrlState,
+      inputConstraints: {
+        core: coreInputConstraintState,
+        panel: panelInputConstraintState
+      },
       mobile: mobileState,
       draftRestore: draftRestoreState,
       expiredDraft: expiredDraftState,
