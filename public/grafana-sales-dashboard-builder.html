@@ -380,6 +380,25 @@
       gap: 14px;
     }
 
+    .panel-list-toolbar {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 4px 0;
+    }
+
+    .panel-list-toolbar input {
+      width: min(360px, 100%);
+    }
+
+    .panel-filter-summary {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
     .preview {
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -546,6 +565,8 @@
       .workflow-steps { grid-template-columns: 1fr; }
       .preview { overflow-x: auto; }
       .preview-head { position: sticky; left: 0; }
+      .panel-list-toolbar { align-items: stretch; flex-direction: column; }
+      .panel-list-toolbar input { width: 100%; }
       .panel-grid { grid-template-columns: 1fr; }
       .meta, .meta.two { grid-template-columns: 1fr; }
     }
@@ -720,6 +741,14 @@
         </div>
       </section>
 
+      <section class="panel-list-toolbar" aria-label="パネル編集一覧">
+        <div>
+          <h2>パネル編集</h2>
+          <span id="panelFilterSummary" class="panel-filter-summary">パネル案作成後に編集できます</span>
+        </div>
+        <input id="panelFilter" type="search" placeholder="パネル名・目的・単位で検索" disabled>
+      </section>
+
       <section id="panels" class="panel-grid">
         <div class="empty">ここにAI提案されたパネル案が表示されます。</div>
       </section>
@@ -735,6 +764,7 @@
       dashboardHistoryRows: [],
       dashboardHistorySource: "local",
       grafanaUrl: "",
+      panelFilter: "",
       accessRequired: false
     };
     const DRAFT_STORAGE_KEY = "grafanaBuilderDraftV1";
@@ -858,6 +888,8 @@
       $("projectLabel").value = "";
       $("salesOwner").value = "";
       $("overwriteDashboard").checked = false;
+      state.panelFilter = "";
+      $("panelFilter").value = "";
       renderPanels();
       setWorkflowStep(1);
       clearSavedDraft("下書きを破棄しました");
@@ -1258,8 +1290,12 @@
       renderMeta();
       renderPreview();
       const root = $("panels");
+      const filterInput = $("panelFilter");
+      const filterSummary = $("panelFilterSummary");
       if (!state.panels.length) {
         root.innerHTML = '<div class="empty">ここにAI提案されたパネル案が表示されます。</div>';
+        filterInput.disabled = true;
+        filterSummary.textContent = "パネル案作成後に編集できます";
         $("create").disabled = true;
         $("addPanel").disabled = !state.proposal;
         return;
@@ -1267,9 +1303,21 @@
 
       updateCreateState();
       $("addPanel").disabled = false;
+      filterInput.disabled = false;
       root.innerHTML = "";
 
-      state.panels.forEach((panel, index) => {
+      const query = state.panelFilter.trim().toLowerCase();
+      const visiblePanels = state.panels
+        .map((panel, index) => ({ panel, index }))
+        .filter(({ panel }) => !query || [panel.title, panel.purpose, panel.unit, panel.visualization]
+          .some((value) => String(value || "").toLowerCase().includes(query)));
+      filterSummary.textContent = `表示 ${visiblePanels.length} / ${state.panels.length} panels`;
+      if (!visiblePanels.length) {
+        root.innerHTML = '<div class="empty">検索条件に一致するパネルはありません。</div>';
+        return;
+      }
+
+      visiblePanels.forEach(({ panel, index }) => {
         const card = document.createElement("article");
         const errors = panelValidationErrors(panel, index);
         const validationHtml = errors.length
@@ -1632,6 +1680,8 @@
         const proposal = await api("/api/propose", { industry, dashboardType: $("dashboardType").value });
         state.proposal = proposal;
         state.panels = proposal.panels;
+        state.panelFilter = "";
+        $("panelFilter").value = "";
         renderPanels();
         setWorkflowStep(2);
         scheduleDraftSave();
@@ -1646,6 +1696,8 @@
     });
 
     $("addPanel").addEventListener("click", () => {
+      state.panelFilter = "";
+      $("panelFilter").value = "";
       state.panels.push({
         id: state.panels.length + 1,
         title: "New Sensor Panel",
@@ -1851,6 +1903,11 @@
     });
 
     $("discardDraft").addEventListener("click", discardCurrentDraft);
+
+    $("panelFilter").addEventListener("input", () => {
+      state.panelFilter = $("panelFilter").value;
+      renderPanels();
+    });
 
     window.addEventListener("pagehide", saveDraft);
 

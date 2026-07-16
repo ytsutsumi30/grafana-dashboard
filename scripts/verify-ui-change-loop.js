@@ -398,6 +398,7 @@ async function verifyBrowser(apiEvidence) {
         hasCreate: Boolean(document.querySelector("#create")),
         hasDiscardDraft: Boolean(document.querySelector("#discardDraft")),
         hasDraftState: Boolean(document.querySelector("#draftState")),
+        hasPanelFilter: Boolean(document.querySelector("#panelFilter")),
         workflowStepCount: document.querySelectorAll("#workflowSteps [data-step]").length,
         toolSectionCount: document.querySelectorAll("details.tool-section").length,
         openToolSectionCount: document.querySelectorAll("details.tool-section[open]").length,
@@ -408,7 +409,7 @@ async function verifyBrowser(apiEvidence) {
       fail(`Unexpected page title: ${initialState.title}`);
     }
     if (!String(initialState.h1).includes("Grafana Cloud")) fail("Target screen h1 was not rendered.");
-    if (!initialState.hasIndustry || !initialState.hasDashboardType || !initialState.hasPropose || !initialState.hasCreate || !initialState.hasDiscardDraft || !initialState.hasDraftState) {
+    if (!initialState.hasIndustry || !initialState.hasDashboardType || !initialState.hasPropose || !initialState.hasCreate || !initialState.hasDiscardDraft || !initialState.hasDraftState || !initialState.hasPanelFilter) {
       fail(`Target screen required controls missing: ${JSON.stringify(initialState)}`);
     }
     if (initialState.workflowStepCount !== 3) fail(`Expected 3 workflow steps, found ${initialState.workflowStepCount}.`);
@@ -448,6 +449,27 @@ async function verifyBrowser(apiEvidence) {
     if (desktopState.activeStep !== "2") fail(`Workflow must advance to step 2 after proposal: ${JSON.stringify(desktopState)}`);
     if (desktopState.asideWidth < 300 || desktopState.mainWidth < 700 || desktopState.documentOverflow) {
       fail(`Desktop layout check failed: ${JSON.stringify(desktopState)}`);
+    }
+
+    const panelFilterState = await evaluate(client, `(() => {
+      const input = document.querySelector("#panelFilter");
+      input.value = "Vibration";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      const filteredTitles = Array.from(document.querySelectorAll('#panels .panel-card input[data-key="title"]')).map((element) => element.value);
+      const filteredSummary = document.querySelector("#panelFilterSummary")?.textContent || "";
+      input.value = "";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      return {
+        filteredTitles,
+        filteredSummary,
+        restoredCount: document.querySelectorAll("#panels .panel-card").length
+      };
+    })()`);
+    if (!panelFilterState?.filteredTitles.length ||
+        panelFilterState.filteredTitles.length >= desktopState.panelCardCount ||
+        !panelFilterState.filteredTitles.every((title) => title.toLowerCase().includes("vibration")) ||
+        panelFilterState.restoredCount !== desktopState.panelCardCount) {
+      fail(`Panel filter check failed: ${JSON.stringify(panelFilterState)}`);
     }
 
     const grafanaUrlState = await evaluate(client, `(() => {
@@ -601,6 +623,7 @@ async function verifyBrowser(apiEvidence) {
       consoleErrors: 0,
       api: apiEvidence,
       desktop: desktopState,
+      panelFilter: panelFilterState,
       grafanaUrl: grafanaUrlState,
       mobile: mobileState,
       draftRestore: draftRestoreState,
