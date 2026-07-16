@@ -18,6 +18,7 @@
   - `public/grafana-sales-dashboard-builder.html`
   - `server/grafana-dashboard-builder.js`
   - proposal rendering, preview rendering, static asset serving, or UI-facing API behavior
+- Event-driven verifier on GitHub Actions after a push or pull request targeting `master`.
 
 ## 3. Doer
 
@@ -51,6 +52,7 @@ node scripts\verify-ui-change-loop.js
   - Confirm desktop content does not overflow the document viewport.
   - Confirm mobile content fits within 390 px and only the preview canvas scrolls horizontally.
   - Confirm console errors and uncaught runtime exceptions are zero.
+  - Discover Chrome/Chromium/Edge through `CHROME_PATH`, `CHROME_BIN`, or standard Windows/Linux/macOS paths.
 - Related tests:
   - `node --check server/grafana-dashboard-builder.js`
   - `node --check scripts/verify-ui-change-loop.js`
@@ -66,6 +68,7 @@ node scripts\verify-ui-change-loop.js
   - `outputs/ui-verification/latest-desktop.png`
   - `outputs/ui-verification/latest-mobile.png`
   - `outputs/ui-verification/latest-result.json`
+  - On CI failure, the `ui-verification-<run id>` GitHub Actions artifact is retained for 7 days.
 
 ## 5. Stop Conditions
 

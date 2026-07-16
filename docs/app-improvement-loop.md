@@ -9,7 +9,7 @@
 ## 1. Goal
 
 - Done means: the selected improvement works after a realistic browser operation, the local API remains healthy, the target screen has zero console errors, and related tests pass.
-- Machine-checkable condition: `node scripts/verify-ui-change-loop.js` exits with code `0`.
+- Machine-checkable condition: `node scripts/verify-ui-change-loop.js` exits with code `0` locally and in the GitHub Actions `Validate` job.
 - Human review condition: the latest desktop/mobile screenshots are reviewed before Cloud Run deployment when the change affects customer-facing layout or wording.
 
 ## 2. Trigger
@@ -24,6 +24,7 @@ Score each candidate from 1 to 5. Priority score is `impact + frequency - implem
 | Candidate | Impact | Frequency | Risk | Priority | Decision |
 | --- | ---: | ---: | ---: | ---: | --- |
 | Restore an edited proposal after refresh or accidental navigation | 5 | 4 | 1 | 8 | Implemented first |
+| Run the local browser/API verifier on every push and pull request | 5 | 4 | 2 | 7 | Implemented third |
 | Add finite browser API timeouts and retry guidance | 4 | 3 | 2 | 5 | Implemented second |
 | Add a full Grafana Cloud write smoke test to CI | 4 | 2 | 4 | 2 | Human-approved external test only |
 | Add more decorative UI customization | 2 | 2 | 2 | 2 | Defer |
@@ -74,6 +75,7 @@ Expected evidence:
 - Do not automatically retry POST operations such as dashboard creation; a retry can create duplicate external writes.
 - Use a temporary browser profile and terminate the local server/browser after verification.
 - Keep generated screenshots and JSON evidence under the Git-ignored `outputs/` directory.
+- CI uploads `outputs/ui-verification/` only after failure and retains it for 7 days.
 
 ## 8. Record
 
@@ -98,3 +100,12 @@ Expected evidence:
 - Retry policy: re-enable the existing operation button and ask the user to confirm the network and Cloud Run state before retrying.
 - Automatic retry is intentionally disabled for POST requests because Grafana dashboard creation and demo-data generation change external state.
 - Verification: replace browser `fetch` with deterministic stalled and connection-failure implementations, use a 25 ms test timeout, confirm both guidance messages, and keep console errors at zero.
+
+## 11. 2026-07-17 CI Verification Decision
+
+- Selected issue: UI, console, draft-recovery, and local API checks were only run manually and could regress after a later push.
+- Implementation: discover Chrome/Chromium/Edge on Windows, Linux, and macOS; add CI-safe headless options; run the complete verifier in the GitHub Actions `Validate` job.
+- CI trigger: push or pull request targeting `master`.
+- Evidence policy: upload screenshots and result JSON only when the job fails, retain for 7 days, and ignore an absent evidence directory when startup fails early.
+- External-state guardrail: CI clears Grafana/application tokens and does not create or update Grafana Cloud dashboards.
+- Local evidence: both normal Windows execution and `CI=true` execution completed on the first attempt with console errors at zero.

@@ -100,9 +100,16 @@ function wait(ms) {
 function findChrome() {
   const candidates = [
     process.env.CHROME_PATH,
+    process.env.CHROME_BIN,
     "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
     "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-    "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe"
+    "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
   ].filter(Boolean);
 
   for (const candidate of candidates) {
@@ -320,15 +327,19 @@ async function verifyBrowser(apiEvidence) {
   const chromePath = findChrome();
   const debugPort = await getFreePort();
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "grafana-ui-verify-"));
-  const chrome = spawn(chromePath, [
+  const chromeArgs = [
     "--headless=new",
     "--disable-gpu",
+    "--disable-dev-shm-usage",
     "--no-first-run",
     "--no-default-browser-check",
     `--remote-debugging-port=${debugPort}`,
     `--user-data-dir=${userDataDir}`,
     "about:blank"
-  ], { stdio: ["ignore", "ignore", "ignore"] });
+  ];
+  if (process.env.CI) chromeArgs.splice(2, 0, "--no-sandbox");
+  log(`Browser ready for verification: ${chromePath}`);
+  const chrome = spawn(chromePath, chromeArgs, { stdio: ["ignore", "ignore", "ignore"] });
 
   try {
     let version;

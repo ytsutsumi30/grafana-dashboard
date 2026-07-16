@@ -908,6 +908,22 @@ Vertex AI Gemini利用時は、Cloud Run専用サービスアカウントに `ro
   - `VERTEX_AI_LOCATION=global`
   - `VERTEX_AI_MODEL=gemini-2.5-flash-lite`
 
+### 10.3 GitHub Actions検証
+
+`master`へのpushおよびpull requestでは、GitHub Actionsの`Validate` jobを実行する。
+
+- Node.js構文チェック
+- dashboard JSON検証
+- ローカルdev server起動
+- `GET /api/ping`と既知業種パネル提案API確認
+- Chrome headlessによるデスクトップ/モバイル対象画面確認
+- console errorおよび未処理例外0件確認
+- 下書き自動保存、即時再読み込み、復元、アクセスコード非保存確認
+- APIタイムアウトと接続失敗案内確認
+- Cloud Runコンテナbuild
+
+ブラウザ検証はWindows、Linux、macOSの標準Chrome/Chromium/Edgeパスと`CHROME_PATH` / `CHROME_BIN`を探索する。CI失敗時だけ`outputs/ui-verification/`をArtifactとして7日間保存する。CIではGrafana tokenとアプリアクセスコードを空にし、Grafana Cloudへの書き込みは行わない。
+
 ## 11. 現在のPoC環境
 
 | 項目 | 値 |

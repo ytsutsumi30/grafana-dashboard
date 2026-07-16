@@ -33,5 +33,20 @@ jobs:
       - name: Validate dashboard JSON
         run: node scripts/validate-repository.js
 
+      - name: Verify dashboard builder UI and local API
+        env:
+          CI: "true"
+          UI_VERIFY_MAX_RETRIES: "2"
+        run: node scripts/verify-ui-change-loop.js
+
+      - name: Upload UI verification evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-verification-${{ github.run_id }}
+          path: outputs/ui-verification/
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Build Cloud Run container
         run: docker build -t grafana-dashboard-builder:ci .

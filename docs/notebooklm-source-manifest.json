@@ -3,12 +3,12 @@
   "notebookId": "grafana-dashboard-builder-poc",
   "dryRun": true,
   "sourceCount": 20,
-  "generatedAt": "2026-07-16T20:14:29.0874214Z",
+  "generatedAt": "2026-07-16T23:20:26.5355702Z",
   "sources": [
     {
       "relativePath": "README.md",
       "exists": true,
-      "sizeBytes": 32461
+      "sizeBytes": 32725
     },
     {
       "relativePath": "docs\\notebooklm-source-index.md",
@@ -28,12 +28,12 @@
     {
       "relativePath": "docs\\app-improvement-loop.md",
       "exists": true,
-      "sizeBytes": 5730
+      "sizeBytes": 6789
     },
     {
       "relativePath": "docs\\ui-change-verification-loop.md",
       "exists": true,
-      "sizeBytes": 5776
+      "sizeBytes": 6075
     },
     {
       "relativePath": "docs\\manufacturing-dashboard-build-log.md",
@@ -53,7 +53,7 @@
     {
       "relativePath": "docs\\dashboard-builder-specification.md",
       "exists": true,
-      "sizeBytes": 32518
+      "sizeBytes": 33423
     },
     {
       "relativePath": "docs\\sales-user-guide.md",
@@ -103,7 +103,7 @@
     {
       "relativePath": "scripts\\verify-ui-change-loop.js",
       "exists": true,
-      "sizeBytes": 23378
+      "sizeBytes": 23852
     }
   ]
 }

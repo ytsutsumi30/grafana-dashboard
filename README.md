@@ -412,7 +412,7 @@ node scripts/validate-shipping-inspection-api.js
 node scripts/validate-repository.js
 ```
 
-GitHub Actionsでは、Node.js構文チェックとダッシュボードJSON検証をpush / pull request時に実行します。
+GitHub Actionsでは、Node.js構文、ダッシュボードJSON、Cloud Runコンテナbuildに加え、dev server、ローカルAPI、Chrome headless対象画面、console error 0件、下書き復元、APIタイムアウトをpush / pull request時に検証します。失敗時だけUI証跡を7日間Artifactとして保存します。Grafana Cloudへの書き込みは行いません。
 
 Dashboard UID:
 
