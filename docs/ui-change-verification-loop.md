@@ -44,6 +44,8 @@ node scripts\verify-ui-change-loop.js
   - Confirm three workflow steps and at least six collapsible auxiliary sections.
   - Generate the known `板金加工業者` manufacturing proposal.
   - Confirm at least eight preview panels and panel edit cards render.
+  - Edit a panel title and project label, immediately reload before the debounce completes, and confirm both values are restored.
+  - Confirm the application access code is not persisted or restored with the draft.
   - Confirm the workflow advances to step 2.
   - Confirm desktop content does not overflow the document viewport.
   - Confirm mobile content fits within 390 px and only the preview canvas scrolls horizontally.
@@ -52,6 +54,9 @@ node scripts\verify-ui-change-loop.js
   - `node --check server/grafana-dashboard-builder.js`
   - `node --check scripts/verify-ui-change-loop.js`
   - `node scripts/validate-repository.js`
+- Local API checks:
+  - `GET /api/ping` returns HTTP 200.
+  - `POST /api/propose` returns the known template with at least eight panels.
 - Required evidence:
   - `outputs/ui-verification/latest-desktop.png`
   - `outputs/ui-verification/latest-mobile.png`

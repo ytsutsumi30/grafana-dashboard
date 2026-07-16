@@ -11,6 +11,7 @@ This index summarizes the source documents for the Grafana dashboard builder PoC
 - `docs/notebooklm-source-manifest.json`: machine-readable source list for NotebookLM sync dry runs.
 - `docs/notebooklm-mcp-integration.md`: NotebookLM MCP findings, target notebook, sync strategy, and current limitations.
 - `docs/ui-change-verification-loop.md`: finite UI improvement loop covering prioritization, doer/verifier separation, desktop/mobile browser checks, console error checks, screenshots, retry limits, and related tests.
+- `docs/app-improvement-loop.md`: application-wide improvement scoring, finite retry/stop conditions, draft-recovery decision, security guardrails, and verification evidence.
 - `docs/dashboard-builder-specification.md`: system specification for the sales dashboard builder, API endpoints, security model, Firestore history, Grafana Cloud integration, and AI behavior.
 - `docs/sales-user-guide.md`: sales representative guide for creating customer-specific manufacturing and IoT monitoring dashboards.
 

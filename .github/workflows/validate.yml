@@ -28,6 +28,7 @@ jobs:
           node --check scripts/setup-shipping-inspection-dashboard.js
           node --check scripts/validate-repository.js
           node --check scripts/validate-shipping-inspection-api.js
+          node --check scripts/verify-ui-change-loop.js
 
       - name: Validate dashboard JSON
         run: node scripts/validate-repository.js

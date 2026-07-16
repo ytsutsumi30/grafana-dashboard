@@ -50,6 +50,32 @@ function requestJson(url, options = {}) {
   });
 }
 
+function requestApiJson(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const body = options.body === undefined ? "" : JSON.stringify(options.body);
+    const request = http.request(url, {
+      method: options.method || "GET",
+      headers: body ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } : {}
+    }, (res) => {
+      let responseBody = "";
+      res.setEncoding("utf8");
+      res.on("data", (chunk) => {
+        responseBody += chunk;
+      });
+      res.on("end", () => {
+        try {
+          resolve({ statusCode: res.statusCode || 0, data: JSON.parse(responseBody) });
+        } catch (error) {
+          reject(new Error(`${url}: invalid JSON: ${error.message}`));
+        }
+      });
+    });
+    request.on("error", reject);
+    if (body) request.write(body);
+    request.end();
+  });
+}
+
 function requestText(url) {
   return new Promise((resolve, reject) => {
     http
@@ -184,6 +210,22 @@ async function waitForServer() {
   fail(`Dev server did not become ready at ${targetUrl}: ${lastError}`);
 }
 
+async function verifyLocalApi() {
+  const ping = await requestApiJson(`http://${host}:${port}/api/ping`);
+  if (ping.statusCode !== 200 || ping.data?.ok !== true || ping.data?.service !== "grafana-dashboard-builder") {
+    fail(`Local API ping failed: ${JSON.stringify(ping)}`);
+  }
+  const proposal = await requestApiJson(`http://${host}:${port}/api/propose`, {
+    method: "POST",
+    body: { industry: "板金加工業者", dashboardType: "manufacturing" }
+  });
+  if (proposal.statusCode !== 200 || proposal.data?.source !== "template" || proposal.data?.panels?.length < 8) {
+    fail(`Known-industry proposal API failed: ${JSON.stringify(proposal)}`);
+  }
+  log(`Local API OK: ping=200, proposalPanels=${proposal.data.panels.length}`);
+  return { pingStatus: ping.statusCode, proposalPanels: proposal.data.panels.length };
+}
+
 class CdpClient {
   constructor(ws) {
     this.ws = ws;
@@ -274,7 +316,7 @@ async function captureScreenshot(client, filename) {
   return screenshotPath;
 }
 
-async function verifyBrowser() {
+async function verifyBrowser(apiEvidence) {
   const chromePath = findChrome();
   const debugPort = await getFreePort();
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "grafana-ui-verify-"));
@@ -343,6 +385,8 @@ async function verifyBrowser() {
         hasDashboardType: Boolean(document.querySelector("#dashboardType")),
         hasPropose: Boolean(document.querySelector("#propose")),
         hasCreate: Boolean(document.querySelector("#create")),
+        hasDiscardDraft: Boolean(document.querySelector("#discardDraft")),
+        hasDraftState: Boolean(document.querySelector("#draftState")),
         workflowStepCount: document.querySelectorAll("#workflowSteps [data-step]").length,
         toolSectionCount: document.querySelectorAll("details.tool-section").length,
         openToolSectionCount: document.querySelectorAll("details.tool-section[open]").length,
@@ -353,7 +397,7 @@ async function verifyBrowser() {
       fail(`Unexpected page title: ${initialState.title}`);
     }
     if (!String(initialState.h1).includes("Grafana Cloud")) fail("Target screen h1 was not rendered.");
-    if (!initialState.hasIndustry || !initialState.hasDashboardType || !initialState.hasPropose || !initialState.hasCreate) {
+    if (!initialState.hasIndustry || !initialState.hasDashboardType || !initialState.hasPropose || !initialState.hasCreate || !initialState.hasDiscardDraft || !initialState.hasDraftState) {
       fail(`Target screen required controls missing: ${JSON.stringify(initialState)}`);
     }
     if (initialState.workflowStepCount !== 3) fail(`Expected 3 workflow steps, found ${initialState.workflowStepCount}.`);
@@ -394,6 +438,63 @@ async function verifyBrowser() {
     if (desktopState.asideWidth < 300 || desktopState.mainWidth < 700 || desktopState.documentOverflow) {
       fail(`Desktop layout check failed: ${JSON.stringify(desktopState)}`);
     }
+
+    await evaluate(client, `(() => {
+      const titleInput = document.querySelector('#panels .panel-card input[data-key="title"]');
+      const projectLabel = document.querySelector("#projectLabel");
+      document.querySelector("#appAccessToken").value = "DO-NOT-PERSIST";
+      titleInput.value = "Overall Equipment Effectiveness - Draft";
+      titleInput.dispatchEvent(new Event("input", { bubbles: true }));
+      projectLabel.value = "Draft Restore Test";
+      projectLabel.dispatchEvent(new Event("input", { bubbles: true }));
+      return true;
+    })()`);
+    await waitForBrowserCondition(
+      client,
+      `(() => {
+        const raw = localStorage.getItem("grafanaBuilderDraftV1") || "";
+        return raw.includes("Overall Equipment Effectiveness - Draft") &&
+          raw.includes("Draft Restore Test") &&
+          !raw.includes("DO-NOT-PERSIST") &&
+          document.querySelector("#draftState")?.textContent.includes("自動保存");
+      })()`,
+      "draft autosave"
+    );
+
+    await evaluate(client, `(() => {
+      const projectLabel = document.querySelector("#projectLabel");
+      projectLabel.value = "Immediate Reload Draft";
+      projectLabel.dispatchEvent(new Event("input", { bubbles: true }));
+      return true;
+    })()`);
+
+    const reloadLoaded = new Promise((resolve) => {
+      const timeout = setTimeout(resolve, browserTimeoutMs);
+      client.on("Page.loadEventFired", () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
+    await client.send("Page.reload", { ignoreCache: true });
+    await reloadLoaded;
+    await waitForBrowserCondition(
+      client,
+      `document.querySelector('#panels .panel-card input[data-key="title"]')?.value === "Overall Equipment Effectiveness - Draft" && document.querySelector("#projectLabel")?.value === "Immediate Reload Draft"`,
+      "draft restore after reload"
+    );
+    const draftRestoreState = await evaluate(client, `(() => ({
+      firstPanelTitle: document.querySelector('#panels .panel-card input[data-key="title"]')?.value || "",
+      projectLabel: document.querySelector("#projectLabel")?.value || "",
+      panelCount: document.querySelectorAll("#panels .panel-card").length,
+      activeStep: document.querySelector("#workflowSteps .is-active")?.dataset.step || "",
+      draftState: document.querySelector("#draftState")?.textContent || "",
+      accessTokenRestored: Boolean(document.querySelector("#appAccessToken")?.value)
+    }))()`) || {};
+    if (draftRestoreState.panelCount < 8 || draftRestoreState.activeStep !== "2" || draftRestoreState.accessTokenRestored) {
+      fail(`Draft restore check failed: ${JSON.stringify(draftRestoreState)}`);
+    }
+    await client.send("Page.bringToFront");
+    await wait(750);
     const desktopScreenshot = await captureScreenshot(client, "latest-desktop.png");
 
     await client.send("Emulation.setDeviceMetricsOverride", {
@@ -434,8 +535,10 @@ async function verifyBrowser() {
       targetUrl,
       title: initialState.title,
       consoleErrors: 0,
+      api: apiEvidence,
       desktop: desktopState,
       mobile: mobileState,
+      draftRestore: draftRestoreState,
       screenshots: [desktopScreenshot, mobileScreenshot]
     };
     fs.writeFileSync(path.join(outputDir, "latest-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
@@ -463,7 +566,8 @@ async function runOnce(attempt) {
   try {
     await waitForServer();
     log(`Dev server ready: ${targetUrl}`);
-    await verifyBrowser();
+    const apiEvidence = await verifyLocalApi();
+    await verifyBrowser(apiEvidence);
     await runRelatedTests();
     log("UI verification loop succeeded.");
   } finally {

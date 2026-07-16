@@ -365,6 +365,15 @@
       color: #baf4d1;
     }
 
+    .draft-state {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      min-height: 16px;
+    }
+
+    .draft-state.is-saved { color: #baf4d1; }
+
     .panel-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
@@ -441,12 +450,12 @@
     .preview-table {
       width: 100%;
       height: 100%;
-      min-height: 96px;
+      min-height: 0;
     }
 
     .preview-stat {
       height: 100%;
-      min-height: 96px;
+      min-height: 0;
       display: grid;
       place-items: center;
       background: linear-gradient(135deg, #4ea247, #f0d400 65%, #ff8a2a);
@@ -692,10 +701,12 @@
             <div class="workflow-step" data-step="2"><span class="workflow-step-number">2</span><span>パネル編集</span></div>
             <div class="workflow-step" data-step="3"><span class="workflow-step-number">3</span><span>Grafana作成</span></div>
           </div>
+          <div id="draftState" class="draft-state" role="status" aria-live="polite">下書き未保存</div>
         </div>
         <div class="actions" style="margin-top:0;">
           <button id="printProposal" class="secondary" disabled>提案メモ印刷</button>
           <button id="addPanel" class="secondary" disabled>+ パネル追加</button>
+          <button id="discardDraft" class="danger" type="button" disabled>下書き破棄</button>
         </div>
       </section>
 
@@ -725,6 +736,10 @@
       dashboardHistorySource: "local",
       accessRequired: false
     };
+    const DRAFT_STORAGE_KEY = "grafanaBuilderDraftV1";
+    const DRAFT_SAVE_DELAY_MS = 300;
+    let draftSaveTimer = null;
+    let draftPersistenceEnabled = false;
 
     const $ = (id) => document.getElementById(id);
 
@@ -742,6 +757,109 @@
         if (stepNumber === activeStep) step.setAttribute("aria-current", "step");
         else step.removeAttribute("aria-current");
       });
+    }
+
+    function setDraftState(message, saved = false) {
+      const el = $("draftState");
+      el.textContent = message;
+      el.classList.toggle("is-saved", saved);
+    }
+
+    function readSavedDraft() {
+      try {
+        const draft = JSON.parse(localStorage.getItem(DRAFT_STORAGE_KEY) || "null");
+        if (!draft || draft.version !== 1 || !draft.proposal || !Array.isArray(draft.panels)) return null;
+        if (draft.panels.length < 1 || draft.panels.length > 24) return null;
+        return draft;
+      } catch {
+        return null;
+      }
+    }
+
+    function clearSavedDraft(message = "下書き未保存") {
+      if (draftSaveTimer) clearTimeout(draftSaveTimer);
+      draftSaveTimer = null;
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      } catch {
+        // Local storage can be disabled by browser policy.
+      }
+      $("discardDraft").disabled = !state.proposal;
+      setDraftState(message);
+    }
+
+    function saveDraft() {
+      if (!draftPersistenceEnabled || !state.proposal || !state.panels.length) return;
+      const draft = {
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        industry: $("industry").value.trim(),
+        dashboardType: $("dashboardType").value,
+        projectLabel: $("projectLabel").value.trim(),
+        salesOwner: $("salesOwner").value.trim(),
+        folderUid: $("folderUid").value,
+        overwrite: $("overwriteDashboard").checked,
+        proposal: state.proposal,
+        panels: state.panels
+      };
+      try {
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+        const savedAt = new Date(draft.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        setDraftState(`自動保存 ${savedAt}`, true);
+        $("discardDraft").disabled = false;
+      } catch {
+        setDraftState("下書きを保存できませんでした");
+      }
+    }
+
+    function scheduleDraftSave() {
+      if (!state.proposal) return;
+      draftPersistenceEnabled = true;
+      if (draftSaveTimer) clearTimeout(draftSaveTimer);
+      setDraftState("保存中...");
+      draftSaveTimer = setTimeout(() => {
+        draftSaveTimer = null;
+        saveDraft();
+      }, DRAFT_SAVE_DELAY_MS);
+    }
+
+    function restoreDraft() {
+      const draft = readSavedDraft();
+      if (!draft) return false;
+      state.proposal = draft.proposal;
+      state.panels = draft.panels.filter((panel) => panel && typeof panel === "object");
+      if (!state.panels.length) {
+        clearSavedDraft();
+        return false;
+      }
+      $("industry").value = draft.industry || draft.proposal.industry || "";
+      $("dashboardType").value = draft.dashboardType === "iot" ? "iot" : "manufacturing";
+      $("projectLabel").value = draft.projectLabel || "";
+      $("salesOwner").value = draft.salesOwner || "";
+      $("overwriteDashboard").checked = Boolean(draft.overwrite);
+      draftPersistenceEnabled = true;
+      const savedFolderExists = Array.from($("folderUid").options).some((option) => option.value === draft.folderUid);
+      if (savedFolderExists) $("folderUid").value = draft.folderUid || "";
+      renderPanels();
+      setWorkflowStep(2);
+      const restoredAt = draft.updatedAt ? new Date(draft.updatedAt).toLocaleString() : "保存時刻不明";
+      setDraftState(`復元済み ${restoredAt}`, true);
+      setStatus("前回の編集中の下書きを復元しました。", "ok");
+      $("discardDraft").disabled = false;
+      return true;
+    }
+
+    function discardCurrentDraft() {
+      draftPersistenceEnabled = false;
+      state.proposal = null;
+      state.panels = [];
+      $("projectLabel").value = "";
+      $("salesOwner").value = "";
+      $("overwriteDashboard").checked = false;
+      renderPanels();
+      setWorkflowStep(1);
+      clearSavedDraft("下書きを破棄しました");
+      setStatus("業種を入力してパネル案を作成してください。");
     }
 
     function appAccessToken() {
@@ -840,6 +958,7 @@
       }
       renderPreview();
       updateCreateState();
+      scheduleDraftSave();
     }
 
     function hasValue(value) {
@@ -904,6 +1023,7 @@
       $("create").disabled = !state.proposal || validatePanels().length > 0;
       $("printProposal").disabled = !state.proposal || !state.panels.length;
       $("buildReplacementPlan").disabled = !state.panels.length || !state.datasources.length;
+      $("discardDraft").disabled = !state.proposal && !readSavedDraft();
     }
 
     function previewSize(panel) {
@@ -1182,6 +1302,7 @@
         card.querySelector(".danger").addEventListener("click", () => {
           state.panels.splice(index, 1);
           renderPanels();
+          scheduleDraftSave();
         });
 
         card.querySelectorAll("[data-key]").forEach((input) => {
@@ -1479,6 +1600,7 @@
         state.panels = proposal.panels;
         renderPanels();
         setWorkflowStep(2);
+        scheduleDraftSave();
         const sourceLabel = proposal.source === "ai" ? "AI生成" : proposal.source === "fallback" ? "汎用テンプレート" : "既知業種テンプレート";
         const warning = proposal.warning ? `\n${proposal.warning}` : "";
         setStatus(`パネル案を作成しました。方式: ${sourceLabel}\n内容を編集してから作成できます。${warning}`, proposal.warning ? "error" : "ok");
@@ -1503,6 +1625,7 @@
         latestOnly: false
       });
       renderPanels();
+      scheduleDraftSave();
     });
 
     $("analyzeRisk").addEventListener("click", async () => {
@@ -1661,6 +1784,8 @@
         status.innerHTML =
           `名前：${escapeHtml(result.name)}\n\nGrafana Cloud に${escapeHtml($("industry").value.trim())}${label}を作成しました。\nURL:\n<a href="${escapeHtml(result.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(result.url)}</a>`;
         setWorkflowStep(3);
+        draftPersistenceEnabled = false;
+        clearSavedDraft("Grafana作成済み");
         saveLocalDashboardHistory({
           time: new Date().toISOString(),
           dashboardUid: result.name,
@@ -1683,7 +1808,17 @@
     $("folderUid").addEventListener("change", () => {
       renderMeta();
       renderPreview();
+      scheduleDraftSave();
     });
+
+    ["industry", "dashboardType", "projectLabel", "salesOwner", "overwriteDashboard"].forEach((id) => {
+      $(id).addEventListener("input", scheduleDraftSave);
+      $(id).addEventListener("change", scheduleDraftSave);
+    });
+
+    $("discardDraft").addEventListener("click", discardCurrentDraft);
+
+    window.addEventListener("pagehide", saveDraft);
 
     $("loadDashboardHistory").addEventListener("click", async () => {
       $("loadDashboardHistory").disabled = true;
@@ -1763,6 +1898,7 @@
       } else {
         renderDashboardHistory(mergeDashboardHistory([]));
       }
+      restoreDraft();
     }
 
     init().catch((error) => setStatus(`初期化に失敗しました。\n${error.message}`, "error"));
