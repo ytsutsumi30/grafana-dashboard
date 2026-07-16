@@ -626,7 +626,9 @@ UI変更後は、dev server起動、対象画面確認、ブラウザconsole err
 node .\scripts\verify-ui-change-loop.js
 ```
 
-ループ設計と停止条件は `docs/ui-change-verification-loop.md` に記録しています。
+このコマンドは板金加工業者のパネル案を実際に生成し、デスクトップ/モバイルのレイアウト、3工程表示、補助機能の折りたたみ、プレビュー描画も確認します。スクリーンショットと結果JSONは `outputs\ui-verification\` に保存します。
+
+ループ設計、最大2回の再試行、停止条件は `docs/ui-change-verification-loop.md` に記録しています。
 
 ## 環境変数
 

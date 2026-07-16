@@ -1,69 +1,98 @@
-# UI Change Verification Loop
+# UI Improvement and Verification Loop
 
-## Goal
+## 0. Should This Be a Loop?
 
-- Done means: after a UI change, the dashboard builder starts locally, the target screen renders, browser console errors are zero, and related repository checks pass.
+- Task: inspect the dashboard builder UI, implement one prioritized improvement batch, and verify the result.
+- Why one normal check is not enough: visual changes can introduce browser exceptions, responsive overflow, or broken proposal rendering after implementation.
+- Smallest useful loop: one improvement batch followed by automated desktop/mobile verification, with at most two attempts.
+
+## 1. Goal
+
+- Completion statement: the primary sales workflow remains easy to identify, the target screen renders a manufacturing proposal on desktop and mobile, browser console errors are zero, and related repository checks pass.
 - Machine-checkable condition: `node scripts/verify-ui-change-loop.js` exits with code `0`.
+- Human-review condition: a person reviews the generated screenshots when visual hierarchy, wording, or customer suitability is the reason for the change.
 
-## Trigger
+## 2. Trigger
 
-- Manual turn loop after changes to:
+- Manual goal-style retry loop after changes to:
   - `public/grafana-sales-dashboard-builder.html`
   - `server/grafana-dashboard-builder.js`
-  - UI-facing API behavior, dashboard proposal rendering, preview rendering, or static asset serving
+  - proposal rendering, preview rendering, static asset serving, or UI-facing API behavior
 
-## Doer Steps
+## 3. Doer
 
-- Implement the UI change.
-- Keep the change scoped to the requested behavior.
-- Run formatting or syntax checks if a touched file has a known formatter or parser.
+- Inputs: the requested UI outcome, current desktop/mobile screenshots, and existing product conventions.
+- Allowed files/systems: local repository files and local dev server only.
+- Steps:
+  1. Inspect the current screen and identify issues by workflow impact, frequency, and implementation risk.
+  2. Select one coherent improvement batch. Do not combine unrelated refactors.
+  3. Preserve dashboard creation and Grafana API behavior unless the request explicitly changes it.
+  4. Implement the UI and accessibility changes.
+  5. Start verification from the first affected step.
 
-## Verification
+## 4. Verifier
 
-- Command/tool:
+- Verification command:
 
 ```powershell
 node scripts\verify-ui-change-loop.js
 ```
 
-- Expected result:
-  - Dev server starts at `http://127.0.0.1:4173/`.
-  - Target page title is `Grafana Cloud ダッシュボード提案ツール`.
-  - Required controls exist: `#industry`, `#dashboardType`, `#propose`, `#create`.
-  - Browser console errors and runtime exceptions are `0`.
-  - Related tests pass:
-    - `node --check server/grafana-dashboard-builder.js`
-    - `node --check scripts/verify-ui-change-loop.js`
-    - `node scripts/validate-repository.js`
+- Browser checks:
+  - Start the dev server at `http://127.0.0.1:4173/`.
+  - Confirm page title and required controls.
+  - Confirm three workflow steps and at least six collapsible auxiliary sections.
+  - Generate the known `板金加工業者` manufacturing proposal.
+  - Confirm at least eight preview panels and panel edit cards render.
+  - Confirm the workflow advances to step 2.
+  - Confirm desktop content does not overflow the document viewport.
+  - Confirm mobile content fits within 390 px and only the preview canvas scrolls horizontally.
+  - Confirm console errors and uncaught runtime exceptions are zero.
+- Related tests:
+  - `node --check server/grafana-dashboard-builder.js`
+  - `node --check scripts/verify-ui-change-loop.js`
+  - `node scripts/validate-repository.js`
+- Required evidence:
+  - `outputs/ui-verification/latest-desktop.png`
+  - `outputs/ui-verification/latest-mobile.png`
+  - `outputs/ui-verification/latest-result.json`
 
-- Evidence to report:
-  - Dev server URL.
-  - Console error count.
-  - Related test command results.
+## 5. Stop Conditions
 
-## Stop Conditions
+- Success: the verification command exits `0` and required evidence files exist.
+- Maximum attempts: 2 by default; configure with `UI_VERIFY_MAX_RETRIES` only for local diagnosis.
+- Time limit: each server/browser operation uses a finite timeout; do not extend the loop indefinitely.
+- Stop and ask the user when:
+  - two attempts fail for the same external or environment-dependent reason,
+  - the requested visual decision needs brand or sales-owner approval,
+  - verification requires writing to Grafana Cloud, Cloud Run, or another external system.
 
-- Success: verification command exits `0`.
-- Retry limit: default `2` attempts, configurable with `UI_VERIFY_MAX_RETRIES`.
-- Budget/time limit: stop after the retry limit or when the browser/server readiness timeout is exceeded.
-- Escalate to human when:
-  - The UI renders but visual quality is subjective.
-  - Grafana Cloud or external AI APIs are required to prove the change.
-  - Browser automation cannot start Chrome/Edge on the local machine.
+## 6. Guardrails
 
-## Guardrails
+- Do not deploy to Cloud Run or modify Grafana Cloud dashboards in this local loop.
+- Do not print, persist, or capture secrets. The dev server starts with Grafana and app access tokens cleared.
+- Use a temporary browser profile and terminate the browser and dev server after verification.
+- Keep screenshots and result JSON under the Git-ignored `outputs/` directory.
+- Keep the implementation and verifier independent: the verifier checks observable DOM/layout state rather than internal success flags.
 
-- Blocked actions:
-  - Do not deploy to Cloud Run as part of this local UI verification loop.
-  - Do not write or print secrets.
-  - Do not modify Grafana Cloud dashboards during this loop.
-- Required tests/hooks/permissions:
-  - Use a temporary browser profile.
-  - Kill the local dev server started by the loop after verification.
-  - Keep related checks local and deterministic.
-
-## Record
+## 7. Record
 
 - Durable loop definition: `docs/ui-change-verification-loop.md`.
-- Executable loop: `scripts/verify-ui-change-loop.js`.
-- If this loop changes, update both the doc and script in the same commit.
+- Executable verifier: `scripts/verify-ui-change-loop.js`.
+- Product behavior: `docs/dashboard-builder-specification.md`.
+- Sales workflow: `docs/sales-user-guide.md`.
+- Latest evidence: `outputs/ui-verification/`.
+- When this loop changes, update the definition and executable verifier in the same change.
+
+## 8. Current Improvement Decision
+
+- Date: 2026-07-17.
+- Priority issue: primary dashboard creation actions were mixed with history, operations, datasource replacement, and AI demo functions in one long sidebar.
+- Applied decision:
+  - keep customer conditions and create actions visible,
+  - move auxiliary tools into collapsible sections,
+  - show `条件入力`, `パネル編集`, and `Grafana作成` progress in the main toolbar,
+  - keep the desktop sidebar and main toolbar visible while scrolling,
+  - contain the 24-column preview as a horizontal canvas on mobile,
+  - display Grafana unit identifiers as customer-readable unit symbols.
+- Human review point: review the two latest screenshots before a customer-facing Cloud Run deployment.

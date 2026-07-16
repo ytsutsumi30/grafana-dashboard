@@ -3,22 +3,22 @@
   "notebookId": "grafana-dashboard-builder-poc",
   "dryRun": true,
   "sourceCount": 19,
-  "generatedAt": "2026-07-16T16:05:48.7641566Z",
+  "generatedAt": "2026-07-16T16:59:19.6739751Z",
   "sources": [
     {
       "relativePath": "README.md",
       "exists": true,
-      "sizeBytes": 31398
+      "sizeBytes": 31738
     },
     {
       "relativePath": "docs\\notebooklm-source-index.md",
       "exists": true,
-      "sizeBytes": 3636
+      "sizeBytes": 3796
     },
     {
       "relativePath": "docs\\notebooklm-source-manifest.json",
       "exists": true,
-      "sizeBytes": 2359
+      "sizeBytes": 2610
     },
     {
       "relativePath": "docs\\notebooklm-mcp-integration.md",
@@ -28,7 +28,7 @@
     {
       "relativePath": "docs\\ui-change-verification-loop.md",
       "exists": true,
-      "sizeBytes": 2463
+      "sizeBytes": 5075
     },
     {
       "relativePath": "docs\\manufacturing-dashboard-build-log.md",
@@ -48,12 +48,12 @@
     {
       "relativePath": "docs\\dashboard-builder-specification.md",
       "exists": true,
-      "sizeBytes": 29827
+      "sizeBytes": 30747
     },
     {
       "relativePath": "docs\\sales-user-guide.md",
       "exists": true,
-      "sizeBytes": 19336
+      "sizeBytes": 19911
     },
     {
       "relativePath": "docs\\android-vibration-demo-mvp.md",
@@ -98,7 +98,7 @@
     {
       "relativePath": "scripts\\verify-ui-change-loop.js",
       "exists": true,
-      "sizeBytes": 11280
+      "sizeBytes": 17152
     }
   ]
 }

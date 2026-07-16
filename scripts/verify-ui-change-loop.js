@@ -13,6 +13,7 @@ const targetUrl = `http://${host}:${port}${targetPath}`;
 const maxRetries = Number(process.env.UI_VERIFY_MAX_RETRIES || 2);
 const serverReadyTimeoutMs = Number(process.env.UI_VERIFY_SERVER_TIMEOUT_MS || 20000);
 const browserTimeoutMs = Number(process.env.UI_VERIFY_BROWSER_TIMEOUT_MS || 30000);
+const outputDir = path.join(repoRoot, "outputs", "ui-verification");
 
 const relatedTests = [
   ["node", ["--check", "server/grafana-dashboard-builder.js"]],
@@ -150,7 +151,16 @@ async function removeDirWithRetry(dir) {
 function startDevServer() {
   const child = spawn("node", ["server/grafana-dashboard-builder.js"], {
     cwd: repoRoot,
-    env: { ...process.env, HOST: host, PORT: String(port) },
+    env: {
+      ...process.env,
+      HOST: host,
+      PORT: String(port),
+      APP_ACCESS_TOKEN: "",
+      DASHBOARD_BUILDER_ACCESS_TOKEN: "",
+      GRAFANA_SERVICE_ACCOUNT_TOKEN: "",
+      GRAFANA_CLOUD_TOKEN: "",
+      FIRESTORE_HISTORY_ENABLED: "false"
+    },
     stdio: ["ignore", "pipe", "pipe"]
   });
   child.stdout.on("data", (chunk) => process.stdout.write(`[dev-server] ${chunk}`));
@@ -231,6 +241,39 @@ class CdpClient {
   }
 }
 
+async function evaluate(client, expression) {
+  const evaluation = await client.send("Runtime.evaluate", {
+    returnByValue: true,
+    awaitPromise: true,
+    expression
+  });
+  if (evaluation.exceptionDetails) {
+    fail(`Browser evaluation failed: ${evaluation.exceptionDetails.text || "unknown exception"}`);
+  }
+  return evaluation.result?.value;
+}
+
+async function waitForBrowserCondition(client, expression, label) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < browserTimeoutMs) {
+    if (await evaluate(client, expression)) return;
+    await wait(250);
+  }
+  fail(`Timed out waiting for browser condition: ${label}`);
+}
+
+async function captureScreenshot(client, filename) {
+  fs.mkdirSync(outputDir, { recursive: true });
+  const screenshot = await client.send("Page.captureScreenshot", {
+    format: "png",
+    captureBeyondViewport: false,
+    fromSurface: true
+  });
+  const screenshotPath = path.join(outputDir, filename);
+  fs.writeFileSync(screenshotPath, Buffer.from(screenshot.data, "base64"));
+  return screenshotPath;
+}
+
 async function verifyBrowser() {
   const chromePath = findChrome();
   const debugPort = await getFreePort();
@@ -277,6 +320,12 @@ async function verifyBrowser() {
 
     await client.send("Runtime.enable");
     await client.send("Page.enable");
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: 1440,
+      height: 1000,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
     await client.send("Page.navigate", { url: targetUrl });
     await new Promise((resolve) => {
       const timeout = setTimeout(resolve, browserTimeoutMs);
@@ -287,34 +336,112 @@ async function verifyBrowser() {
     });
     await wait(1000);
 
-    const evaluation = await client.send("Runtime.evaluate", {
-      returnByValue: true,
-      expression: `(() => ({
+    const initialState = await evaluate(client, `(() => ({
         title: document.title,
         h1: document.querySelector("h1")?.innerText || "",
         hasIndustry: Boolean(document.querySelector("#industry")),
         hasDashboardType: Boolean(document.querySelector("#dashboardType")),
         hasPropose: Boolean(document.querySelector("#propose")),
         hasCreate: Boolean(document.querySelector("#create")),
+        workflowStepCount: document.querySelectorAll("#workflowSteps [data-step]").length,
+        toolSectionCount: document.querySelectorAll("details.tool-section").length,
+        openToolSectionCount: document.querySelectorAll("details.tool-section[open]").length,
         bodyText: document.body.innerText.slice(0, 500)
-      }))()`
+      }))()`) || {};
+
+    if (initialState.title !== "Grafana Cloud ダッシュボード提案ツール") {
+      fail(`Unexpected page title: ${initialState.title}`);
+    }
+    if (!String(initialState.h1).includes("Grafana Cloud")) fail("Target screen h1 was not rendered.");
+    if (!initialState.hasIndustry || !initialState.hasDashboardType || !initialState.hasPropose || !initialState.hasCreate) {
+      fail(`Target screen required controls missing: ${JSON.stringify(initialState)}`);
+    }
+    if (initialState.workflowStepCount !== 3) fail(`Expected 3 workflow steps, found ${initialState.workflowStepCount}.`);
+    if (initialState.toolSectionCount < 6) fail(`Expected at least 6 collapsible tool sections, found ${initialState.toolSectionCount}.`);
+    if (initialState.openToolSectionCount > 1) fail("Auxiliary tool sections must be collapsed except the creation history section.");
+
+    await evaluate(client, `(() => {
+      document.querySelector("#industry").value = "板金加工業者";
+      document.querySelector("#dashboardType").value = "manufacturing";
+      document.querySelector("#propose").click();
+      return true;
+    })()`);
+    await waitForBrowserCondition(
+      client,
+      `document.querySelectorAll("#previewBoard .preview-panel").length >= 8 && !document.querySelector("#propose").disabled`,
+      "manufacturing proposal preview"
+    );
+
+    const desktopState = await evaluate(client, `(() => {
+      const app = document.querySelector(".app");
+      const aside = document.querySelector("aside");
+      const main = document.querySelector("main");
+      const activeStep = document.querySelector("#workflowSteps .is-active")?.dataset.step || "";
+      return {
+        previewPanelCount: document.querySelectorAll("#previewBoard .preview-panel").length,
+        panelCardCount: document.querySelectorAll("#panels .panel-card").length,
+        activeStep,
+        appColumns: getComputedStyle(app).gridTemplateColumns,
+        asideWidth: Math.round(aside.getBoundingClientRect().width),
+        mainWidth: Math.round(main.getBoundingClientRect().width),
+        documentOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
+      };
+    })()`) || {};
+    if (desktopState.previewPanelCount < 8 || desktopState.panelCardCount < 8) {
+      fail(`Proposal did not render enough panels: ${JSON.stringify(desktopState)}`);
+    }
+    if (desktopState.activeStep !== "2") fail(`Workflow must advance to step 2 after proposal: ${JSON.stringify(desktopState)}`);
+    if (desktopState.asideWidth < 300 || desktopState.mainWidth < 700 || desktopState.documentOverflow) {
+      fail(`Desktop layout check failed: ${JSON.stringify(desktopState)}`);
+    }
+    const desktopScreenshot = await captureScreenshot(client, "latest-desktop.png");
+
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 1,
+      mobile: true
     });
-    const value = evaluation.result?.value || {};
-
-    client.close();
-
-    if (value.title !== "Grafana Cloud ダッシュボード提案ツール") {
-      fail(`Unexpected page title: ${value.title}`);
+    await wait(500);
+    const mobileState = await evaluate(client, `(() => {
+      const app = document.querySelector(".app");
+      const aside = document.querySelector("aside");
+      const main = document.querySelector("main");
+      const preview = document.querySelector(".preview");
+      return {
+        appColumns: getComputedStyle(app).gridTemplateColumns,
+        asideWidth: Math.round(aside.getBoundingClientRect().width),
+        mainWidth: Math.round(main.getBoundingClientRect().width),
+        viewportWidth: document.documentElement.clientWidth,
+        documentOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        previewScrollable: preview.scrollWidth > preview.clientWidth
+      };
+    })()`) || {};
+    if (mobileState.asideWidth > mobileState.viewportWidth || mobileState.mainWidth > mobileState.viewportWidth) {
+      fail(`Mobile content exceeds viewport: ${JSON.stringify(mobileState)}`);
     }
-    if (!String(value.h1).includes("Grafana Cloud")) fail("Target screen h1 was not rendered.");
-    if (!value.hasIndustry || !value.hasDashboardType || !value.hasPropose || !value.hasCreate) {
-      fail(`Target screen required controls missing: ${JSON.stringify(value)}`);
+    if (mobileState.documentOverflow || !mobileState.previewScrollable) {
+      fail(`Mobile overflow containment check failed: ${JSON.stringify(mobileState)}`);
     }
+    const mobileScreenshot = await captureScreenshot(client, "latest-mobile.png");
+
     if (consoleErrors.length > 0 || exceptions.length > 0) {
       fail(`Console errors must be 0. errors=${JSON.stringify(consoleErrors)} exceptions=${JSON.stringify(exceptions)}`);
     }
 
-    log(`Target screen OK: title="${value.title}", consoleErrors=0`);
+    const evidence = {
+      verifiedAt: new Date().toISOString(),
+      targetUrl,
+      title: initialState.title,
+      consoleErrors: 0,
+      desktop: desktopState,
+      mobile: mobileState,
+      screenshots: [desktopScreenshot, mobileScreenshot]
+    };
+    fs.writeFileSync(path.join(outputDir, "latest-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+    log(`Target screen OK: title="${initialState.title}", panels=${desktopState.previewPanelCount}, consoleErrors=0`);
+    log(`UI evidence: ${path.relative(repoRoot, outputDir)}`);
+    client.close();
   } finally {
     await killProcess(chrome);
     await removeDirWithRetry(userDataDir);
