@@ -450,6 +450,23 @@ async function verifyBrowser(apiEvidence) {
       fail(`Desktop layout check failed: ${JSON.stringify(desktopState)}`);
     }
 
+    const grafanaUrlState = await evaluate(client, `(() => {
+      const originalUrl = state.grafanaUrl;
+      state.grafanaUrl = "https://tenant-check.grafana.net";
+      renderMeta();
+      const configuredHref = document.querySelector("#dashboardMeta a")?.href || "";
+      state.grafanaUrl = originalUrl;
+      renderMeta();
+      return {
+        configuredHref,
+        restoredHref: document.querySelector("#dashboardMeta a")?.href || ""
+      };
+    })()`);
+    if (!grafanaUrlState?.configuredHref.startsWith("https://tenant-check.grafana.net/d/") ||
+        grafanaUrlState.restoredHref.includes("tenant-check.grafana.net")) {
+      fail(`Runtime Grafana URL check failed: ${JSON.stringify(grafanaUrlState)}`);
+    }
+
     await evaluate(client, `(() => {
       const titleInput = document.querySelector('#panels .panel-card input[data-key="title"]');
       const projectLabel = document.querySelector("#projectLabel");
@@ -584,6 +601,7 @@ async function verifyBrowser(apiEvidence) {
       consoleErrors: 0,
       api: apiEvidence,
       desktop: desktopState,
+      grafanaUrl: grafanaUrlState,
       mobile: mobileState,
       draftRestore: draftRestoreState,
       apiFailureGuidance: apiFailureState,

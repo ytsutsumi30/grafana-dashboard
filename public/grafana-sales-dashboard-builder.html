@@ -734,6 +734,7 @@
       datasources: [],
       dashboardHistoryRows: [],
       dashboardHistorySource: "local",
+      grafanaUrl: "",
       accessRequired: false
     };
     const DRAFT_STORAGE_KEY = "grafanaBuilderDraftV1";
@@ -952,6 +953,16 @@
       }
     }
 
+    function configuredGrafanaUrl(value) {
+      const candidate = String(value || "").trim().replace(/\/$/, "");
+      return /^https?:\/\//i.test(candidate) ? candidate : "";
+    }
+
+    function proposedDashboardUrl() {
+      if (!state.proposal || !state.grafanaUrl) return "";
+      return `${state.grafanaUrl}/d/${encodeURIComponent(state.proposal.dashboardUid)}/${encodeURIComponent(state.proposal.dashboardSlug)}`;
+    }
+
     function renderMeta() {
       if (!state.proposal) {
         $("dashboardName").textContent = "パネル案";
@@ -960,10 +971,13 @@
       }
       const label = state.proposal.dashboardType === "iot" ? "IoTデバイス監視ダッシュボード" : "保全用ダッシュボード";
       $("dashboardName").textContent = `${state.proposal.industry} ${label}`;
-      const url = `https://ytsutsumi30.grafana.net/d/${state.proposal.dashboardUid}/${state.proposal.dashboardSlug}`;
+      const url = proposedDashboardUrl();
       const folderTitle = $("folderUid").selectedOptions[0]?.textContent || "General / ルート";
+      const urlLine = url
+        ? `URL: <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`
+        : "URL: Grafana URLを確認中";
       $("dashboardMeta").innerHTML =
-        `名前: ${escapeHtml(state.proposal.dashboardUid)}\nFolder: ${escapeHtml(folderTitle)}\nURL: <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`;
+        `名前: ${escapeHtml(state.proposal.dashboardUid)}\nFolder: ${escapeHtml(folderTitle)}\n${urlLine}`;
     }
 
     function updatePanel(index, key, value) {
@@ -1477,6 +1491,8 @@
     }
 
     function renderRuntimeStatus(status) {
+      state.grafanaUrl = configuredGrafanaUrl(status.grafanaUrl);
+      renderMeta();
       $("runtimeStatus").textContent =
         `Service: ${status.service}\n` +
         `Grafana URL: ${status.grafanaUrl}\n` +
@@ -1528,7 +1544,7 @@
       const projectLabel = $("projectLabel").value.trim();
       const salesOwner = $("salesOwner").value.trim();
       const folderTitle = $("folderUid").selectedOptions[0]?.textContent || "General / ルート";
-      const dashboardUrl = `https://ytsutsumi30.grafana.net/d/${state.proposal.dashboardUid}/${state.proposal.dashboardSlug}`;
+      const dashboardUrl = proposedDashboardUrl() || "Grafana URLを確認中";
       const rows = state.panels.map((panel, index) => `
         <tr>
           <td>${index + 1}</td>

@@ -109,3 +109,22 @@ Expected evidence:
 - Evidence policy: upload screenshots and result JSON only when the job fails, retain for 7 days, and ignore an absent evidence directory when startup fails early.
 - External-state guardrail: CI clears Grafana/application tokens and does not create or update Grafana Cloud dashboards.
 - Local evidence: both normal Windows execution and `CI=true` execution completed on the first attempt with console errors at zero.
+
+## 12. Five-Cycle Improvement Batch
+
+The user requested five consecutive finite improvement loops. Each cycle uses the same maximum of two verifier attempts, creates one local commit after success, and defers the GitHub push until all five cycles finish.
+
+| Cycle | Improvement | Machine check | Status |
+| ---: | --- | --- | --- |
+| 1 | Use the runtime Grafana URL instead of a tenant-specific hardcode | Change `state.grafanaUrl`, render metadata, and confirm the generated link follows it | Completed |
+| 2 | Filter a long panel editor list | Filter 19 panels and restore the complete list | Planned |
+| 3 | Move panels up and down | Reorder state and preview, then restore original order | Planned |
+| 4 | Reject expired or malformed browser drafts | Reload an expired draft and confirm it is removed | Planned |
+| 5 | Enforce input limits and focus actionable errors | Submit an overlong industry and confirm focused error status | Planned |
+
+### Cycle 1 Decision
+
+- Problem: preview and printed proposal URLs were fixed to one Grafana Cloud tenant.
+- Change: derive dashboard links from the sanitized `grafanaUrl` returned by `/api/runtime-status`.
+- Fallback: show `Grafana URLを確認中` instead of linking to the wrong tenant.
+- External writes: none.
