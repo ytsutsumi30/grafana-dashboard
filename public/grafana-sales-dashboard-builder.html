@@ -788,6 +788,8 @@
     };
     const DRAFT_STORAGE_KEY = "grafanaBuilderDraftV1";
     const DRAFT_SAVE_DELAY_MS = 300;
+    const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+    const DRAFT_FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
     const API_TIMEOUT_MS = 30000;
     let draftSaveTimer = null;
     let draftPersistenceEnabled = false;
@@ -819,10 +821,67 @@
     function readSavedDraft() {
       try {
         const draft = JSON.parse(localStorage.getItem(DRAFT_STORAGE_KEY) || "null");
-        if (!draft || draft.version !== 1 || !draft.proposal || !Array.isArray(draft.panels)) return null;
-        if (draft.panels.length < 1 || draft.panels.length > 24) return null;
-        return draft;
+        const updatedAt = Date.parse(draft?.updatedAt || "");
+        const age = Date.now() - updatedAt;
+        const validIdentity = draft?.proposal &&
+          String(draft.proposal.industry || "").trim() &&
+          String(draft.proposal.dashboardUid || "").trim() &&
+          String(draft.proposal.dashboardSlug || "").trim();
+        const valid = draft?.version === 1 &&
+          validIdentity &&
+          Array.isArray(draft.panels) &&
+          draft.panels.length >= 1 &&
+          draft.panels.length <= 24 &&
+          draft.panels.every((panel) => panel && typeof panel === "object") &&
+          Number.isFinite(updatedAt) &&
+          age <= DRAFT_MAX_AGE_MS &&
+          age >= -DRAFT_FUTURE_TOLERANCE_MS;
+        if (!valid) {
+          localStorage.removeItem(DRAFT_STORAGE_KEY);
+          return null;
+        }
+        const cleanString = (value, maxLength) => String(value || "").slice(0, maxLength);
+        const cleanNumber = (value) => {
+          if (value === "" || value === null || value === undefined) return "";
+          const number = Number(value);
+          return Number.isFinite(number) ? number : "";
+        };
+        const visualizations = new Set(["timeseries", "stat", "gauge", "piechart", "table"]);
+        return {
+          ...draft,
+          industry: cleanString(draft.industry || draft.proposal.industry, 120),
+          dashboardType: draft.dashboardType === "iot" ? "iot" : "manufacturing",
+          projectLabel: cleanString(draft.projectLabel, 80),
+          salesOwner: cleanString(draft.salesOwner, 80),
+          folderUid: cleanString(draft.folderUid, 120),
+          proposal: {
+            ...draft.proposal,
+            industry: cleanString(draft.proposal.industry, 120),
+            dashboardUid: cleanString(draft.proposal.dashboardUid, 80),
+            dashboardSlug: cleanString(draft.proposal.dashboardSlug, 120),
+            dashboardType: draft.proposal.dashboardType === "iot" ? "iot" : "manufacturing"
+          },
+          panels: draft.panels.map((panel, index) => ({
+            id: index + 1,
+            title: cleanString(panel.title, 80),
+            visualization: visualizations.has(panel.visualization) ? panel.visualization : "timeseries",
+            unit: cleanString(panel.unit || "short", 32),
+            min: cleanNumber(panel.min),
+            max: cleanNumber(panel.max),
+            warningThreshold: cleanNumber(panel.warningThreshold),
+            criticalThreshold: cleanNumber(panel.criticalThreshold),
+            purpose: cleanString(panel.purpose, 160),
+            latestOnly: Boolean(panel.latestOnly),
+            scenarioId: panel.scenarioId === "csv_content" ? "csv_content" : "random_walk",
+            csvContent: cleanString(panel.csvContent, 4000)
+          }))
+        };
       } catch {
+        try {
+          localStorage.removeItem(DRAFT_STORAGE_KEY);
+        } catch {
+          // Local storage can be disabled by browser policy.
+        }
         return null;
       }
     }

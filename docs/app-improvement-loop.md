@@ -119,7 +119,7 @@ The user requested five consecutive finite improvement loops. Each cycle uses th
 | 1 | Use the runtime Grafana URL instead of a tenant-specific hardcode | Change `state.grafanaUrl`, render metadata, and confirm the generated link follows it | Completed |
 | 2 | Filter a long panel editor list | Filter 19 panels and restore the complete list | Completed |
 | 3 | Move panels up and down | Reorder state and preview, then restore original order | Completed |
-| 4 | Reject expired or malformed browser drafts | Reload an expired draft and confirm it is removed | Planned |
+| 4 | Reject expired or malformed browser drafts | Reload an expired draft and confirm it is removed | Completed |
 | 5 | Enforce input limits and focus actionable errors | Submit an overlong industry and confirm focused error status | Planned |
 
 ### Cycle 1 Decision
@@ -142,3 +142,10 @@ The user requested five consecutive finite improvement loops. Each cycle uses th
 - Change: add fixed-size up/down controls to each panel editor with accessible labels and hover titles.
 - State behavior: swap entries in `state.panels`, then regenerate the editor list and 24-column preview and autosave the new order.
 - Guardrail: disable upward movement for the first panel and downward movement for the final panel.
+
+### Cycle 4 Decision
+
+- Problem: a stale or manually modified browser draft could be restored into the editor without sufficient validation.
+- Change: expire drafts after seven days and sanitize identity, strings, numeric fields, visualization types, scenarios, and panel count before restoration.
+- Recovery: remove invalid, expired, or excessively future-dated drafts from localStorage and return the workflow to `条件入力`.
+- Verification: replace a valid draft timestamp with an eight-day-old value, reload the page, and confirm both storage removal and an empty editor.

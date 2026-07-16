@@ -630,6 +630,39 @@ async function verifyBrowser(apiEvidence) {
     }
     const mobileScreenshot = await captureScreenshot(client, "latest-mobile.png");
 
+    await evaluate(client, `(() => {
+      if (draftSaveTimer) clearTimeout(draftSaveTimer);
+      draftSaveTimer = null;
+      draftPersistenceEnabled = false;
+      const draft = JSON.parse(localStorage.getItem("grafanaBuilderDraftV1"));
+      draft.updatedAt = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+      localStorage.setItem("grafanaBuilderDraftV1", JSON.stringify(draft));
+      return true;
+    })()`);
+    const expiredReloadLoaded = new Promise((resolve) => {
+      const timeout = setTimeout(resolve, browserTimeoutMs);
+      client.on("Page.loadEventFired", () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
+    await client.send("Page.reload", { ignoreCache: true });
+    await expiredReloadLoaded;
+    await waitForBrowserCondition(
+      client,
+      `localStorage.getItem("grafanaBuilderDraftV1") === null && document.querySelectorAll("#panels .panel-card").length === 0`,
+      "expired draft rejection"
+    );
+    const expiredDraftState = await evaluate(client, `(() => ({
+      storageRemoved: localStorage.getItem("grafanaBuilderDraftV1") === null,
+      panelCount: document.querySelectorAll("#panels .panel-card").length,
+      workflowStep: document.querySelector("#workflowSteps .is-active")?.dataset.step || "",
+      draftState: document.querySelector("#draftState")?.textContent || ""
+    }))()`);
+    if (!expiredDraftState?.storageRemoved || expiredDraftState.panelCount !== 0 || expiredDraftState.workflowStep !== "1") {
+      fail(`Expired draft rejection failed: ${JSON.stringify(expiredDraftState)}`);
+    }
+
     if (consoleErrors.length > 0 || exceptions.length > 0) {
       fail(`Console errors must be 0. errors=${JSON.stringify(consoleErrors)} exceptions=${JSON.stringify(exceptions)}`);
     }
@@ -646,6 +679,7 @@ async function verifyBrowser(apiEvidence) {
       grafanaUrl: grafanaUrlState,
       mobile: mobileState,
       draftRestore: draftRestoreState,
+      expiredDraft: expiredDraftState,
       apiFailureGuidance: apiFailureState,
       screenshots: [desktopScreenshot, mobileScreenshot]
     };
