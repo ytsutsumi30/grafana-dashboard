@@ -46,6 +46,7 @@ node scripts\verify-ui-change-loop.js
   - Confirm at least eight preview panels and panel edit cards render.
   - Edit a panel title and project label, immediately reload before the debounce completes, and confirm both values are restored.
   - Confirm the application access code is not persisted or restored with the draft.
+  - Simulate a stalled fetch and a connection failure, then confirm finite timeout and retry-guidance messages.
   - Confirm the workflow advances to step 2.
   - Confirm desktop content does not overflow the document viewport.
   - Confirm mobile content fits within 390 px and only the preview canvas scrolls horizontally.
@@ -57,6 +58,10 @@ node scripts\verify-ui-change-loop.js
 - Local API checks:
   - `GET /api/ping` returns HTTP 200.
   - `POST /api/propose` returns the known template with at least eight panels.
+- Browser API failure checks:
+  - A stalled request is aborted by the configured timeout.
+  - A connection failure produces distinct network/Cloud Run guidance.
+  - Neither handled failure produces a console error or uncaught exception.
 - Required evidence:
   - `outputs/ui-verification/latest-desktop.png`
   - `outputs/ui-verification/latest-mobile.png`

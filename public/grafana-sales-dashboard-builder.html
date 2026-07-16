@@ -738,6 +738,7 @@
     };
     const DRAFT_STORAGE_KEY = "grafanaBuilderDraftV1";
     const DRAFT_SAVE_DELAY_MS = 300;
+    const API_TIMEOUT_MS = 30000;
     let draftSaveTimer = null;
     let draftPersistenceEnabled = false;
 
@@ -873,34 +874,51 @@
       return headers;
     }
 
-    async function api(path, payload) {
+    async function requestApi(path, options = {}) {
       if (window.location.protocol === "file:") {
         throw new Error("この画面は http://localhost:4173/ から開いてください。file:// で直接開くとローカルAPIに接続できません。");
       }
-      const response = await fetch(path, {
-        method: "POST",
-        headers: apiHeaders(),
-        body: JSON.stringify(payload)
-      });
-      const data = await response.json();
-      if (!response.ok || data.ok === false) {
-        const details = Array.isArray(data.errors) && data.errors.length ? `\n${data.errors.join("\n")}` : "";
-        throw new Error(`${data.error || "Request failed"}${details}`);
+      const timeoutMs = Math.max(1, Number(options.timeoutMs) || API_TIMEOUT_MS);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(path, {
+          method: options.method || "GET",
+          headers: apiHeaders(),
+          body: options.payload === undefined ? undefined : JSON.stringify(options.payload),
+          signal: controller.signal
+        });
+        const raw = await response.text();
+        let data;
+        try {
+          data = raw ? JSON.parse(raw) : {};
+        } catch {
+          throw new Error(`サーバー応答を解析できませんでした。HTTP ${response.status}`);
+        }
+        if (!response.ok || data.ok === false) {
+          const details = Array.isArray(data.errors) && data.errors.length ? `\n${data.errors.join("\n")}` : "";
+          throw new Error(`${data.error || `Request failed (HTTP ${response.status})`}${details}`);
+        }
+        return data;
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          throw new Error(`通信が${Math.ceil(timeoutMs / 1000)}秒以内に完了しませんでした。ネットワークとCloud Runの状態を確認して、もう一度実行してください。`);
+        }
+        if (error instanceof TypeError) {
+          throw new Error("サーバーに接続できませんでした。ネットワークとCloud Runの状態を確認して、もう一度実行してください。");
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeout);
       }
-      return data;
     }
 
-    async function apiGet(path) {
-      if (window.location.protocol === "file:") {
-        throw new Error("この画面は http://localhost:4173/ から開いてください。file:// で直接開くとローカルAPIに接続できません。");
-      }
-      const response = await fetch(path, { headers: apiHeaders() });
-      const data = await response.json();
-      if (!response.ok || data.ok === false) {
-        const details = Array.isArray(data.errors) && data.errors.length ? `\n${data.errors.join("\n")}` : "";
-        throw new Error(`${data.error || "Request failed"}${details}`);
-      }
-      return data;
+    function api(path, payload, timeoutMs = API_TIMEOUT_MS) {
+      return requestApi(path, { method: "POST", payload, timeoutMs });
+    }
+
+    function apiGet(path, timeoutMs = API_TIMEOUT_MS) {
+      return requestApi(path, { method: "GET", timeoutMs });
     }
 
     async function loadAuthStatus() {

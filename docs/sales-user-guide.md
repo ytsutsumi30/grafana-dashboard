@@ -500,6 +500,8 @@ https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app/api/ping
 - TestData datasource作成権限がない
 - ネットワーク接続の問題
 
+`通信が30秒以内に完了しませんでした` または `サーバーに接続できませんでした` と表示された場合は、`/api/ping` を開いてCloud Runの起動状態を確認してください。ダッシュボード作成は自動再送されません。Grafana Cloudと作成履歴に同じダッシュボードが作成されていないことを確認してから、ボタンをもう一度押します。
+
 ### パネル案作成に失敗する
 
 以下の可能性があります。

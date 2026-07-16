@@ -24,7 +24,7 @@ Score each candidate from 1 to 5. Priority score is `impact + frequency - implem
 | Candidate | Impact | Frequency | Risk | Priority | Decision |
 | --- | ---: | ---: | ---: | ---: | --- |
 | Restore an edited proposal after refresh or accidental navigation | 5 | 4 | 1 | 8 | Implemented first |
-| Add finite browser API timeouts and retry guidance | 4 | 3 | 2 | 5 | Next candidate |
+| Add finite browser API timeouts and retry guidance | 4 | 3 | 2 | 5 | Implemented second |
 | Add a full Grafana Cloud write smoke test to CI | 4 | 2 | 4 | 2 | Human-approved external test only |
 | Add more decorative UI customization | 2 | 2 | 2 | 2 | Defer |
 
@@ -53,6 +53,8 @@ Expected evidence:
 - Edited panel title and project label are written to the browser draft, including an immediate reload before the debounce timer completes.
 - Reloading the page restores the edited values and workflow step 2.
 - The access code is not stored or restored with the draft.
+- A simulated stalled request stops within the test timeout and returns retry guidance.
+- A simulated connection failure returns distinct network/Cloud Run guidance.
 - Browser console errors and uncaught runtime exceptions are 0.
 - Node.js syntax checks and dashboard JSON validation pass.
 - Evidence is written under `outputs/ui-verification/`.
@@ -69,6 +71,7 @@ Expected evidence:
 - The loop clears Grafana and application access tokens in its dev-server environment.
 - Draft storage must never contain the application access code, Grafana token, OpenAI key, Google credential, or other secret.
 - Do not deploy Cloud Run or create/update Grafana Cloud dashboards in this loop.
+- Do not automatically retry POST operations such as dashboard creation; a retry can create duplicate external writes.
 - Use a temporary browser profile and terminate the local server/browser after verification.
 - Keep generated screenshots and JSON evidence under the Git-ignored `outputs/` directory.
 
@@ -87,3 +90,11 @@ Expected evidence:
 - Saved fields: customer conditions, folder, overwrite option, proposal metadata, and panel edits.
 - Excluded fields: access code and every server-side secret.
 - Verification finding: screenshot review detected preview content clipping after the first successful machine check. The panel content sizing and screenshot paint wait were corrected before the loop stopped.
+
+## 10. 2026-07-17 API Timeout Decision
+
+- Selected issue: stalled browser requests could leave a sales operation waiting indefinitely.
+- Implementation: common GET/POST request handler, 30-second AbortController timeout, safe JSON response parsing, and separate timeout/connection messages.
+- Retry policy: re-enable the existing operation button and ask the user to confirm the network and Cloud Run state before retrying.
+- Automatic retry is intentionally disabled for POST requests because Grafana dashboard creation and demo-data generation change external state.
+- Verification: replace browser `fetch` with deterministic stalled and connection-failure implementations, use a 25 ms test timeout, confirm both guidance messages, and keep console errors at zero.

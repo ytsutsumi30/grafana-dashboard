@@ -493,6 +493,42 @@ async function verifyBrowser(apiEvidence) {
     if (draftRestoreState.panelCount < 8 || draftRestoreState.activeStep !== "2" || draftRestoreState.accessTokenRestored) {
       fail(`Draft restore check failed: ${JSON.stringify(draftRestoreState)}`);
     }
+
+    const apiFailureState = await evaluate(client, `(async () => {
+      const originalFetch = window.fetch;
+      const timeoutStartedAt = performance.now();
+      let timeoutMessage = "";
+      let connectionMessage = "";
+      try {
+        window.fetch = (_path, options) => new Promise((_resolve, reject) => {
+          options.signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+        });
+        try {
+          await apiGet("/api/ping", 25);
+        } catch (error) {
+          timeoutMessage = error.message;
+        }
+        window.fetch = () => Promise.reject(new TypeError("Failed to fetch"));
+        try {
+          await apiGet("/api/ping", 25);
+        } catch (error) {
+          connectionMessage = error.message;
+        }
+      } finally {
+        window.fetch = originalFetch;
+      }
+      return {
+        timeoutMessage,
+        connectionMessage,
+        elapsedMs: Math.round(performance.now() - timeoutStartedAt)
+      };
+    })()`);
+    if (!apiFailureState?.timeoutMessage.includes("通信が") ||
+        !apiFailureState.timeoutMessage.includes("もう一度実行") ||
+        !apiFailureState.connectionMessage.includes("サーバーに接続できません") ||
+        apiFailureState.elapsedMs > 1000) {
+      fail(`Browser API timeout guidance check failed: ${JSON.stringify(apiFailureState)}`);
+    }
     await client.send("Page.bringToFront");
     await wait(750);
     const desktopScreenshot = await captureScreenshot(client, "latest-desktop.png");
@@ -539,6 +575,7 @@ async function verifyBrowser(apiEvidence) {
       desktop: desktopState,
       mobile: mobileState,
       draftRestore: draftRestoreState,
+      apiFailureGuidance: apiFailureState,
       screenshots: [desktopScreenshot, mobileScreenshot]
     };
     fs.writeFileSync(path.join(outputDir, "latest-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
