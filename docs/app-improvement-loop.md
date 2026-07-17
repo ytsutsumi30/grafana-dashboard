@@ -213,7 +213,7 @@ The access-code UI is being replaced by Google OpenID Connect. This is a bounded
 | 1 | Add server authentication modes | Start `google-oidc` locally and reject an invalid Bearer token | Completed |
 | 2 | Make the browser UI select its authentication path at runtime | IAP/OIDC mode hides the legacy code input | Completed |
 | 3 | Add Cloud Run deployment flags for OIDC and IAP | Script validates an OIDC deployment configuration without secret output | Completed |
-| 4 | Extend automated verification coverage | UI and server checks cover legacy and OIDC paths | Planned |
+| 4 | Extend automated verification coverage | UI and server checks cover legacy and OIDC paths | Completed |
 | 5 | Document the OAuth and Android migration path | Runbook identifies the manual OAuth prerequisite and rollout order | Planned |
 | 6 | Run complete local/CI-equivalent validation | Browser console, syntax, JSON, and OIDC checks pass | Planned |
 | 7 | Enable Cloud Run IAP and revoke public invoker access | Only IAP service agent invokes Cloud Run | Blocked: OAuth client setup |
@@ -239,3 +239,9 @@ The access-code UI is being replaced by Google OpenID Connect. This is a bounded
 - Secret lifecycle: use `--update-secrets` and remove `APP_ACCESS_TOKEN` only when the selected mode is no longer `access-code`; preserve the Grafana token secret.
 - IAP guardrail: the script refuses the contradictory combination of IAP and unauthenticated Cloud Run access.
 - Verification: PowerShell parser validation and Google OIDC dry run completed without changing GCP resources or printing a secret value.
+
+### OIDC Cycle 4 Decision
+
+- Change: include the OIDC server verifier in the normal UI verification command and assert the access-code, Google sign-in, and IAP UI states directly from the browser DOM.
+- Coverage: validate that Google OIDC hides the legacy input, IAP exposes the signed-in actor, and an invalid Bearer token remains unauthorized.
+- Verification: full local UI loop completed with console errors at zero, related OIDC test success, and all dashboard JSON validation success.

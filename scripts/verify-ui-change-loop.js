@@ -18,6 +18,7 @@ const outputDir = path.join(repoRoot, "outputs", "ui-verification");
 const relatedTests = [
   ["node", ["--check", "server/grafana-dashboard-builder.js"]],
   ["node", ["--check", "scripts/verify-ui-change-loop.js"]],
+  ["node", ["scripts/verify-google-oidc-mode.js"]],
   ["node", ["scripts/validate-repository.js"]]
 ];
 
@@ -399,6 +400,9 @@ async function verifyBrowser(apiEvidence) {
         hasDiscardDraft: Boolean(document.querySelector("#discardDraft")),
         hasDraftState: Boolean(document.querySelector("#draftState")),
         hasPanelFilter: Boolean(document.querySelector("#panelFilter")),
+        hasAccessCodeSection: Boolean(document.querySelector("#accessCodeSection")),
+        hasGoogleSignInSection: Boolean(document.querySelector("#googleSignInSection")),
+        hasAuthState: Boolean(document.querySelector("#authState")),
         workflowStepCount: document.querySelectorAll("#workflowSteps [data-step]").length,
         toolSectionCount: document.querySelectorAll("details.tool-section").length,
         openToolSectionCount: document.querySelectorAll("details.tool-section[open]").length,
@@ -409,12 +413,53 @@ async function verifyBrowser(apiEvidence) {
       fail(`Unexpected page title: ${initialState.title}`);
     }
     if (!String(initialState.h1).includes("Grafana Cloud")) fail("Target screen h1 was not rendered.");
-    if (!initialState.hasIndustry || !initialState.hasDashboardType || !initialState.hasPropose || !initialState.hasCreate || !initialState.hasDiscardDraft || !initialState.hasDraftState || !initialState.hasPanelFilter) {
+    if (!initialState.hasIndustry || !initialState.hasDashboardType || !initialState.hasPropose || !initialState.hasCreate || !initialState.hasDiscardDraft || !initialState.hasDraftState || !initialState.hasPanelFilter || !initialState.hasAccessCodeSection || !initialState.hasGoogleSignInSection || !initialState.hasAuthState) {
       fail(`Target screen required controls missing: ${JSON.stringify(initialState)}`);
     }
     if (initialState.workflowStepCount !== 3) fail(`Expected 3 workflow steps, found ${initialState.workflowStepCount}.`);
     if (initialState.toolSectionCount < 6) fail(`Expected at least 6 collapsible tool sections, found ${initialState.toolSectionCount}.`);
     if (initialState.openToolSectionCount > 1) fail("Auxiliary tool sections must be collapsed except the creation history section.");
+
+    const oidcUiState = await evaluate(client, `(() => {
+      const original = {
+        authMode: state.authMode,
+        authenticated: state.authenticated,
+        authActor: state.authActor,
+        googleOidcClientId: state.googleOidcClientId
+      };
+      state.authMode = "google-oidc";
+      state.authenticated = false;
+      state.authActor = "";
+      state.googleOidcClientId = "test-client.apps.googleusercontent.com";
+      renderAuthState();
+      const googleMode = {
+        accessCodeHidden: document.querySelector("#accessCodeSection").hidden,
+        googleVisible: !document.querySelector("#googleSignInSection").hidden,
+        authText: document.querySelector("#authState").textContent,
+        signOutHidden: document.querySelector("#googleSignOut").hidden
+      };
+      state.authMode = "iap";
+      state.authenticated = true;
+      state.authActor = "y.tsutsumi30@gmail.com";
+      renderAuthState();
+      const iapMode = {
+        accessCodeHidden: document.querySelector("#accessCodeSection").hidden,
+        googleHidden: document.querySelector("#googleSignInSection").hidden,
+        authText: document.querySelector("#authState").textContent
+      };
+      Object.assign(state, original);
+      renderAuthState();
+      return { googleMode, iapMode };
+    })()`);
+    if (!oidcUiState?.googleMode.accessCodeHidden ||
+        !oidcUiState.googleMode.googleVisible ||
+        !oidcUiState.googleMode.authText.includes("Googleでログイン") ||
+        !oidcUiState.googleMode.signOutHidden ||
+        !oidcUiState.iapMode.accessCodeHidden ||
+        !oidcUiState.iapMode.googleHidden ||
+        !oidcUiState.iapMode.authText.includes("y.tsutsumi30@gmail.com")) {
+      fail(`OIDC UI mode check failed: ${JSON.stringify(oidcUiState)}`);
+    }
 
     await evaluate(client, `(() => {
       const industry = document.querySelector("#industry");
@@ -913,6 +958,7 @@ async function verifyBrowser(apiEvidence) {
         core: coreInputConstraintState,
         panel: panelInputConstraintState
       },
+      oidcUi: oidcUiState,
       mobile: mobileState,
       draftRestore: draftRestoreState,
       expiredDraft: expiredDraftState,
