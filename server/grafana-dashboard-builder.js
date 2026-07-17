@@ -1,12 +1,17 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 const PORT = Number(process.env.PORT || 4173);
 const HOST = process.env.HOST || "0.0.0.0";
 const GRAFANA_URL = (process.env.GRAFANA_URL || "https://ytsutsumi30.grafana.net").replace(/\/$/, "");
 const TOKEN = process.env.GRAFANA_SERVICE_ACCOUNT_TOKEN || process.env.GRAFANA_CLOUD_TOKEN || "";
 const APP_ACCESS_TOKEN = process.env.APP_ACCESS_TOKEN || process.env.DASHBOARD_BUILDER_ACCESS_TOKEN || "";
+const APP_AUTH_MODE = configuredAppAuthMode();
+const GOOGLE_OIDC_CLIENT_ID = process.env.GOOGLE_OIDC_CLIENT_ID || "";
+const GOOGLE_OIDC_ALLOWED_EMAILS = parseCommaSeparated(process.env.GOOGLE_OIDC_ALLOWED_EMAILS);
+const GOOGLE_OIDC_ALLOWED_DOMAINS = parseCommaSeparated(process.env.GOOGLE_OIDC_ALLOWED_DOMAINS);
 const RATE_LIMIT_WINDOW_MS = Number(process.env.APP_RATE_LIMIT_WINDOW_MS || 60000);
 const RATE_LIMIT_MAX_REQUESTS = Number(process.env.APP_RATE_LIMIT_MAX_REQUESTS || 30);
 const AI_PROVIDER = (process.env.AI_PROVIDER || "vertex").toLowerCase();
@@ -35,6 +40,23 @@ const appLogState = {
   aiLogCache: new Map()
 };
 const rateLimitState = new Map();
+const googleOidcKeyCache = {
+  keys: [],
+  expiresAt: 0
+};
+
+function parseCommaSeparated(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function configuredAppAuthMode() {
+  const configured = String(process.env.APP_AUTH_MODE || "").trim().toLowerCase();
+  if (["access-code", "google-oidc", "iap", "none"].includes(configured)) return configured;
+  return APP_ACCESS_TOKEN ? "access-code" : "none";
+}
 
 const manufacturingProfiles = [
   {
@@ -1133,7 +1155,11 @@ function runtimeStatus() {
     time: new Date().toISOString(),
     grafanaUrl: GRAFANA_URL,
     grafanaTokenConfigured: Boolean(TOKEN),
-    appAccessTokenEnabled: Boolean(APP_ACCESS_TOKEN),
+    authMode: APP_AUTH_MODE,
+    appAccessTokenEnabled: APP_AUTH_MODE === "access-code" && Boolean(APP_ACCESS_TOKEN),
+    googleOidcClientConfigured: Boolean(GOOGLE_OIDC_CLIENT_ID),
+    googleOidcEmailAllowlistConfigured: GOOGLE_OIDC_ALLOWED_EMAILS.length > 0,
+    googleOidcDomainAllowlistConfigured: GOOGLE_OIDC_ALLOWED_DOMAINS.length > 0,
     aiProvider: AI_PROVIDER,
     openAiKeyConfigured: Boolean(OPENAI_API_KEY),
     vertexProjectConfigured: Boolean(VERTEX_AI_PROJECT),
@@ -1170,6 +1196,70 @@ function appAccessTokenFromRequest(req) {
   return authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
 }
 
+function bearerTokenFromRequest(req) {
+  const authorization = req.headers.authorization || "";
+  return authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+}
+
+function iapActorFromRequest(req) {
+  const value = req.headers["x-goog-authenticated-user-email"];
+  if (typeof value !== "string" || !value) return "";
+  return truncateText(value.replace(/^accounts\.google\.com:/, ""), 160);
+}
+
+function decodeJwtPart(value) {
+  return JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
+}
+
+async function googleOidcKeys() {
+  if (googleOidcKeyCache.keys.length && Date.now() < googleOidcKeyCache.expiresAt) return googleOidcKeyCache.keys;
+  const response = await fetch("https://www.googleapis.com/oauth2/v3/certs");
+  if (!response.ok) throw new Error(`Google OIDC key fetch failed: ${response.status}`);
+  const data = await response.json();
+  if (!Array.isArray(data.keys)) throw new Error("Google OIDC key response was invalid.");
+  googleOidcKeyCache.keys = data.keys;
+  googleOidcKeyCache.expiresAt = Date.now() + 60 * 60 * 1000;
+  return googleOidcKeyCache.keys;
+}
+
+function isAllowedGoogleOidcEmail(email) {
+  const normalized = String(email || "").trim().toLowerCase();
+  if (!normalized) return false;
+  if (!GOOGLE_OIDC_ALLOWED_EMAILS.length && !GOOGLE_OIDC_ALLOWED_DOMAINS.length) return true;
+  if (GOOGLE_OIDC_ALLOWED_EMAILS.includes(normalized)) return true;
+  const domain = normalized.split("@")[1] || "";
+  return GOOGLE_OIDC_ALLOWED_DOMAINS.includes(domain);
+}
+
+async function verifyGoogleOidcToken(token) {
+  if (!GOOGLE_OIDC_CLIENT_ID || !token) return "";
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return "";
+    const header = decodeJwtPart(parts[0]);
+    const payload = decodeJwtPart(parts[1]);
+    if (header.alg !== "RS256" || !header.kid) return "";
+    const key = (await googleOidcKeys()).find((item) => item.kid === header.kid && item.kty === "RSA");
+    if (!key) return "";
+    const signatureValid = crypto.verify(
+      "RSA-SHA256",
+      Buffer.from(`${parts[0]}.${parts[1]}`),
+      crypto.createPublicKey({ key, format: "jwk" }),
+      Buffer.from(parts[2], "base64url")
+    );
+    if (!signatureValid) return "";
+    const now = Math.floor(Date.now() / 1000);
+    const audience = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+    const issuerValid = payload.iss === "https://accounts.google.com" || payload.iss === "accounts.google.com";
+    if (!issuerValid || !audience.includes(GOOGLE_OIDC_CLIENT_ID) || !Number.isFinite(payload.exp) || payload.exp <= now) return "";
+    if (payload.email_verified !== true && payload.email_verified !== "true") return "";
+    const email = truncateText(payload.email || "", 160);
+    return isAllowedGoogleOidcEmail(email) ? email : "";
+  } catch {
+    return "";
+  }
+}
+
 function isAiGetWithModelRequest(req) {
   if (req.method !== "GET") return false;
   if (!req.url.startsWith("/api/ai/failure-risk") && !req.url.startsWith("/api/ai/analyze-log")) return false;
@@ -1178,6 +1268,10 @@ function isAiGetWithModelRequest(req) {
 }
 
 function isProtectedUiApi(req) {
+  if (APP_AUTH_MODE === "none") return false;
+  if (APP_AUTH_MODE === "google-oidc" || APP_AUTH_MODE === "iap") {
+    return req.url.startsWith("/api/") && req.url !== "/api/ping" && req.url !== "/api/auth-status";
+  }
   if (!APP_ACCESS_TOKEN) return false;
   if (req.method === "GET" && req.url.startsWith("/api/logs/recent")) return true;
   if (isAiGetWithModelRequest(req)) return true;
@@ -1195,13 +1289,23 @@ function isProtectedUiApi(req) {
   ].includes(req.url);
 }
 
-function hasValidAppAccess(req) {
-  return !APP_ACCESS_TOKEN || appAccessTokenFromRequest(req) === APP_ACCESS_TOKEN;
+async function hasValidAppAccess(req) {
+  if (APP_AUTH_MODE === "none") return true;
+  if (APP_AUTH_MODE === "access-code") return Boolean(APP_ACCESS_TOKEN) && appAccessTokenFromRequest(req) === APP_ACCESS_TOKEN;
+  if (APP_AUTH_MODE === "iap") {
+    const actor = iapActorFromRequest(req);
+    if (actor) req.authenticatedActor = actor;
+    return Boolean(actor);
+  }
+  const actor = await verifyGoogleOidcToken(bearerTokenFromRequest(req));
+  if (actor) req.authenticatedActor = actor;
+  return Boolean(actor);
 }
 
 function requestActor(req) {
-  const iapEmail = req.headers["x-goog-authenticated-user-email"];
-  if (typeof iapEmail === "string" && iapEmail) return truncateText(iapEmail.replace(/^accounts\.google\.com:/, ""), 160);
+  if (typeof req.authenticatedActor === "string" && req.authenticatedActor) return req.authenticatedActor;
+  const iapEmail = iapActorFromRequest(req);
+  if (iapEmail) return iapEmail;
   const forwardedEmail = req.headers["x-forwarded-email"];
   if (typeof forwardedEmail === "string" && forwardedEmail) return truncateText(forwardedEmail, 160);
   return "";
@@ -2220,7 +2324,15 @@ async function handleApi(req, res) {
     }
 
     if (req.method === "GET" && req.url === "/api/auth-status") {
-      sendJson(res, 200, { ok: true, required: Boolean(APP_ACCESS_TOKEN), actor: requestActor(req) });
+      const authenticated = await hasValidAppAccess(req);
+      sendJson(res, 200, {
+        ok: true,
+        mode: APP_AUTH_MODE,
+        required: APP_AUTH_MODE !== "none",
+        authenticated,
+        actor: requestActor(req),
+        googleOidcClientId: APP_AUTH_MODE === "google-oidc" ? GOOGLE_OIDC_CLIENT_ID : ""
+      });
       return;
     }
 
@@ -2229,11 +2341,11 @@ async function handleApi(req, res) {
       return;
     }
 
-    if (isProtectedUiApi(req) && !hasValidAppAccess(req)) {
+    if (isProtectedUiApi(req) && !(await hasValidAppAccess(req))) {
       sendJson(res, 401, {
         ok: false,
-        error: "Access token is required.",
-        code: "APP_ACCESS_TOKEN_REQUIRED"
+        error: APP_AUTH_MODE === "access-code" ? "Access token is required." : "Google sign-in is required.",
+        code: APP_AUTH_MODE === "access-code" ? "APP_ACCESS_TOKEN_REQUIRED" : "OIDC_AUTH_REQUIRED"
       });
       return;
     }

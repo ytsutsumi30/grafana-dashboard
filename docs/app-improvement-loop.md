@@ -203,3 +203,25 @@ This batch prioritizes panel-editing safety and speed. Each cycle keeps the two-
 - Change: show the invalid-panel count beside the visible/total count and add an `エラーのみ` checkbox that composes with text search.
 - Recovery: adding, duplicating, replacing, or discarding a proposal clears the error-only view so newly created content remains visible.
 - Verification: introduce one invalid range, compare visible card indexes with computed validation results, confirm creation is disabled, then repair and restore the complete valid list.
+
+## 14. OIDC Authentication Migration Loop
+
+The access-code UI is being replaced by Google OpenID Connect. This is a bounded migration loop with a maximum of ten cycles. Production remains in legacy access-code mode until a Google OAuth client is configured and the final authentication switch is verified.
+
+| Cycle | Improvement | Machine check | Status |
+| ---: | --- | --- | --- |
+| 1 | Add server authentication modes | Start `google-oidc` locally and reject an invalid Bearer token | Completed |
+| 2 | Make the browser UI select its authentication path at runtime | IAP/OIDC mode hides the legacy code input | Planned |
+| 3 | Add Cloud Run deployment flags for OIDC and IAP | Script validates an OIDC deployment configuration without secret output | Planned |
+| 4 | Extend automated verification coverage | UI and server checks cover legacy and OIDC paths | Planned |
+| 5 | Document the OAuth and Android migration path | Runbook identifies the manual OAuth prerequisite and rollout order | Planned |
+| 6 | Run complete local/CI-equivalent validation | Browser console, syntax, JSON, and OIDC checks pass | Planned |
+| 7 | Enable Cloud Run IAP and revoke public invoker access | Only IAP service agent invokes Cloud Run | Blocked: OAuth client setup |
+| 8 | Verify production Google sign-in and Grafana operations | Authorized user reaches UI and protected API returns 200 | Blocked: OAuth client setup |
+
+### OIDC Cycle 1 Decision
+
+- Change: support `access-code`, `google-oidc`, `iap`, and `none` runtime modes without changing the existing production default.
+- Google OIDC guard: verify RS256 signature against Google's JWKS, issuer, audience, expiry, verified email, and optional email/domain allowlists.
+- Compatibility: `access-code` remains the fallback while `APP_ACCESS_TOKEN` is configured; no access token value is exposed through the status API.
+- Verification: `scripts/verify-google-oidc-mode.js` starts an isolated server, verifies `/api/auth-status`, and confirms an invalid Bearer token receives `401 OIDC_AUTH_REQUIRED`.
