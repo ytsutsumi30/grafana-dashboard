@@ -165,7 +165,7 @@ This batch prioritizes panel-editing safety and speed. Each cycle keeps the two-
 | ---: | --- | --- | --- |
 | 1 | Prevent adding more than 24 panels | Fill the editor to 24 panels and confirm Add is disabled without changing state | Completed |
 | 2 | Focus a newly added panel | Add one panel and confirm its title receives focus | Completed |
-| 3 | Duplicate an existing panel | Duplicate one panel and confirm copied data, position, and focus | Planned |
+| 3 | Duplicate an existing panel | Duplicate one panel and confirm copied data, position, and focus | Completed |
 | 4 | Undo an accidental panel deletion | Delete and restore one panel with order preserved | Planned |
 | 5 | Filter panels with validation errors | Introduce one invalid range and confirm only that panel is shown | Planned |
 
@@ -182,3 +182,10 @@ This batch prioritizes panel-editing safety and speed. Each cycle keeps the two-
 - Change: tag editor cards with their source panel index, scroll the new title input to the center, focus it, and select the default title.
 - Data behavior: focus management does not alter panel order or values; normal autosave still records the added panel.
 - Verification: add panel 20, confirm preview/state count and selected title focus, then remove the test panel and restore 19 panels.
+
+### Batch 2 Cycle 3 Decision
+
+- Problem: creating several similar machine or sensor panels required repeatedly entering the same visualization, range, unit, and thresholds.
+- Change: add a Duplicate command to every card, insert the copy directly after its source, assign a unique ID, and suffix the editable title with `- Copy`.
+- Guardrail: disable duplication at the shared 24-panel limit and focus/select the copied title for immediate renaming.
+- Verification: duplicate the first panel, compare all monitoring fields and preview order, confirm unique identity and focus, then restore the original proposal.

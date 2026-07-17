@@ -1419,6 +1419,7 @@
             <div class="panel-actions">
               <button class="icon-button move-up" type="button" title="上へ移動" aria-label="Panel ${index + 1}を上へ移動" ${index === 0 ? "disabled" : ""}>↑</button>
               <button class="icon-button move-down" type="button" title="下へ移動" aria-label="Panel ${index + 1}を下へ移動" ${index === state.panels.length - 1 ? "disabled" : ""}>↓</button>
+              <button class="secondary duplicate-panel" type="button" title="このパネルを複製" ${state.panels.length >= MAX_PANEL_COUNT ? "disabled" : ""}>複製</button>
               <button class="danger" type="button">削除</button>
             </div>
           </div>
@@ -1480,6 +1481,7 @@
 
         card.querySelector(".move-up").addEventListener("click", () => movePanel(index, -1));
         card.querySelector(".move-down").addEventListener("click", () => movePanel(index, 1));
+        card.querySelector(".duplicate-panel").addEventListener("click", () => duplicatePanel(index));
 
         card.querySelectorAll("[data-key]").forEach((input) => {
           input.addEventListener("input", () => {
@@ -1510,6 +1512,17 @@
         input.scrollIntoView({ block: "center", behavior: "smooth" });
         input.select();
       });
+    }
+
+    function duplicatePanel(index) {
+      if (state.panels.length >= MAX_PANEL_COUNT || !state.panels[index]) return;
+      const source = state.panels[index];
+      const nextId = Math.max(0, ...state.panels.map((panel) => Number(panel.id) || 0)) + 1;
+      const title = `${String(source.title || "Panel").slice(0, 73)} - Copy`;
+      state.panels.splice(index + 1, 0, { ...source, id: nextId, title });
+      renderPanels();
+      focusPanelTitle(index + 1);
+      scheduleDraftSave();
     }
 
     function option(value, label, selected) {

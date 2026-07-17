@@ -551,6 +551,50 @@ async function verifyBrowser(apiEvidence) {
       fail(`Add panel focus check failed: ${JSON.stringify(addPanelFocusState)}`);
     }
 
+    const duplicateSourceState = await evaluate(client, `(() => ({
+      title: state.panels[0].title,
+      visualization: state.panels[0].visualization,
+      unit: state.panels[0].unit,
+      min: state.panels[0].min,
+      max: state.panels[0].max
+    }))()`);
+    await evaluate(client, `document.querySelector("#panels .panel-card .duplicate-panel").click()`);
+    await waitForBrowserCondition(
+      client,
+      `document.activeElement?.matches('.panel-card[data-panel-index="1"] input[data-key="title"]')`,
+      "duplicated panel title focus"
+    );
+    const duplicatePanelState = await evaluate(client, `(() => {
+      const copy = state.panels[1];
+      const result = {
+        count: state.panels.length,
+        title: copy.title,
+        visualization: copy.visualization,
+        unit: copy.unit,
+        min: copy.min,
+        max: copy.max,
+        uniqueId: copy.id !== state.panels[0].id,
+        activePanelIndex: document.activeElement?.closest(".panel-card")?.dataset.panelIndex || "",
+        previewTitle: document.querySelectorAll("#previewBoard .preview-title")[1]?.textContent || ""
+      };
+      state.panels.splice(1, 1);
+      renderPanels();
+      result.restoredCount = state.panels.length;
+      return result;
+    })()`);
+    if (duplicatePanelState?.count !== originalPanelCountBeforeAdd + 1 ||
+        duplicatePanelState.title !== `${duplicateSourceState.title} - Copy` ||
+        duplicatePanelState.visualization !== duplicateSourceState.visualization ||
+        duplicatePanelState.unit !== duplicateSourceState.unit ||
+        duplicatePanelState.min !== duplicateSourceState.min ||
+        duplicatePanelState.max !== duplicateSourceState.max ||
+        !duplicatePanelState.uniqueId ||
+        duplicatePanelState.activePanelIndex !== "1" ||
+        duplicatePanelState.previewTitle !== duplicatePanelState.title ||
+        duplicatePanelState.restoredCount !== originalPanelCountBeforeAdd) {
+      fail(`Duplicate panel check failed: ${JSON.stringify(duplicatePanelState)}`);
+    }
+
     const panelInputConstraintState = await evaluate(client, `(() => ({
       titleMaxLength: document.querySelector('#panels input[data-key="title"]')?.maxLength,
       unitMaxLength: document.querySelector('#panels input[data-key="unit"]')?.maxLength,
@@ -791,6 +835,7 @@ async function verifyBrowser(apiEvidence) {
       panelOrder: panelOrderState,
       panelLimit: panelLimitState,
       addPanelFocus: addPanelFocusState,
+      duplicatePanel: duplicatePanelState,
       grafanaUrl: grafanaUrlState,
       inputConstraints: {
         core: coreInputConstraintState,
