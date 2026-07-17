@@ -521,6 +521,36 @@ async function verifyBrowser(apiEvidence) {
       fail(`Panel limit check failed: ${JSON.stringify(panelLimitState)}`);
     }
 
+    const originalPanelCountBeforeAdd = desktopState.panelCardCount;
+    await evaluate(client, `document.querySelector("#addPanel").click()`);
+    await waitForBrowserCondition(
+      client,
+      `document.activeElement?.matches('.panel-card[data-panel-index="${originalPanelCountBeforeAdd}"] input[data-key="title"]')`,
+      "new panel title focus"
+    );
+    const addPanelFocusState = await evaluate(client, `(() => {
+      const active = document.activeElement;
+      const result = {
+        count: state.panels.length,
+        previewCount: document.querySelectorAll("#previewBoard .preview-panel").length,
+        activeTitle: active?.value || "",
+        activePanelIndex: active?.closest(".panel-card")?.dataset.panelIndex || "",
+        selectionCoversTitle: active?.selectionStart === 0 && active?.selectionEnd === active?.value.length
+      };
+      state.panels.pop();
+      renderPanels();
+      result.restoredCount = state.panels.length;
+      return result;
+    })()`);
+    if (addPanelFocusState?.count !== originalPanelCountBeforeAdd + 1 ||
+        addPanelFocusState.previewCount !== originalPanelCountBeforeAdd + 1 ||
+        addPanelFocusState.activeTitle !== "New Sensor Panel" ||
+        addPanelFocusState.activePanelIndex !== String(originalPanelCountBeforeAdd) ||
+        !addPanelFocusState.selectionCoversTitle ||
+        addPanelFocusState.restoredCount !== originalPanelCountBeforeAdd) {
+      fail(`Add panel focus check failed: ${JSON.stringify(addPanelFocusState)}`);
+    }
+
     const panelInputConstraintState = await evaluate(client, `(() => ({
       titleMaxLength: document.querySelector('#panels input[data-key="title"]')?.maxLength,
       unitMaxLength: document.querySelector('#panels input[data-key="unit"]')?.maxLength,
@@ -760,6 +790,7 @@ async function verifyBrowser(apiEvidence) {
       panelFilter: panelFilterState,
       panelOrder: panelOrderState,
       panelLimit: panelLimitState,
+      addPanelFocus: addPanelFocusState,
       grafanaUrl: grafanaUrlState,
       inputConstraints: {
         core: coreInputConstraintState,

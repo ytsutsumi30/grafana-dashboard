@@ -1412,6 +1412,7 @@
           ? `<ul class="validation-list">${errors.map((error) => `<li>${escapeHtml(error)}</li>`).join("")}</ul>`
           : "";
         card.className = "panel-card";
+        card.dataset.panelIndex = String(index);
         card.innerHTML = `
           <div class="panel-head">
             <strong>Panel ${index + 1}</strong>
@@ -1499,6 +1500,16 @@
       [state.panels[index], state.panels[targetIndex]] = [state.panels[targetIndex], state.panels[index]];
       renderPanels();
       scheduleDraftSave();
+    }
+
+    function focusPanelTitle(index) {
+      requestAnimationFrame(() => {
+        const input = document.querySelector(`.panel-card[data-panel-index="${index}"] input[data-key="title"]`);
+        if (!input) return;
+        input.focus({ preventScroll: true });
+        input.scrollIntoView({ block: "center", behavior: "smooth" });
+        input.select();
+      });
     }
 
     function option(value, label, selected) {
@@ -1826,6 +1837,7 @@
         latestOnly: false
       });
       renderPanels();
+      focusPanelTitle(state.panels.length - 1);
       scheduleDraftSave();
     });
 
