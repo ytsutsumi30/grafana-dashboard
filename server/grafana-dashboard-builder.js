@@ -1267,10 +1267,24 @@ function isAiGetWithModelRequest(req) {
   return parsed.searchParams.get("ai") === "true";
 }
 
+function isPublicMonitoringReadApi(req) {
+  if (req.method !== "GET") return false;
+  const parsed = new URL(req.url, "http://localhost");
+  const pathname = parsed.pathname;
+  return pathname === "/api/mobile-sensor/latest" ||
+    pathname === "/api/mobile-sensor/metrics" ||
+    pathname === "/api/mobile-sensor/history" ||
+    pathname.startsWith("/api/monitoring/grafana-cloud/") ||
+    ((pathname === "/api/ai/failure-risk" || pathname === "/api/ai/analyze-log") && parsed.searchParams.get("ai") !== "true");
+}
+
 function isProtectedUiApi(req) {
   if (APP_AUTH_MODE === "none") return false;
-  if (APP_AUTH_MODE === "google-oidc" || APP_AUTH_MODE === "iap") {
+  if (APP_AUTH_MODE === "iap") {
     return req.url.startsWith("/api/") && req.url !== "/api/ping" && req.url !== "/api/auth-status";
+  }
+  if (APP_AUTH_MODE === "google-oidc") {
+    return req.url.startsWith("/api/") && req.url !== "/api/ping" && req.url !== "/api/auth-status" && !isPublicMonitoringReadApi(req);
   }
   if (!APP_ACCESS_TOKEN) return false;
   if (req.method === "GET" && req.url.startsWith("/api/logs/recent")) return true;

@@ -176,7 +176,7 @@ mobile/android-vibration-demo/app/build/outputs/apk/debug/app-debug.apk
 Default API URL:
 
 ```text
-https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app/api/mobile-sensor
+https://grafana-dashboard-builder-577010681495.asia-northeast1.run.app/api/mobile-sensor
 ```
 
 ## Demo flow

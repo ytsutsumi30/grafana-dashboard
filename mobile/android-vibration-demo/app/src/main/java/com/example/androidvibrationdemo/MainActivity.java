@@ -39,7 +39,8 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends Activity implements SensorEventListener {
-    private static final String DEFAULT_API_URL = "https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app/api/mobile-sensor";
+    private static final String DEFAULT_API_URL = "https://grafana-dashboard-builder-577010681495.asia-northeast1.run.app/api/mobile-sensor";
+    private static final String DEFAULT_GOOGLE_WEB_CLIENT_ID = "577010681495-96mkdue8g1ufrc9mag8sqmrsmkvgpur4.apps.googleusercontent.com";
     private static final int GOOGLE_SIGN_IN_REQUEST = 9001;
 
     private SensorManager sensorManager;
@@ -104,6 +105,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         googleClientIdInput = new EditText(this);
         googleClientIdInput.setHint("Web OAuth Client ID");
         googleClientIdInput.setSingleLine(true);
+        googleClientIdInput.setText(DEFAULT_GOOGLE_WEB_CLIENT_ID);
         root.addView(label("Google Web Client ID"));
         root.addView(googleClientIdInput, fullWidth());
 

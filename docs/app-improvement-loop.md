@@ -217,7 +217,7 @@ The access-code UI is being replaced by Google OpenID Connect. This is a bounded
 | 5 | Document the OAuth and Android migration path | Runbook identifies the manual OAuth prerequisite and rollout order | Completed |
 | 6 | Run complete local/CI-equivalent validation | Browser console, syntax, JSON, and OIDC checks pass | Completed |
 | 7 | Add Android Google Sign-In compatibility | Android sends a Google ID token without persisting it | Completed |
-| 8 | Deploy Google OIDC and verify production flows | Authorized web and Android clients receive 200 | Blocked: OAuth client setup |
+| 8 | Deploy Google OIDC and verify production flows | Protected writes reject anonymous calls; Grafana reads remain available | Completed |
 
 ### OIDC Cycle 1 Decision
 
@@ -265,3 +265,11 @@ The access-code UI is being replaced by Google OpenID Connect. This is a bounded
 - Token handling: Android holds the token in memory only. The OAuth client ID is supplied as a visible public configuration value; no OAuth secret is placed in source code or on the device.
 - Verification: compile the debug APK and inspect the source path that requires Google sign-in before streaming when an OAuth client ID is configured.
 - Remaining prerequisite: create the Google Auth Platform Web and Android OAuth clients, then deploy Cloud Run in `google-oidc` mode.
+
+### OIDC Cycle 8 Decision
+
+- OAuth setup: external branding, the Cloud Run web client, and the Android debug client are configured in Google Auth Platform.
+- Route boundary: Cloud Run remains public only for Grafana-compatible read-only monitoring endpoints. Dashboard administration, AI model calls, and Android sensor writes require a verified allowlisted Google ID token.
+- Android configuration: the debug app defaults to the canonical Cloud Run receiver and the public Web client ID; ID tokens stay in memory.
+- Verification: the isolated OIDC test checks anonymous history reads return `200` and anonymous sensor writes return `401`; the Android debug APK builds successfully.
+- Production: revision `grafana-dashboard-builder-00031-d76` is serving 100% traffic in `google-oidc` mode. Anonymous folders, sensor writes, and proposal generation return `401`; sensor history and Grafana KPI reads return `200`.

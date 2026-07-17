@@ -20,9 +20,9 @@ function freePort() {
   });
 }
 
-function request(port, pathname, headers = {}) {
+function request(port, pathname, { method = "GET", headers = {}, body = "" } = {}) {
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: "127.0.0.1", port, path: pathname, headers }, (res) => {
+    const req = http.request({ host: "127.0.0.1", port, path: pathname, method, headers }, (res) => {
       let body = "";
       res.setEncoding("utf8");
       res.on("data", (chunk) => { body += chunk; });
@@ -33,7 +33,7 @@ function request(port, pathname, headers = {}) {
       });
     });
     req.once("error", reject);
-    req.end();
+    req.end(body);
   });
 }
 
@@ -69,14 +69,22 @@ async function main() {
   try {
     const ping = await waitForPing(port);
     const auth = await request(port, "/api/auth-status");
-    const protectedRequest = await request(port, "/api/folders", { Authorization: "Bearer invalid-token" });
+    const protectedRequest = await request(port, "/api/folders", { headers: { Authorization: "Bearer invalid-token" } });
+    const publicHistory = await request(port, "/api/mobile-sensor/history?limit=5");
+    const protectedSensorWrite = await request(port, "/api/mobile-sensor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}"
+    });
     if (!ping.data.ok || auth.statusCode !== 200 || auth.data.mode !== "google-oidc" ||
         !auth.data.required || auth.data.authenticated ||
         auth.data.googleOidcClientId !== "test-client.apps.googleusercontent.com" ||
-        protectedRequest.statusCode !== 401 || protectedRequest.data.code !== "OIDC_AUTH_REQUIRED") {
-      fail(`OIDC mode assertions failed: ${JSON.stringify({ ping, auth, protectedRequest })}`);
+        protectedRequest.statusCode !== 401 || protectedRequest.data.code !== "OIDC_AUTH_REQUIRED" ||
+        publicHistory.statusCode !== 200 || !publicHistory.data.ok ||
+        protectedSensorWrite.statusCode !== 401 || protectedSensorWrite.data.code !== "OIDC_AUTH_REQUIRED") {
+      fail(`OIDC mode assertions failed: ${JSON.stringify({ ping, auth, protectedRequest, publicHistory, protectedSensorWrite })}`);
     }
-    console.log("OK Google OIDC mode rejects invalid bearer tokens and exposes no secret.");
+    console.log("OK Google OIDC protects writes while allowing read-only Grafana monitoring data.");
   } finally {
     server.kill();
   }

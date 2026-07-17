@@ -2,46 +2,34 @@
 
 ## Purpose
 
-Replace the temporary dashboard-builder access-code input with Google OpenID Connect authentication. The dashboard builder verifies Google ID tokens server-side and keeps the Grafana Service Account Token only in Secret Manager.
+Replace the temporary access-code input with Google OpenID Connect (OIDC) while preserving Grafana dashboard refresh and Android vibration-demo operation. The Grafana service-account token stays only in Google Secret Manager.
 
-## Current State
+## Production Design
 
-- Cloud Run service: `grafana-dashboard-builder`
-- Project: `modern-replica-465803-n8`
-- Region: `asia-northeast1`
-- Current production mode: `access-code`
-- Target browser mode: `google-oidc`
-- Android sensor sender: Google Sign-In capable `POST /api/mobile-sensor`; production configuration is still pending
+Cloud Run remains transport-public because Grafana Infinity and dashboard viewers read monitoring data without an interactive Google login. Application authentication protects user and device actions.
 
-Do not remove `APP_ACCESS_TOKEN` from the running service until the OAuth client is configured and the Android migration decision is complete.
+| Route category | OIDC mode behavior |
+| --- | --- |
+| Dashboard proposal, create/update, folders, data sources, history, logs and AI execution | Google ID token required |
+| `POST /api/mobile-sensor` and demo/reset actions | Google ID token required |
+| Sensor history/latest/metrics and Grafana monitoring `GET` endpoints | Anonymous read-only access for Grafana refresh |
+| `GET /api/ai/*` without `ai=true` | Anonymous rule-based monitoring result |
+| `GET /api/ping`, `GET /api/auth-status` | Public health/auth state |
 
-## Authentication Modes
+Do not use direct Cloud Run IAP for this service: IAP protects every route and would stop anonymous Grafana reads unless ingestion and dashboard-query APIs are moved to a separate service.
 
-| Mode | Intended use | Browser UI | API guard |
-| --- | --- | --- | --- |
-| `access-code` | Temporary PoC compatibility | Shows access-code field | `X-App-Access-Token` |
-| `google-oidc` | Web and native client Google sign-in | Shows Google sign-in | Google ID token in `Authorization: Bearer` |
-| `iap` | Browser-only internal application | No access-code field; IAP supplies identity | Cloud Run IAP header |
-| `none` | Local development only | No authentication UI | No application guard |
+## Configured OAuth Clients
 
-## Google OAuth Client Prerequisite
+- External Google Auth Platform branding is configured for project `modern-replica-465803-n8`.
+- Web client: `grafana-dashboard-builder-web`; both Cloud Run URLs are registered as authorized JavaScript origins.
+- Android debug client: `android-vibration-demo-debug`; package `com.example.androidvibrationdemo` with the debug signing SHA-1 is registered.
+- The Android app requests ID tokens using the Web client ID. It stores neither an ID token nor an OAuth client secret.
 
-This project has no Google Cloud organization. Google documents that the first external OAuth client for Cloud Run/IAP must be created through Google Cloud Console; it cannot be created by the CLI alone.
+The web client ID is public application configuration. Do not expose an OAuth client secret, Grafana token, application access code, or Google ID token.
 
-1. Open [Google Auth Platform Branding](https://console.cloud.google.com/auth/branding?project=modern-replica-465803-n8).
-2. Create an External audience and complete the required app/contact fields.
-3. Open [Google Auth Platform Clients](https://console.cloud.google.com/auth/clients?project=modern-replica-465803-n8).
-4. Create a Web application OAuth client for the dashboard builder.
-5. Add the Cloud Run origins used by the service, including:
-   - `https://grafana-dashboard-builder-577010681495.asia-northeast1.run.app`
-   - `https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app`
-6. Record the client ID. It is public configuration, not a secret.
+## Deploy Google OIDC
 
-For direct Cloud Run IAP, Google recommends enabling IAP from the Cloud Run Security page for this first setup. Direct IAP protects every route on this service, including Android sensor ingestion.
-
-## Web OIDC Deployment
-
-After the OAuth client exists, deploy using the client ID and an explicit allowlist. Multiple values use semicolons.
+Run from the repository root:
 
 ```powershell
 .\scripts\deploy-cloud-run.ps1 `
@@ -49,7 +37,7 @@ After the OAuth client exists, deploy using the client ID and an explicit allowl
   -Region asia-northeast1 `
   -ServiceName grafana-dashboard-builder `
   -AppAuthMode google-oidc `
-  -GoogleOidcClientId '<Web OAuth client ID>' `
+  -GoogleOidcClientId '<configured web client ID>' `
   -GoogleOidcAllowedEmails 'y.tsutsumi30@gmail.com' `
   -GrafanaUrl https://ytsutsumi30.grafana.net `
   -AiProvider vertex `
@@ -61,33 +49,22 @@ After the OAuth client exists, deploy using the client ID and an explicit allowl
   -AllowUnauthenticated
 ```
 
-The script removes `APP_ACCESS_TOKEN` from Cloud Run in this mode. It keeps `grafana-service-account-token` in Secret Manager. Do not put the OAuth client secret, Grafana token, or application secret into the browser.
+The deployment script removes the legacy `APP_ACCESS_TOKEN` binding in OIDC mode and preserves `grafana-service-account-token`.
 
-## Required Verification
+## Verification
 
 1. Open the Cloud Run URL in a clean browser profile.
-2. Confirm the access-code input is absent and the Google sign-in button is visible.
-3. Sign in with an allowlisted account.
-4. Confirm `認証済み: <email>` is shown.
-5. Create a panel proposal and load folders.
-6. Create a disposable Grafana dashboard only after normal UI verification succeeds.
-7. Confirm an unauthorized browser receives `401 OIDC_AUTH_REQUIRED` for `/api/folders`.
-
-## Android Compatibility Gate
-
-The Android vibration app now supports Google Sign-In. It takes the Web OAuth client ID as public configuration, requests an ID token, holds it only in memory, and sends it as `Authorization: Bearer` to `/api/mobile-sensor`. This matches the same server-side validation used by the browser UI.
-
-Before production cutover:
-
-1. Create an Android OAuth client for package `com.example.androidvibrationdemo` and its signing certificate SHA-1.
-2. Build/install the Android app, enter the Web OAuth client ID, and complete Google Sign-In with an allowlisted account.
-3. Confirm a sensor POST succeeds after the Cloud Run `google-oidc` deployment.
-
-For a multi-device production system, move sensor ingestion to a dedicated service with device credentials and durable storage. That is not required for this single-device sales-demo cutover.
+2. Confirm that the access-code field is absent and Google sign-in is available.
+3. Sign in with the allowlisted Google account and confirm the authenticated email is shown.
+4. Load folders, generate a proposal, and create a disposable dashboard.
+5. Verify anonymous `GET /api/folders` returns `401 OIDC_AUTH_REQUIRED`.
+6. Verify anonymous `GET /api/mobile-sensor/history?limit=5` returns `200`.
+7. Verify anonymous `POST /api/mobile-sensor` returns `401 OIDC_AUTH_REQUIRED`.
+8. Install the Android debug APK, sign in, and confirm a sensor POST succeeds.
 
 ## Rollback
 
-If Google OIDC sign-in fails, redeploy the previous compatibility configuration:
+If browser or Android sign-in fails, restore the temporary compatibility mode:
 
 ```powershell
 .\scripts\deploy-cloud-run.ps1 `
@@ -104,9 +81,9 @@ If Google OIDC sign-in fails, redeploy the previous compatibility configuration:
   -AllowUnauthenticated
 ```
 
-Keep the access-code secret until the Google OIDC rollout and Android compatibility verification are complete. Then remove only the Cloud Run secret binding first; delete the Secret Manager secret in a separate, explicitly approved cleanup change.
+Keep the access-code secret until web and Android OIDC verification has completed. Removing the Secret Manager secret itself is a separate approved cleanup action.
 
 ## References
 
-- [Authenticate end users on Cloud Run](https://cloud.google.com/run/docs/authenticating/end-users)
-- [Configure IAP for Cloud Run](https://cloud.google.com/run/docs/securing/identity-aware-proxy-cloud-run)
+- [Cloud Run end-user authentication](https://cloud.google.com/run/docs/authenticating/end-users)
+- [Google Identity Services](https://developers.google.com/identity/gsi/web)
