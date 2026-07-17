@@ -166,7 +166,7 @@ This batch prioritizes panel-editing safety and speed. Each cycle keeps the two-
 | 1 | Prevent adding more than 24 panels | Fill the editor to 24 panels and confirm Add is disabled without changing state | Completed |
 | 2 | Focus a newly added panel | Add one panel and confirm its title receives focus | Completed |
 | 3 | Duplicate an existing panel | Duplicate one panel and confirm copied data, position, and focus | Completed |
-| 4 | Undo an accidental panel deletion | Delete and restore one panel with order preserved | Planned |
+| 4 | Undo an accidental panel deletion | Delete and restore one panel with order preserved | Completed |
 | 5 | Filter panels with validation errors | Introduce one invalid range and confirm only that panel is shown | Planned |
 
 ### Batch 2 Cycle 1 Decision
@@ -189,3 +189,10 @@ This batch prioritizes panel-editing safety and speed. Each cycle keeps the two-
 - Change: add a Duplicate command to every card, insert the copy directly after its source, assign a unique ID, and suffix the editable title with `- Copy`.
 - Guardrail: disable duplication at the shared 24-panel limit and focus/select the copied title for immediate renaming.
 - Verification: duplicate the first panel, compare all monitoring fields and preview order, confirm unique identity and focus, then restore the original proposal.
+
+### Batch 2 Cycle 4 Decision
+
+- Problem: Delete removed a configured panel immediately, making an accidental click costly to reconstruct.
+- Change: retain the most recently deleted panel and its index, show a dedicated undo strip, and restore the panel to its prior position on request.
+- Lifecycle: clear pending undo state when a new proposal replaces the current one; autosave records both deletion and restoration without persisting the temporary undo object.
+- Verification: delete the first panel, confirm the strip and 18-panel state, undo, and compare editor and preview title order with the original 19 panels.

@@ -595,6 +595,37 @@ async function verifyBrowser(apiEvidence) {
       fail(`Duplicate panel check failed: ${JSON.stringify(duplicatePanelState)}`);
     }
 
+    const deleteUndoBefore = await evaluate(client, `state.panels.map((panel) => panel.title)`);
+    await evaluate(client, `document.querySelector("#panels .panel-card .delete-panel").click()`);
+    const deleteState = await evaluate(client, `(() => ({
+      count: state.panels.length,
+      bannerVisible: !document.querySelector("#panelUndo").hidden,
+      bannerText: document.querySelector("#panelUndoText").textContent,
+      deletedTitle: state.deletedPanel?.panel?.title || ""
+    }))()`);
+    await evaluate(client, `document.querySelector("#undoDelete").click()`);
+    await waitForBrowserCondition(
+      client,
+      `state.panels.length === ${originalPanelCountBeforeAdd} && document.querySelector("#panelUndo").hidden`,
+      "panel delete undo"
+    );
+    const deleteUndoState = await evaluate(client, `(() => ({
+      ...${JSON.stringify(deleteState)},
+      restoredTitles: state.panels.map((panel) => panel.title),
+      restoredPreviewTitles: Array.from(document.querySelectorAll("#previewBoard .preview-title")).map((element) => element.textContent),
+      deletedStateCleared: state.deletedPanel === null,
+      bannerHidden: document.querySelector("#panelUndo").hidden
+    }))()`);
+    if (deleteUndoState?.count !== originalPanelCountBeforeAdd - 1 ||
+        !deleteUndoState.bannerVisible ||
+        !deleteUndoState.bannerText.includes(deleteUndoState.deletedTitle) ||
+        JSON.stringify(deleteUndoState.restoredTitles) !== JSON.stringify(deleteUndoBefore) ||
+        JSON.stringify(deleteUndoState.restoredPreviewTitles) !== JSON.stringify(deleteUndoBefore) ||
+        !deleteUndoState.deletedStateCleared ||
+        !deleteUndoState.bannerHidden) {
+      fail(`Panel delete undo check failed: ${JSON.stringify(deleteUndoState)}`);
+    }
+
     const panelInputConstraintState = await evaluate(client, `(() => ({
       titleMaxLength: document.querySelector('#panels input[data-key="title"]')?.maxLength,
       unitMaxLength: document.querySelector('#panels input[data-key="unit"]')?.maxLength,
@@ -836,6 +867,7 @@ async function verifyBrowser(apiEvidence) {
       panelLimit: panelLimitState,
       addPanelFocus: addPanelFocusState,
       duplicatePanel: duplicatePanelState,
+      deleteUndo: deleteUndoState,
       grafanaUrl: grafanaUrlState,
       inputConstraints: {
         core: coreInputConstraintState,

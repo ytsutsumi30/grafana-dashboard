@@ -404,6 +404,21 @@
       font-size: 12px;
     }
 
+    .panel-undo {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border: 1px solid rgba(242, 194, 48, 0.45);
+      border-radius: 6px;
+      background: rgba(242, 194, 48, 0.08);
+      color: #f8e7a1;
+      font-size: 13px;
+    }
+
+    .panel-undo[hidden] { display: none; }
+
     .preview {
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -773,6 +788,11 @@
         <input id="panelFilter" type="search" placeholder="パネル名・目的・単位で検索" disabled>
       </section>
 
+      <div id="panelUndo" class="panel-undo" role="status" aria-live="polite" hidden>
+        <span id="panelUndoText"></span>
+        <button id="undoDelete" class="secondary" type="button">元に戻す</button>
+      </div>
+
       <section id="panels" class="panel-grid">
         <div class="empty">ここにAI提案されたパネル案が表示されます。</div>
       </section>
@@ -789,6 +809,7 @@
       dashboardHistorySource: "local",
       grafanaUrl: "",
       panelFilter: "",
+      deletedPanel: null,
       accessRequired: false
     };
     const DRAFT_STORAGE_KEY = "grafanaBuilderDraftV1";
@@ -969,6 +990,7 @@
 
     function discardCurrentDraft() {
       draftPersistenceEnabled = false;
+      clearPanelUndo();
       state.proposal = null;
       state.panels = [];
       $("projectLabel").value = "";
@@ -1420,7 +1442,7 @@
               <button class="icon-button move-up" type="button" title="上へ移動" aria-label="Panel ${index + 1}を上へ移動" ${index === 0 ? "disabled" : ""}>↑</button>
               <button class="icon-button move-down" type="button" title="下へ移動" aria-label="Panel ${index + 1}を下へ移動" ${index === state.panels.length - 1 ? "disabled" : ""}>↓</button>
               <button class="secondary duplicate-panel" type="button" title="このパネルを複製" ${state.panels.length >= MAX_PANEL_COUNT ? "disabled" : ""}>複製</button>
-              <button class="danger" type="button">削除</button>
+              <button class="danger delete-panel" type="button">削除</button>
             </div>
           </div>
           ${validationHtml}
@@ -1473,11 +1495,7 @@
           <textarea data-key="purpose" maxlength="160">${escapeHtml(panel.purpose || "")}</textarea>
         `;
 
-        card.querySelector(".danger").addEventListener("click", () => {
-          state.panels.splice(index, 1);
-          renderPanels();
-          scheduleDraftSave();
-        });
+        card.querySelector(".delete-panel").addEventListener("click", () => deletePanel(index));
 
         card.querySelector(".move-up").addEventListener("click", () => movePanel(index, -1));
         card.querySelector(".move-down").addEventListener("click", () => movePanel(index, 1));
@@ -1522,6 +1540,34 @@
       state.panels.splice(index + 1, 0, { ...source, id: nextId, title });
       renderPanels();
       focusPanelTitle(index + 1);
+      scheduleDraftSave();
+    }
+
+    function clearPanelUndo() {
+      state.deletedPanel = null;
+      $("panelUndo").hidden = true;
+      $("panelUndoText").textContent = "";
+    }
+
+    function deletePanel(index) {
+      const panel = state.panels[index];
+      if (!panel) return;
+      state.deletedPanel = { panel, index };
+      state.panels.splice(index, 1);
+      renderPanels();
+      $("panelUndoText").textContent = `「${panel.title || `Panel ${index + 1}`}」を削除しました。`;
+      $("panelUndo").hidden = false;
+      scheduleDraftSave();
+    }
+
+    function undoPanelDelete() {
+      const deleted = state.deletedPanel;
+      if (!deleted || state.panels.length >= MAX_PANEL_COUNT) return;
+      const restoreIndex = Math.min(deleted.index, state.panels.length);
+      state.panels.splice(restoreIndex, 0, deleted.panel);
+      clearPanelUndo();
+      renderPanels();
+      focusPanelTitle(restoreIndex);
       scheduleDraftSave();
     }
 
@@ -1815,6 +1861,7 @@
         const proposal = await api("/api/propose", { industry, dashboardType: $("dashboardType").value });
         state.proposal = proposal;
         state.panels = proposal.panels;
+        clearPanelUndo();
         state.panelFilter = "";
         $("panelFilter").value = "";
         renderPanels();
@@ -1853,6 +1900,8 @@
       focusPanelTitle(state.panels.length - 1);
       scheduleDraftSave();
     });
+
+    $("undoDelete").addEventListener("click", undoPanelDelete);
 
     $("analyzeRisk").addEventListener("click", async () => {
       $("analyzeRisk").disabled = true;
