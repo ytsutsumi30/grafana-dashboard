@@ -10,6 +10,7 @@ This index summarizes the source documents for the Grafana dashboard builder PoC
 - `docs/manufacturing-datasource-mapping.md`: production datasource mapping guide for replacing Grafana TestData with real manufacturing data.
 - `docs/notebooklm-source-manifest.json`: machine-readable source list for NotebookLM sync dry runs.
 - `docs/notebooklm-mcp-integration.md`: NotebookLM MCP findings, target notebook, sync strategy, and current limitations.
+- `docs/google-oidc-authentication-runbook.md`: Google OpenID Connect migration, OAuth client setup, Android compatibility gate, verification, and rollback steps.
 - `docs/ui-change-verification-loop.md`: finite UI improvement loop covering prioritization, doer/verifier separation, desktop/mobile browser checks, console error checks, screenshots, retry limits, and related tests.
 - `docs/app-improvement-loop.md`: application-wide improvement scoring, finite retry/stop conditions, draft-recovery decision, security guardrails, and verification evidence.
 - `docs/dashboard-builder-specification.md`: system specification for the sales dashboard builder, API endpoints, security model, Firestore history, Grafana Cloud integration, and AI behavior.
@@ -35,7 +36,7 @@ This index summarizes the source documents for the Grafana dashboard builder PoC
 - Region: `asia-northeast1`
 - Grafana Cloud URL: `https://ytsutsumi30.grafana.net`
 - AI provider: Vertex AI Gemini
-- App access code is stored in Secret Manager and required for protected UI and AI model operations.
+- Production currently uses an app access code from Secret Manager for protected UI and AI model operations. Google OpenID Connect migration is documented and awaits OAuth client setup plus Android compatibility work.
 - Firestore is used for dashboard creation history when `FIRESTORE_HISTORY_ENABLED=true`.
 - Manufacturing maintenance dashboards include common overview/action panels before industry-specific sensor panels: OEE, uptime, unplanned downtime, active alarms, maintenance action queue, production loss breakdown, shift production summary, quality defect trend, top defect reasons, MTBF/MTTR trend, and alert rule candidates.
 

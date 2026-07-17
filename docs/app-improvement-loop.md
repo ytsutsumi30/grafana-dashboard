@@ -215,9 +215,9 @@ The access-code UI is being replaced by Google OpenID Connect. This is a bounded
 | 3 | Add Cloud Run deployment flags for OIDC and IAP | Script validates an OIDC deployment configuration without secret output | Completed |
 | 4 | Extend automated verification coverage | UI and server checks cover legacy and OIDC paths | Completed |
 | 5 | Document the OAuth and Android migration path | Runbook identifies the manual OAuth prerequisite and rollout order | Completed |
-| 6 | Run complete local/CI-equivalent validation | Browser console, syntax, JSON, and OIDC checks pass | Planned |
-| 7 | Enable Cloud Run IAP and revoke public invoker access | Only IAP service agent invokes Cloud Run | Blocked: OAuth client setup |
-| 8 | Verify production Google sign-in and Grafana operations | Authorized user reaches UI and protected API returns 200 | Blocked: OAuth client setup |
+| 6 | Run complete local/CI-equivalent validation | Browser console, syntax, JSON, and OIDC checks pass | Completed |
+| 7 | Enable Cloud Run IAP and revoke public invoker access | Only IAP service agent invokes Cloud Run | Blocked: OAuth client setup and Android route decision |
+| 8 | Verify production Google sign-in and Grafana operations | Authorized user reaches UI and protected API returns 200 | Blocked: OAuth client setup and Android route decision |
 
 ### OIDC Cycle 1 Decision
 
@@ -251,3 +251,10 @@ The access-code UI is being replaced by Google OpenID Connect. This is a bounded
 - Change: add a dedicated runbook with OAuth client setup, Google OIDC deployment, production verification, Android compatibility gate, and rollback commands.
 - Critical constraint: Cloud Run IAP directly protects every route; the current unauthenticated Android sensor sender would stop working. The runbook requires Android Google Sign-In or a separate ingestion service before the final cutover.
 - Secret lifecycle: remove the access-code binding from Cloud Run only after successful sign-in verification; defer Secret Manager deletion to a separate approved cleanup.
+
+### OIDC Cycle 6 Decision
+
+- Verification: `CI=true node scripts/verify-ui-change-loop.js` completed successfully with console errors at zero, including the isolated Google OIDC invalid-token rejection test.
+- Deployment validation: PowerShell parser and `deploy-cloud-run.ps1 -DryRun` succeeded for `google-oidc` without changing GCP resources.
+- Documentation: NotebookLM source manifest refreshed for the new authentication runbook and updated verification definition.
+- Stop condition: cycles 7 and 8 require a human-completed Google Auth Platform OAuth client for this no-organization project. Direct IAP is additionally deferred because it would block the current unauthenticated Android sensor endpoint.

@@ -52,6 +52,7 @@ node scripts\verify-ui-change-loop.js
   - Delete and undo one panel while preserving editor and preview order.
   - Introduce an invalid range, filter to invalid panels, repair it, and confirm creation is enabled again.
   - Submit an overlong industry, confirm input limits, and confirm focus moves to the actionable error status.
+  - Simulate Google OIDC and IAP runtime modes; confirm the access-code field is hidden and authenticated identity text is rendered.
   - Edit a panel title and project label, immediately reload before the debounce completes, and confirm both values are restored.
   - Replace the draft timestamp with an expired value, reload, and confirm the draft is removed.
   - Confirm the application access code is not persisted or restored with the draft.
@@ -64,6 +65,7 @@ node scripts\verify-ui-change-loop.js
 - Related tests:
   - `node --check server/grafana-dashboard-builder.js`
   - `node --check scripts/verify-ui-change-loop.js`
+  - `node scripts/verify-google-oidc-mode.js`
   - `node scripts/validate-repository.js`
 - Local API checks:
   - `GET /api/ping` returns HTTP 200.

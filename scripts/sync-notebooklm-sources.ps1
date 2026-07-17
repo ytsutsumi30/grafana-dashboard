@@ -42,6 +42,7 @@ $sources = @(
   "docs\notebooklm-source-index.md",
   "docs\notebooklm-source-manifest.json",
   "docs\notebooklm-mcp-integration.md",
+  "docs\google-oidc-authentication-runbook.md",
   "docs\app-improvement-loop.md",
   "docs\ui-change-verification-loop.md",
   "docs\manufacturing-dashboard-build-log.md",
