@@ -3,7 +3,7 @@
   "notebookId": "grafana-dashboard-builder-poc",
   "dryRun": true,
   "sourceCount": 21,
-  "generatedAt": "2026-07-17T15:56:23.1062345Z",
+  "generatedAt": "2026-07-17T16:25:54.6810354Z",
   "sources": [
     {
       "relativePath": "README.md",
@@ -18,7 +18,7 @@
     {
       "relativePath": "docs\\notebooklm-source-manifest.json",
       "exists": true,
-      "sizeBytes": 2730
+      "sizeBytes": 2863
     },
     {
       "relativePath": "docs\\notebooklm-mcp-integration.md",
@@ -28,12 +28,12 @@
     {
       "relativePath": "docs\\google-oidc-authentication-runbook.md",
       "exists": true,
-      "sizeBytes": 5557
+      "sizeBytes": 5744
     },
     {
       "relativePath": "docs\\app-improvement-loop.md",
       "exists": true,
-      "sizeBytes": 19290
+      "sizeBytes": 19862
     },
     {
       "relativePath": "docs\\ui-change-verification-loop.md",
@@ -68,7 +68,7 @@
     {
       "relativePath": "docs\\android-vibration-demo-mvp.md",
       "exists": true,
-      "sizeBytes": 6890
+      "sizeBytes": 7884
     },
     {
       "relativePath": "docs\\shipping-inspection-api-contract.md",

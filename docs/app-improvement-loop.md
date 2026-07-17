@@ -216,8 +216,8 @@ The access-code UI is being replaced by Google OpenID Connect. This is a bounded
 | 4 | Extend automated verification coverage | UI and server checks cover legacy and OIDC paths | Completed |
 | 5 | Document the OAuth and Android migration path | Runbook identifies the manual OAuth prerequisite and rollout order | Completed |
 | 6 | Run complete local/CI-equivalent validation | Browser console, syntax, JSON, and OIDC checks pass | Completed |
-| 7 | Enable Cloud Run IAP and revoke public invoker access | Only IAP service agent invokes Cloud Run | Blocked: OAuth client setup and Android route decision |
-| 8 | Verify production Google sign-in and Grafana operations | Authorized user reaches UI and protected API returns 200 | Blocked: OAuth client setup and Android route decision |
+| 7 | Add Android Google Sign-In compatibility | Android sends a Google ID token without persisting it | Completed |
+| 8 | Deploy Google OIDC and verify production flows | Authorized web and Android clients receive 200 | Blocked: OAuth client setup |
 
 ### OIDC Cycle 1 Decision
 
@@ -258,3 +258,10 @@ The access-code UI is being replaced by Google OpenID Connect. This is a bounded
 - Deployment validation: PowerShell parser and `deploy-cloud-run.ps1 -DryRun` succeeded for `google-oidc` without changing GCP resources.
 - Documentation: NotebookLM source manifest refreshed for the new authentication runbook and updated verification definition.
 - Stop condition: cycles 7 and 8 require a human-completed Google Auth Platform OAuth client for this no-organization project. Direct IAP is additionally deferred because it would block the current unauthenticated Android sensor endpoint.
+
+### OIDC Cycle 7 Decision
+
+- Change: add Google Play Services sign-in to the Android vibration demo and send the resulting Web-client ID token only in the request `Authorization` header.
+- Token handling: Android holds the token in memory only. The OAuth client ID is supplied as a visible public configuration value; no OAuth secret is placed in source code or on the device.
+- Verification: compile the debug APK and inspect the source path that requires Google sign-in before streaming when an OAuth client ID is configured.
+- Remaining prerequisite: create the Google Auth Platform Web and Android OAuth clients, then deploy Cloud Run in `google-oidc` mode.

@@ -40,8 +40,22 @@ Features:
 - Start / Stop streaming
 - Send interval: 100 ms, 500 ms, 1000 ms
 - Editable API URL
+- Optional Google Web OAuth Client ID and Google Sign-In
+- In-memory Google ID token sent only as an `Authorization: Bearer` request header
 
 The app uses ASCII-only Java code and ASCII-only UI strings.
+
+### Google OIDC setup
+
+When Cloud Run runs with `APP_AUTH_MODE=google-oidc`, enter the same Web OAuth Client ID configured for the dashboard builder, press `Google Sign In`, and then press `Start`. The Android app requests an ID token for that Web client and never writes the token to local storage.
+
+The Google Cloud project also needs an Android OAuth client for package `com.example.androidvibrationdemo` and the signing certificate SHA-1 used for the installed build. For a debug build, obtain the certificate with:
+
+```powershell
+keytool -list -v -keystore "$env:USERPROFILE\.android\debug.keystore" -alias androiddebugkey -storepass android -keypass android
+```
+
+Register the displayed SHA-1 in Google Auth Platform before testing the Android sign-in flow. The Web client ID is public configuration; never enter an OAuth client secret in the app.
 
 ### Cloud Run API
 

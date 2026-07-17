@@ -18,6 +18,13 @@ import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInClient;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.common.api.ApiException;
+import com.google.android.gms.tasks.Task;
+
 import org.json.JSONObject;
 
 import java.io.OutputStream;
@@ -33,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends Activity implements SensorEventListener {
     private static final String DEFAULT_API_URL = "https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app/api/mobile-sensor";
+    private static final int GOOGLE_SIGN_IN_REQUEST = 9001;
 
     private SensorManager sensorManager;
     private Sensor accelerometer;
@@ -41,12 +49,14 @@ public class MainActivity extends Activity implements SensorEventListener {
 
     private EditText apiUrlInput;
     private EditText deviceIdInput;
+    private EditText googleClientIdInput;
     private Spinner intervalSpinner;
     private Button startButton;
     private Button stopButton;
     private Button shockButton;
     private TextView statusText;
     private TextView sensorText;
+    private TextView authText;
 
     private volatile float accelX;
     private volatile float accelY;
@@ -54,6 +64,7 @@ public class MainActivity extends Activity implements SensorEventListener {
     private volatile boolean shockPending;
     private volatile int tapCount;
     private volatile boolean running;
+    private volatile String googleIdToken = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -90,6 +101,20 @@ public class MainActivity extends Activity implements SensorEventListener {
         root.addView(label("Device ID"));
         root.addView(deviceIdInput, fullWidth());
 
+        googleClientIdInput = new EditText(this);
+        googleClientIdInput.setHint("Web OAuth Client ID");
+        googleClientIdInput.setSingleLine(true);
+        root.addView(label("Google Web Client ID"));
+        root.addView(googleClientIdInput, fullWidth());
+
+        Button googleSignInButton = new Button(this);
+        googleSignInButton.setText("Google Sign In");
+        root.addView(googleSignInButton, fullWidth());
+
+        authText = new TextView(this);
+        authText.setText("Auth: not signed in");
+        root.addView(authText, fullWidth());
+
         intervalSpinner = new Spinner(this);
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"100 ms", "500 ms", "1000 ms"});
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -125,6 +150,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         startButton.setOnClickListener(view -> startSending());
         stopButton.setOnClickListener(view -> stopSending());
         shockButton.setOnClickListener(view -> markShock());
+        googleSignInButton.setOnClickListener(view -> startGoogleSignIn());
         root.setOnTouchListener((view, event) -> {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
                 markShock();
@@ -171,6 +197,10 @@ public class MainActivity extends Activity implements SensorEventListener {
 
     private void startSending() {
         if (running) return;
+        if (!googleClientIdInput.getText().toString().trim().isEmpty() && googleIdToken.isEmpty()) {
+            setStatus("Status: Google Sign In required");
+            return;
+        }
         running = true;
         startButton.setEnabled(false);
         stopButton.setEnabled(true);
@@ -242,6 +272,9 @@ public class MainActivity extends Activity implements SensorEventListener {
         connection.setReadTimeout(5000);
         connection.setRequestMethod("POST");
         connection.setRequestProperty("Content-Type", "application/json");
+        if (!googleIdToken.isEmpty()) {
+            connection.setRequestProperty("Authorization", "Bearer " + googleIdToken);
+        }
         connection.setDoOutput(true);
         try (OutputStream stream = connection.getOutputStream()) {
             stream.write(bytes);
@@ -262,6 +295,42 @@ public class MainActivity extends Activity implements SensorEventListener {
 
     private void setStatus(String text) {
         runOnUiThread(() -> statusText.setText(text));
+    }
+
+    private void startGoogleSignIn() {
+        String clientId = googleClientIdInput.getText().toString().trim();
+        if (clientId.isEmpty()) {
+            setStatus("Status: Web OAuth Client ID required");
+            return;
+        }
+        GoogleSignInOptions options = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestEmail()
+                .requestIdToken(clientId)
+                .build();
+        GoogleSignInClient client = GoogleSignIn.getClient(this, options);
+        startActivityForResult(client.getSignInIntent(), GOOGLE_SIGN_IN_REQUEST);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != GOOGLE_SIGN_IN_REQUEST) return;
+        Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
+        try {
+            GoogleSignInAccount account = task.getResult(ApiException.class);
+            String token = account == null ? "" : account.getIdToken();
+            if (token == null || token.isEmpty()) {
+                throw new IllegalStateException("Missing Google ID token");
+            }
+            googleIdToken = token;
+            String email = account.getEmail() == null ? "Google account" : account.getEmail();
+            authText.setText("Auth: " + email);
+            setStatus("Status: Google Sign In complete");
+        } catch (Exception error) {
+            googleIdToken = "";
+            authText.setText("Auth: sign in failed");
+            setStatus("Status: Google Sign In failed");
+        }
     }
 
     @Override

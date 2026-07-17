@@ -11,7 +11,7 @@ Replace the temporary dashboard-builder access-code input with Google OpenID Con
 - Region: `asia-northeast1`
 - Current production mode: `access-code`
 - Target browser mode: `google-oidc`
-- Existing Android sensor sender: unauthenticated `POST /api/mobile-sensor`
+- Android sensor sender: Google Sign-In capable `POST /api/mobile-sensor`; production configuration is still pending
 
 Do not remove `APP_ACCESS_TOKEN` from the running service until the OAuth client is configured and the Android migration decision is complete.
 
@@ -75,15 +75,15 @@ The script removes `APP_ACCESS_TOKEN` from Cloud Run in this mode. It keeps `gra
 
 ## Android Compatibility Gate
 
-The Android vibration application currently posts sensor data without a Google ID token. `google-oidc` protects all application APIs, so enabling it before updating Android will cause sensor sends to return 401.
+The Android vibration app now supports Google Sign-In. It takes the Web OAuth client ID as public configuration, requests an ID token, holds it only in memory, and sends it as `Authorization: Bearer` to `/api/mobile-sensor`. This matches the same server-side validation used by the browser UI.
 
-Choose one before production cutover:
+Before production cutover:
 
-1. Add Google Sign-In to Android and send its server-client ID token as `Authorization: Bearer`.
-2. Split sensor ingestion into a dedicated Cloud Run service with device-specific authentication and durable sensor storage.
-3. Keep the current service in `access-code` mode temporarily while Android authentication is implemented.
+1. Create an Android OAuth client for package `com.example.androidvibrationdemo` and its signing certificate SHA-1.
+2. Build/install the Android app, enter the Web OAuth client ID, and complete Google Sign-In with an allowlisted account.
+3. Confirm a sensor POST succeeds after the Cloud Run `google-oidc` deployment.
 
-Option 1 is the smallest architecture change. Option 2 is preferred for a multi-device production system.
+For a multi-device production system, move sensor ingestion to a dedicated service with device credentials and durable storage. That is not required for this single-device sales-demo cutover.
 
 ## Rollback
 
