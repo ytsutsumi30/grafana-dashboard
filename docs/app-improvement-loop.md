@@ -156,3 +156,22 @@ The user requested five consecutive finite improvement loops. Each cycle uses th
 - Change: apply explicit limits to industry, proposal metadata, panel title, unit, and purpose fields; reject an overlong industry before any API request.
 - Accessibility: mark the invalid industry and move focus from the triggering button to the live status region while preserving the button for immediate retry.
 - Verification: submit 121 characters, confirm the 120-character message and focused status, then generate a normal proposal and validate all dynamic field limits.
+
+## 13. Five-Cycle Improvement Batch 2
+
+This batch prioritizes panel-editing safety and speed. Each cycle keeps the two-attempt verifier limit, produces one commit after success, and defers the external push until all five cycles pass.
+
+| Cycle | Improvement | Machine check | Status |
+| ---: | --- | --- | --- |
+| 1 | Prevent adding more than 24 panels | Fill the editor to 24 panels and confirm Add is disabled without changing state | Completed |
+| 2 | Focus a newly added panel | Add one panel and confirm its title receives focus | Planned |
+| 3 | Duplicate an existing panel | Duplicate one panel and confirm copied data, position, and focus | Planned |
+| 4 | Undo an accidental panel deletion | Delete and restore one panel with order preserved | Planned |
+| 5 | Filter panels with validation errors | Introduce one invalid range and confirm only that panel is shown | Planned |
+
+### Batch 2 Cycle 1 Decision
+
+- Problem: the editor allowed users to exceed the server-supported 24-panel limit and only exposed the problem after the state was already invalid.
+- Change: share one `MAX_PANEL_COUNT` constant across validation, Add-button state, handler guard, and the visible panel count.
+- Guardrail: disable Add at 24 panels and keep a handler-level check so scripted or stale interactions cannot append another panel.
+- Verification: replace the proposal temporarily with 24 panels, confirm Add remains inert, then restore the original proposal.

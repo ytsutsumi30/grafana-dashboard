@@ -795,6 +795,7 @@
     const DRAFT_SAVE_DELAY_MS = 300;
     const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
     const DRAFT_FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
+    const MAX_PANEL_COUNT = 24;
     const API_TIMEOUT_MS = 30000;
     let draftSaveTimer = null;
     let draftPersistenceEnabled = false;
@@ -1156,7 +1157,7 @@
 
     function validatePanels() {
       if (!state.panels.length) return ["パネル案を作成または追加してください。"];
-      if (state.panels.length > 24) return ["パネル数は24個以内にしてください。"];
+      if (state.panels.length > MAX_PANEL_COUNT) return [`パネル数は${MAX_PANEL_COUNT}個以内にしてください。`];
       return state.panels.flatMap(panelValidationErrors);
     }
 
@@ -1387,7 +1388,9 @@
       }
 
       updateCreateState();
-      $("addPanel").disabled = false;
+      const panelLimitReached = state.panels.length >= MAX_PANEL_COUNT;
+      $("addPanel").disabled = panelLimitReached;
+      $("addPanel").title = panelLimitReached ? `パネルは最大${MAX_PANEL_COUNT}個です` : "パネルを追加";
       filterInput.disabled = false;
       root.innerHTML = "";
 
@@ -1396,7 +1399,7 @@
         .map((panel, index) => ({ panel, index }))
         .filter(({ panel }) => !query || [panel.title, panel.purpose, panel.unit, panel.visualization]
           .some((value) => String(value || "").toLowerCase().includes(query)));
-      filterSummary.textContent = `表示 ${visiblePanels.length} / ${state.panels.length} panels`;
+      filterSummary.textContent = `表示 ${visiblePanels.length} / ${state.panels.length} panels（最大${MAX_PANEL_COUNT}）`;
       if (!visiblePanels.length) {
         root.innerHTML = '<div class="empty">検索条件に一致するパネルはありません。</div>';
         return;
@@ -1804,6 +1807,10 @@
     });
 
     $("addPanel").addEventListener("click", () => {
+      if (state.panels.length >= MAX_PANEL_COUNT) {
+        setStatus(`パネルは最大${MAX_PANEL_COUNT}個までです。`, "error");
+        return;
+      }
       state.panelFilter = "";
       $("panelFilter").value = "";
       state.panels.push({

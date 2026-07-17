@@ -488,6 +488,39 @@ async function verifyBrowser(apiEvidence) {
       fail(`Desktop layout check failed: ${JSON.stringify(desktopState)}`);
     }
 
+    const panelLimitState = await evaluate(client, `(() => {
+      const originalPanels = state.panels;
+      state.panels = Array.from({ length: MAX_PANEL_COUNT }, (_, index) => ({
+        ...originalPanels[index % originalPanels.length],
+        id: index + 1,
+        title: "Limit Panel " + (index + 1)
+      }));
+      renderPanels();
+      const addButton = document.querySelector("#addPanel");
+      const result = {
+        count: state.panels.length,
+        addDisabled: addButton.disabled,
+        addTitle: addButton.title,
+        summary: document.querySelector("#panelFilterSummary")?.textContent || ""
+      };
+      addButton.click();
+      result.countAfterClick = state.panels.length;
+      state.panels = originalPanels;
+      renderPanels();
+      result.restoredCount = state.panels.length;
+      result.addEnabledAfterRestore = !document.querySelector("#addPanel").disabled;
+      return result;
+    })()`);
+    if (panelLimitState?.count !== 24 ||
+        !panelLimitState.addDisabled ||
+        !panelLimitState.addTitle.includes("最大24") ||
+        !panelLimitState.summary.includes("最大24") ||
+        panelLimitState.countAfterClick !== 24 ||
+        panelLimitState.restoredCount !== desktopState.panelCardCount ||
+        !panelLimitState.addEnabledAfterRestore) {
+      fail(`Panel limit check failed: ${JSON.stringify(panelLimitState)}`);
+    }
+
     const panelInputConstraintState = await evaluate(client, `(() => ({
       titleMaxLength: document.querySelector('#panels input[data-key="title"]')?.maxLength,
       unitMaxLength: document.querySelector('#panels input[data-key="unit"]')?.maxLength,
@@ -726,6 +759,7 @@ async function verifyBrowser(apiEvidence) {
       desktop: desktopState,
       panelFilter: panelFilterState,
       panelOrder: panelOrderState,
+      panelLimit: panelLimitState,
       grafanaUrl: grafanaUrlState,
       inputConstraints: {
         core: coreInputConstraintState,
