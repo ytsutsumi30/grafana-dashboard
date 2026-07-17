@@ -482,7 +482,7 @@ Browser
 Cloud Run では以下を Secret Manager 経由で渡してください。
 
 - `GRAFANA_SERVICE_ACCOUNT_TOKEN`
-- `APP_ACCESS_TOKEN` 任意。一般公開PoCでUI操作をアクセスコード付きにする場合に使う
+- `APP_AUTH_MODE=google-oidc` を設定するとGoogleログインでUI/APIを保護できる。移行手順は `docs/google-oidc-authentication-runbook.md` を参照
 
 Secret Manager に値を登録します。値はコマンド履歴に残さないため、プロンプト入力方式を推奨します。
 

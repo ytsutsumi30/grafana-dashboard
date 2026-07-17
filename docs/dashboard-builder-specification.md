@@ -57,8 +57,11 @@ Browser
 | `GRAFANA_URL` | 必須 | `https://ytsutsumi30.grafana.net` | Grafana Cloud URL |
 | `GRAFANA_SERVICE_ACCOUNT_TOKEN` | 必須 | なし | Grafana Cloud API呼び出し用トークン |
 | `GRAFANA_CLOUD_TOKEN` | 任意 | なし | 代替のGrafana Cloud APIトークン |
-| `APP_ACCESS_TOKEN` | 任意 | なし | UI操作APIを保護するアクセスコード |
-| `DASHBOARD_BUILDER_ACCESS_TOKEN` | 任意 | なし | `APP_ACCESS_TOKEN` の代替名 |
+| `APP_AUTH_MODE` | 任意 | `access-code` または `none` | `access-code` / `google-oidc` / `iap` / `none` |
+| `APP_ACCESS_TOKEN` | 任意 | なし | `access-code`互換モードのUI操作API保護用 |
+| `GOOGLE_OIDC_CLIENT_ID` | `google-oidc`時は必須 | なし | Google Web OAuthクライアントID |
+| `GOOGLE_OIDC_ALLOWED_EMAILS` | 任意 | なし | セミコロン区切りの許可メールアドレス |
+| `GOOGLE_OIDC_ALLOWED_DOMAINS` | 任意 | なし | セミコロン区切りの許可ドメイン |
 | `APP_RATE_LIMIT_WINDOW_MS` | 任意 | `60000` | 書き込み・AI系APIのレート制限時間窓 |
 | `APP_RATE_LIMIT_MAX_REQUESTS` | 任意 | `30` | 時間窓あたりの最大リクエスト数。`0` 以下で無効 |
 | `FIRESTORE_HISTORY_ENABLED` | 任意 | `false` | 作成履歴をFirestoreへ保存するか |
@@ -76,7 +79,7 @@ Browser
 
 `GRAFANA_SERVICE_ACCOUNT_TOKEN` と `GRAFANA_CLOUD_TOKEN` の両方が設定されている場合、`GRAFANA_SERVICE_ACCOUNT_TOKEN` を優先する。
 
-`APP_ACCESS_TOKEN` が設定されている場合、営業UIからのフォルダ取得、パネル案生成、ダッシュボード作成、AI実行、デモデータ生成には `X-App-Access-Token` ヘッダーが必要になる。
+`access-code`モードでは、営業UIからのフォルダ取得、パネル案生成、ダッシュボード作成、AI実行、デモデータ生成には `X-App-Access-Token` ヘッダーが必要になる。`google-oidc`モードではGoogle IDトークンを `Authorization: Bearer` へ指定し、サーバーがGoogle署名、発行者、OAuthクライアントID、有効期限、許可条件を検証する。Android送信APIも対象になるため、切替前にAndroidのGoogle Sign-In対応または別のデバイス認証経路を用意する。
 
 `APP_RATE_LIMIT_WINDOW_MS` と `APP_RATE_LIMIT_MAX_REQUESTS` は、AI利用、Grafana作成、デモデータ生成などの連打を抑止する。PoC向けのCloud Runインスタンス内メモリ制限であり、本番の厳密な制御にはCloud Armor、API Gateway、IAP、または外部ストアを使う。
 

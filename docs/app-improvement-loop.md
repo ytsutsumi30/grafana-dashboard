@@ -214,7 +214,7 @@ The access-code UI is being replaced by Google OpenID Connect. This is a bounded
 | 2 | Make the browser UI select its authentication path at runtime | IAP/OIDC mode hides the legacy code input | Completed |
 | 3 | Add Cloud Run deployment flags for OIDC and IAP | Script validates an OIDC deployment configuration without secret output | Completed |
 | 4 | Extend automated verification coverage | UI and server checks cover legacy and OIDC paths | Completed |
-| 5 | Document the OAuth and Android migration path | Runbook identifies the manual OAuth prerequisite and rollout order | Planned |
+| 5 | Document the OAuth and Android migration path | Runbook identifies the manual OAuth prerequisite and rollout order | Completed |
 | 6 | Run complete local/CI-equivalent validation | Browser console, syntax, JSON, and OIDC checks pass | Planned |
 | 7 | Enable Cloud Run IAP and revoke public invoker access | Only IAP service agent invokes Cloud Run | Blocked: OAuth client setup |
 | 8 | Verify production Google sign-in and Grafana operations | Authorized user reaches UI and protected API returns 200 | Blocked: OAuth client setup |
@@ -245,3 +245,9 @@ The access-code UI is being replaced by Google OpenID Connect. This is a bounded
 - Change: include the OIDC server verifier in the normal UI verification command and assert the access-code, Google sign-in, and IAP UI states directly from the browser DOM.
 - Coverage: validate that Google OIDC hides the legacy input, IAP exposes the signed-in actor, and an invalid Bearer token remains unauthorized.
 - Verification: full local UI loop completed with console errors at zero, related OIDC test success, and all dashboard JSON validation success.
+
+### OIDC Cycle 5 Decision
+
+- Change: add a dedicated runbook with OAuth client setup, Google OIDC deployment, production verification, Android compatibility gate, and rollback commands.
+- Critical constraint: Cloud Run IAP directly protects every route; the current unauthenticated Android sensor sender would stop working. The runbook requires Android Google Sign-In or a separate ingestion service before the final cutover.
+- Secret lifecycle: remove the access-code binding from Cloud Run only after successful sign-in verification; defer Secret Manager deletion to a separate approved cleanup.
