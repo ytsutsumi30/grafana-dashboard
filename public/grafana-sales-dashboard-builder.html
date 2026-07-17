@@ -393,8 +393,21 @@
       padding: 4px 0;
     }
 
-    .panel-list-toolbar input {
+    .panel-filter-controls {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .panel-list-toolbar input[type="search"] {
       width: min(360px, 100%);
+    }
+
+    .panel-filter-controls .check-row {
+      margin: 0;
+      white-space: nowrap;
     }
 
     .panel-filter-summary {
@@ -605,7 +618,8 @@
       .preview { overflow-x: auto; }
       .preview-head { position: sticky; left: 0; }
       .panel-list-toolbar { align-items: stretch; flex-direction: column; }
-      .panel-list-toolbar input { width: 100%; }
+      .panel-filter-controls { align-items: stretch; flex-direction: column; width: 100%; }
+      .panel-list-toolbar input[type="search"] { width: 100%; }
       .panel-grid { grid-template-columns: 1fr; }
       .meta, .meta.two { grid-template-columns: 1fr; }
     }
@@ -785,7 +799,13 @@
           <h2>パネル編集</h2>
           <span id="panelFilterSummary" class="panel-filter-summary">パネル案作成後に編集できます</span>
         </div>
-        <input id="panelFilter" type="search" placeholder="パネル名・目的・単位で検索" disabled>
+        <div class="panel-filter-controls">
+          <input id="panelFilter" type="search" placeholder="パネル名・目的・単位で検索" disabled>
+          <label class="check-row" for="invalidOnly">
+            <input id="invalidOnly" type="checkbox" disabled>
+            エラーのみ
+          </label>
+        </div>
       </section>
 
       <div id="panelUndo" class="panel-undo" role="status" aria-live="polite" hidden>
@@ -809,6 +829,7 @@
       dashboardHistorySource: "local",
       grafanaUrl: "",
       panelFilter: "",
+      invalidOnly: false,
       deletedPanel: null,
       accessRequired: false
     };
@@ -998,6 +1019,8 @@
       $("overwriteDashboard").checked = false;
       state.panelFilter = "";
       $("panelFilter").value = "";
+      state.invalidOnly = false;
+      $("invalidOnly").checked = false;
       renderPanels();
       setWorkflowStep(1);
       clearSavedDraft("下書きを破棄しました");
@@ -1403,6 +1426,7 @@
       if (!state.panels.length) {
         root.innerHTML = '<div class="empty">ここにAI提案されたパネル案が表示されます。</div>';
         filterInput.disabled = true;
+        $("invalidOnly").disabled = true;
         filterSummary.textContent = "パネル案作成後に編集できます";
         $("create").disabled = true;
         $("addPanel").disabled = !state.proposal;
@@ -1414,16 +1438,19 @@
       $("addPanel").disabled = panelLimitReached;
       $("addPanel").title = panelLimitReached ? `パネルは最大${MAX_PANEL_COUNT}個です` : "パネルを追加";
       filterInput.disabled = false;
+      $("invalidOnly").disabled = false;
       root.innerHTML = "";
 
       const query = state.panelFilter.trim().toLowerCase();
+      const errorPanelCount = state.panels.filter((panel, index) => panelValidationErrors(panel, index).length > 0).length;
       const visiblePanels = state.panels
         .map((panel, index) => ({ panel, index }))
-        .filter(({ panel }) => !query || [panel.title, panel.purpose, panel.unit, panel.visualization]
-          .some((value) => String(value || "").toLowerCase().includes(query)));
-      filterSummary.textContent = `表示 ${visiblePanels.length} / ${state.panels.length} panels（最大${MAX_PANEL_COUNT}）`;
+        .filter(({ panel, index }) => (!state.invalidOnly || panelValidationErrors(panel, index).length > 0) &&
+          (!query || [panel.title, panel.purpose, panel.unit, panel.visualization]
+            .some((value) => String(value || "").toLowerCase().includes(query))));
+      filterSummary.textContent = `表示 ${visiblePanels.length} / ${state.panels.length} panels（エラー ${errorPanelCount} / 最大${MAX_PANEL_COUNT}）`;
       if (!visiblePanels.length) {
-        root.innerHTML = '<div class="empty">検索条件に一致するパネルはありません。</div>';
+        root.innerHTML = `<div class="empty">${state.invalidOnly ? "修正が必要なパネルはありません。" : "検索条件に一致するパネルはありません。"}</div>`;
         return;
       }
 
@@ -1534,6 +1561,8 @@
 
     function duplicatePanel(index) {
       if (state.panels.length >= MAX_PANEL_COUNT || !state.panels[index]) return;
+      state.invalidOnly = false;
+      $("invalidOnly").checked = false;
       const source = state.panels[index];
       const nextId = Math.max(0, ...state.panels.map((panel) => Number(panel.id) || 0)) + 1;
       const title = `${String(source.title || "Panel").slice(0, 73)} - Copy`;
@@ -1864,6 +1893,8 @@
         clearPanelUndo();
         state.panelFilter = "";
         $("panelFilter").value = "";
+        state.invalidOnly = false;
+        $("invalidOnly").checked = false;
         renderPanels();
         setWorkflowStep(2);
         scheduleDraftSave();
@@ -1884,6 +1915,8 @@
       }
       state.panelFilter = "";
       $("panelFilter").value = "";
+      state.invalidOnly = false;
+      $("invalidOnly").checked = false;
       state.panels.push({
         id: state.panels.length + 1,
         title: "New Sensor Panel",
@@ -2095,6 +2128,11 @@
 
     $("panelFilter").addEventListener("input", () => {
       state.panelFilter = $("panelFilter").value;
+      renderPanels();
+    });
+
+    $("invalidOnly").addEventListener("change", () => {
+      state.invalidOnly = $("invalidOnly").checked;
       renderPanels();
     });
 

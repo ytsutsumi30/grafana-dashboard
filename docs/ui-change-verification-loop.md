@@ -47,6 +47,10 @@ node scripts\verify-ui-change-loop.js
   - Confirm at least eight preview panels and panel edit cards render.
   - Confirm the dashboard URL follows the runtime Grafana URL instead of a tenant hardcode.
   - Filter the panel editor list, restore it, and reorder panels while keeping the preview synchronized.
+  - Fill the proposal to 24 panels and confirm Add cannot create a 25th panel.
+  - Add and duplicate a panel, confirm copied data and selected title focus, then restore the original list.
+  - Delete and undo one panel while preserving editor and preview order.
+  - Introduce an invalid range, filter to invalid panels, repair it, and confirm creation is enabled again.
   - Submit an overlong industry, confirm input limits, and confirm focus moves to the actionable error status.
   - Edit a panel title and project label, immediately reload before the debounce completes, and confirm both values are restored.
   - Replace the draft timestamp with an expired value, reload, and confirm the draft is removed.

@@ -626,6 +626,45 @@ async function verifyBrowser(apiEvidence) {
       fail(`Panel delete undo check failed: ${JSON.stringify(deleteUndoState)}`);
     }
 
+    const invalidPanelState = await evaluate(client, `(() => {
+      const targetIndex = 3;
+      const originalMax = state.panels[targetIndex].max;
+      state.panels[targetIndex].max = state.panels[targetIndex].min;
+      renderPanels();
+      const expectedInvalidIndexes = state.panels
+        .map((panel, index) => panelValidationErrors(panel, index).length ? String(index) : null)
+        .filter((index) => index !== null);
+      const toggle = document.querySelector("#invalidOnly");
+      toggle.checked = true;
+      toggle.dispatchEvent(new Event("change", { bubbles: true }));
+      const visibleIndexes = Array.from(document.querySelectorAll("#panels .panel-card"))
+        .map((card) => card.dataset.panelIndex);
+      const result = {
+        expectedInvalidIndexes,
+        visibleIndexes,
+        summary: document.querySelector("#panelFilterSummary")?.textContent || "",
+        createDisabledWhileInvalid: document.querySelector("#create").disabled,
+        validationMessageCount: document.querySelectorAll("#panels .validation-list li").length
+      };
+      state.panels[targetIndex].max = originalMax;
+      toggle.checked = false;
+      toggle.dispatchEvent(new Event("change", { bubbles: true }));
+      result.restoredCount = document.querySelectorAll("#panels .panel-card").length;
+      result.createEnabledAfterRestore = !document.querySelector("#create").disabled;
+      result.errorCountAfterRestore = state.panels.filter((panel, index) => panelValidationErrors(panel, index).length > 0).length;
+      return result;
+    })()`);
+    if (!invalidPanelState?.expectedInvalidIndexes.length ||
+        JSON.stringify(invalidPanelState.visibleIndexes) !== JSON.stringify(invalidPanelState.expectedInvalidIndexes) ||
+        !invalidPanelState.summary.includes(`エラー ${invalidPanelState.expectedInvalidIndexes.length}`) ||
+        !invalidPanelState.createDisabledWhileInvalid ||
+        invalidPanelState.validationMessageCount < 1 ||
+        invalidPanelState.restoredCount !== originalPanelCountBeforeAdd ||
+        !invalidPanelState.createEnabledAfterRestore ||
+        invalidPanelState.errorCountAfterRestore !== 0) {
+      fail(`Invalid panel filter check failed: ${JSON.stringify(invalidPanelState)}`);
+    }
+
     const panelInputConstraintState = await evaluate(client, `(() => ({
       titleMaxLength: document.querySelector('#panels input[data-key="title"]')?.maxLength,
       unitMaxLength: document.querySelector('#panels input[data-key="unit"]')?.maxLength,
@@ -868,6 +907,7 @@ async function verifyBrowser(apiEvidence) {
       addPanelFocus: addPanelFocusState,
       duplicatePanel: duplicatePanelState,
       deleteUndo: deleteUndoState,
+      invalidPanelFilter: invalidPanelState,
       grafanaUrl: grafanaUrlState,
       inputConstraints: {
         core: coreInputConstraintState,

@@ -167,7 +167,7 @@ This batch prioritizes panel-editing safety and speed. Each cycle keeps the two-
 | 2 | Focus a newly added panel | Add one panel and confirm its title receives focus | Completed |
 | 3 | Duplicate an existing panel | Duplicate one panel and confirm copied data, position, and focus | Completed |
 | 4 | Undo an accidental panel deletion | Delete and restore one panel with order preserved | Completed |
-| 5 | Filter panels with validation errors | Introduce one invalid range and confirm only that panel is shown | Planned |
+| 5 | Filter panels with validation errors | Introduce one invalid range and confirm only that panel is shown | Completed |
 
 ### Batch 2 Cycle 1 Decision
 
@@ -196,3 +196,10 @@ This batch prioritizes panel-editing safety and speed. Each cycle keeps the two-
 - Change: retain the most recently deleted panel and its index, show a dedicated undo strip, and restore the panel to its prior position on request.
 - Lifecycle: clear pending undo state when a new proposal replaces the current one; autosave records both deletion and restoration without persisting the temporary undo object.
 - Verification: delete the first panel, confirm the strip and 18-panel state, undo, and compare editor and preview title order with the original 19 panels.
+
+### Batch 2 Cycle 5 Decision
+
+- Problem: validation disabled Grafana creation but users still had to scan a long editor list to find the panels that needed correction.
+- Change: show the invalid-panel count beside the visible/total count and add an `エラーのみ` checkbox that composes with text search.
+- Recovery: adding, duplicating, replacing, or discarding a proposal clears the error-only view so newly created content remains visible.
+- Verification: introduce one invalid range, compare visible card indexes with computed validation results, confirm creation is disabled, then repair and restore the complete valid list.
