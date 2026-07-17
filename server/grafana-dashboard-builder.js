@@ -47,7 +47,7 @@ const googleOidcKeyCache = {
 
 function parseCommaSeparated(value) {
   return String(value || "")
-    .split(",")
+    .split(/[;,]/)
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
 }

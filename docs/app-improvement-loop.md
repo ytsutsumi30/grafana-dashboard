@@ -212,7 +212,7 @@ The access-code UI is being replaced by Google OpenID Connect. This is a bounded
 | ---: | --- | --- | --- |
 | 1 | Add server authentication modes | Start `google-oidc` locally and reject an invalid Bearer token | Completed |
 | 2 | Make the browser UI select its authentication path at runtime | IAP/OIDC mode hides the legacy code input | Completed |
-| 3 | Add Cloud Run deployment flags for OIDC and IAP | Script validates an OIDC deployment configuration without secret output | Planned |
+| 3 | Add Cloud Run deployment flags for OIDC and IAP | Script validates an OIDC deployment configuration without secret output | Completed |
 | 4 | Extend automated verification coverage | UI and server checks cover legacy and OIDC paths | Planned |
 | 5 | Document the OAuth and Android migration path | Runbook identifies the manual OAuth prerequisite and rollout order | Planned |
 | 6 | Run complete local/CI-equivalent validation | Browser console, syntax, JSON, and OIDC checks pass | Planned |
@@ -232,3 +232,10 @@ The access-code UI is being replaced by Google OpenID Connect. This is a bounded
 - Token handling: Google ID tokens remain only in page memory and use the Authorization header. Legacy access codes remain session-only for the temporary compatibility mode.
 - API behavior: all protected browser operations wait for an authenticated runtime mode rather than checking a specific input field.
 - Verification: the existing full browser verifier passes with the no-auth local mode, preserving proposal editing, draft recovery, console error zero, and dashboard JSON checks.
+
+### OIDC Cycle 3 Decision
+
+- Change: add explicit authentication mode, Google OIDC client/allowlist, IAP, and dry-run parameters to the Cloud Run deployment script.
+- Secret lifecycle: use `--update-secrets` and remove `APP_ACCESS_TOKEN` only when the selected mode is no longer `access-code`; preserve the Grafana token secret.
+- IAP guardrail: the script refuses the contradictory combination of IAP and unauthenticated Cloud Run access.
+- Verification: PowerShell parser validation and Google OIDC dry run completed without changing GCP resources or printing a secret value.
