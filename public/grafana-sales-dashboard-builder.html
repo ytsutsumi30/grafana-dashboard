@@ -176,6 +176,17 @@
       outline-offset: 2px;
     }
 
+    .auth-section[hidden], .auth-state[hidden] { display: none; }
+
+    .auth-state {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .auth-state.is-authenticated { color: #baf4d1; }
+
     .history-list {
       display: grid;
       gap: 8px;
@@ -659,8 +670,16 @@
         既存ダッシュボードを上書きする
       </label>
 
-      <label for="appAccessToken">アクセスコード</label>
-      <input id="appAccessToken" type="password" autocomplete="off" placeholder="Cloud Runで設定時のみ入力">
+      <div id="accessCodeSection" class="auth-section">
+        <label for="appAccessToken">アクセスコード</label>
+        <input id="appAccessToken" type="password" autocomplete="off" placeholder="互換モードでのみ入力">
+      </div>
+      <div id="googleSignInSection" class="auth-section" hidden>
+        <label>Googleログイン</label>
+        <div id="googleSignInButton"></div>
+        <button id="googleSignOut" class="secondary" type="button" hidden>ログアウト</button>
+      </div>
+      <div id="authState" class="auth-state" role="status" aria-live="polite" hidden></div>
 
       <div id="status" class="status" role="status" aria-live="polite" tabindex="-1">業種を入力してパネル案を作成してください。</div>
 
@@ -831,7 +850,12 @@
       panelFilter: "",
       invalidOnly: false,
       deletedPanel: null,
-      accessRequired: false
+      accessRequired: false,
+      authMode: "none",
+      authenticated: true,
+      authActor: "",
+      googleOidcClientId: "",
+      googleOidcCredential: ""
     };
     const DRAFT_STORAGE_KEY = "grafanaBuilderDraftV1";
     const DRAFT_SAVE_DELAY_MS = 300;
@@ -1031,10 +1055,90 @@
       return $("appAccessToken")?.value.trim() || "";
     }
 
+    function protectedApiReady() {
+      return state.authMode === "none" || state.authenticated;
+    }
+
+    function authenticationMessage() {
+      if (state.authMode === "google-oidc") return "Googleでログインしてください。";
+      if (state.authMode === "iap") return "Googleアカウントでログインしてください。";
+      return "アクセスコードを入力してください。";
+    }
+
+    function renderAuthState() {
+      const stateElement = $("authState");
+      const accessCodeSection = $("accessCodeSection");
+      const googleSection = $("googleSignInSection");
+      const signOut = $("googleSignOut");
+      const usesAccessCode = state.authMode === "access-code";
+      const usesGoogleOidc = state.authMode === "google-oidc";
+      accessCodeSection.hidden = !usesAccessCode;
+      googleSection.hidden = !usesGoogleOidc;
+      signOut.hidden = !usesGoogleOidc || !state.authenticated;
+      if (state.authMode === "none") {
+        stateElement.hidden = true;
+        return;
+      }
+      stateElement.hidden = false;
+      stateElement.classList.toggle("is-authenticated", state.authenticated);
+      if (state.authenticated) {
+        stateElement.textContent = state.authActor ? `認証済み: ${state.authActor}` : "認証済み";
+      } else {
+        stateElement.textContent = authenticationMessage();
+      }
+    }
+
+    function loadGoogleIdentityScript() {
+      if (window.google?.accounts?.id) return Promise.resolve();
+      if (window.googleIdentityScriptPromise) return window.googleIdentityScriptPromise;
+      window.googleIdentityScriptPromise = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://accounts.google.com/gsi/client";
+        script.async = true;
+        script.defer = true;
+        script.onload = resolve;
+        script.onerror = () => reject(new Error("Googleログインの読み込みに失敗しました。ネットワークを確認してください。"));
+        document.head.appendChild(script);
+      });
+      return window.googleIdentityScriptPromise;
+    }
+
+    async function initializeGoogleOidc() {
+      if (state.authMode !== "google-oidc" || state.authenticated || !state.googleOidcClientId) return;
+      try {
+        await loadGoogleIdentityScript();
+        window.google.accounts.id.initialize({
+          client_id: state.googleOidcClientId,
+          callback: async (response) => {
+            state.googleOidcCredential = response.credential || "";
+            await loadAuthStatus();
+            if (state.authenticated) {
+              setStatus("Googleログインが完了しました。", "ok");
+              await loadProtectedUiResources();
+            }
+          }
+        });
+        $("googleSignInButton").innerHTML = "";
+        window.google.accounts.id.renderButton($("googleSignInButton"), {
+          type: "standard",
+          theme: "outline",
+          size: "large",
+          text: "signin_with",
+          locale: "ja"
+        });
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
     function apiHeaders() {
       const headers = { "Content-Type": "application/json" };
-      const token = appAccessToken();
-      if (token) headers["X-App-Access-Token"] = token;
+      if (state.authMode === "google-oidc" && state.googleOidcCredential) {
+        headers.Authorization = `Bearer ${state.googleOidcCredential}`;
+      } else {
+        const token = appAccessToken();
+        if (token) headers["X-App-Access-Token"] = token;
+      }
       return headers;
     }
 
@@ -1087,20 +1191,34 @@
 
     async function loadAuthStatus() {
       try {
-        const data = await apiGet("/api/auth-status");
-        state.accessRequired = Boolean(data.required);
         const saved = sessionStorage.getItem("grafanaBuilderAccessToken") || "";
-        if (saved) $("appAccessToken").value = saved;
-        if (state.accessRequired && !saved) {
-          setStatus("アクセスコードを入力してください。", "error");
+        if (saved && !$("appAccessToken").value) $("appAccessToken").value = saved;
+        const data = await apiGet("/api/auth-status");
+        state.authMode = data.mode || "none";
+        state.authenticated = Boolean(data.authenticated);
+        state.authActor = data.actor || "";
+        state.googleOidcClientId = data.googleOidcClientId || "";
+        state.accessRequired = state.authMode === "access-code" && !state.authenticated;
+        if (state.authMode === "access-code") {
+          if (saved) $("appAccessToken").value = saved;
+        } else {
+          $("appAccessToken").value = "";
+          sessionStorage.removeItem("grafanaBuilderAccessToken");
         }
+        renderAuthState();
+        if (!state.authenticated && state.authMode === "google-oidc") await initializeGoogleOidc();
+        return data;
       } catch {
         state.accessRequired = false;
+        state.authMode = "none";
+        state.authenticated = true;
+        renderAuthState();
+        return null;
       }
     }
 
     async function loadFolders() {
-      if (state.accessRequired && !appAccessToken()) {
+      if (!protectedApiReady()) {
         $("folderUid").innerHTML = '<option value="">General / ルート</option>';
         return;
       }
@@ -1700,11 +1818,11 @@
     }
 
     async function loadDashboardHistory() {
-      if (state.accessRequired && !appAccessToken()) {
+      if (!protectedApiReady()) {
         state.dashboardHistorySource = "local";
         state.dashboardHistoryRows = mergeDashboardHistory([]);
         renderDashboardHistory();
-        setStatus("アクセスコードを入力すると作成履歴を取得できます。", "error");
+        setStatus(`${authenticationMessage()} 作成履歴を取得できません。`, "error");
         return;
       }
       try {
@@ -1731,8 +1849,8 @@
     }
 
     async function loadDatasources() {
-      if (state.accessRequired && !appAccessToken()) {
-        setStatus("アクセスコードを入力するとデータソースを取得できます。", "error");
+      if (!protectedApiReady()) {
+        setStatus(`${authenticationMessage()} データソースを取得できません。`, "error");
         return;
       }
       const result = await apiGet("/api/datasources");
@@ -1747,7 +1865,7 @@
         `Service: ${status.service}\n` +
         `Grafana URL: ${status.grafanaUrl}\n` +
         `Grafana token: ${status.grafanaTokenConfigured ? "configured" : "missing"}\n` +
-        `Access code: ${status.appAccessTokenEnabled ? "enabled" : "disabled"}\n` +
+        `Authentication: ${status.authMode}\n` +
         `AI provider: ${status.aiProvider}\n` +
         `Vertex project: ${status.vertexProjectConfigured ? "configured" : "missing"}\n` +
         `OpenAI key: ${status.openAiKeyConfigured ? "configured" : "missing"}\n` +
@@ -1759,8 +1877,8 @@
     }
 
     async function loadRuntimeStatus() {
-      if (state.accessRequired && !appAccessToken()) {
-        setStatus("アクセスコードを入力すると設定状態を確認できます。", "error");
+      if (!protectedApiReady()) {
+        setStatus(`${authenticationMessage()} 設定状態を確認できません。`, "error");
         return;
       }
       const result = await apiGet("/api/runtime-status");
@@ -1880,8 +1998,8 @@
         return;
       }
       industryInput.removeAttribute("aria-invalid");
-      if (state.accessRequired && !appAccessToken()) {
-        setStatus("アクセスコードを入力してください。", "error");
+      if (!protectedApiReady()) {
+        setStatus(authenticationMessage(), "error");
         return;
       }
       $("propose").disabled = true;
@@ -2066,8 +2184,8 @@
 
     $("create").addEventListener("click", async () => {
       if (!state.proposal || !state.panels.length) return;
-      if (state.accessRequired && !appAccessToken()) {
-        setStatus("アクセスコードを入力してください。", "error");
+      if (!protectedApiReady()) {
+        setStatus(authenticationMessage(), "error");
         return;
       }
       const validationErrors = validatePanels();
@@ -2197,22 +2315,39 @@
       } else {
         sessionStorage.removeItem("grafanaBuilderAccessToken");
       }
-      loadFolders();
+      loadAuthStatus().then(() => {
+        if (protectedApiReady()) return loadProtectedUiResources();
+      });
     });
+
+    $("googleSignOut").addEventListener("click", () => {
+      state.googleOidcCredential = "";
+      state.authenticated = false;
+      state.authActor = "";
+      window.google?.accounts?.id?.disableAutoSelect?.();
+      renderAuthState();
+      initializeGoogleOidc();
+      setStatus("Googleログアウトしました。", "ok");
+    });
+
+    async function loadProtectedUiResources() {
+      if (!protectedApiReady()) return;
+      const results = await Promise.allSettled([
+        loadFolders(),
+        loadDashboardHistory(),
+        loadDatasources(),
+        loadRuntimeStatus()
+      ]);
+      if (results[2].status === "rejected") {
+        state.datasources = [];
+        renderDatasources();
+      }
+    }
 
     async function init() {
       await loadAuthStatus();
-      if (!state.accessRequired || appAccessToken()) {
-        const results = await Promise.allSettled([
-          loadFolders(),
-          loadDashboardHistory(),
-          loadDatasources(),
-          loadRuntimeStatus()
-        ]);
-        if (results[2].status === "rejected") {
-          state.datasources = [];
-          renderDatasources();
-        }
+      if (protectedApiReady()) {
+        await loadProtectedUiResources();
       } else {
         renderDashboardHistory(mergeDashboardHistory([]));
       }

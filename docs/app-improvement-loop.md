@@ -211,7 +211,7 @@ The access-code UI is being replaced by Google OpenID Connect. This is a bounded
 | Cycle | Improvement | Machine check | Status |
 | ---: | --- | --- | --- |
 | 1 | Add server authentication modes | Start `google-oidc` locally and reject an invalid Bearer token | Completed |
-| 2 | Make the browser UI select its authentication path at runtime | IAP/OIDC mode hides the legacy code input | Planned |
+| 2 | Make the browser UI select its authentication path at runtime | IAP/OIDC mode hides the legacy code input | Completed |
 | 3 | Add Cloud Run deployment flags for OIDC and IAP | Script validates an OIDC deployment configuration without secret output | Planned |
 | 4 | Extend automated verification coverage | UI and server checks cover legacy and OIDC paths | Planned |
 | 5 | Document the OAuth and Android migration path | Runbook identifies the manual OAuth prerequisite and rollout order | Planned |
@@ -225,3 +225,10 @@ The access-code UI is being replaced by Google OpenID Connect. This is a bounded
 - Google OIDC guard: verify RS256 signature against Google's JWKS, issuer, audience, expiry, verified email, and optional email/domain allowlists.
 - Compatibility: `access-code` remains the fallback while `APP_ACCESS_TOKEN` is configured; no access token value is exposed through the status API.
 - Verification: `scripts/verify-google-oidc-mode.js` starts an isolated server, verifies `/api/auth-status`, and confirms an invalid Bearer token receives `401 OIDC_AUTH_REQUIRED`.
+
+### OIDC Cycle 2 Decision
+
+- Change: render the access-code field only in `access-code` mode; render Google Identity Services only in `google-oidc` mode; show an authenticated IAP actor without any user-entered code.
+- Token handling: Google ID tokens remain only in page memory and use the Authorization header. Legacy access codes remain session-only for the temporary compatibility mode.
+- API behavior: all protected browser operations wait for an authenticated runtime mode rather than checking a specific input field.
+- Verification: the existing full browser verifier passes with the no-auth local mode, preserving proposal editing, draft recovery, console error zero, and dashboard JSON checks.
