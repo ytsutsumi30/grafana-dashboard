@@ -2,9 +2,18 @@ plugins {
     id "com.android.application"
 }
 
+def sensorApiUrl = providers.gradleProperty("sensorApiUrl").orElse("").get()
+def asBuildConfigString = { value ->
+    return "\"${value.replace('\\', '\\\\').replace('\"', '\\\"')}\""
+}
+
 android {
     namespace "com.example.androidvibrationdemo"
     compileSdk 35
+
+    buildFeatures {
+        buildConfig true
+    }
 
     defaultConfig {
         applicationId "com.example.androidvibrationdemo"
@@ -12,9 +21,25 @@ android {
         targetSdk 35
         versionCode 1
         versionName "1.0"
+        buildConfigField "String", "SENSOR_API_URL", asBuildConfigString(sensorApiUrl)
     }
+
+    buildTypes {
+        debug {
+            buildConfigField "boolean", "API_URL_EDITABLE", "true"
+        }
+        release {
+            buildConfigField "boolean", "API_URL_EDITABLE", "false"
+        }
+    }
+}
+
+def externalBuildDir = System.getenv("ANDROID_DEMO_BUILD_DIR")
+if (externalBuildDir) {
+    layout.buildDirectory.set(file(externalBuildDir))
 }
 
 dependencies {
     implementation "com.google.android.gms:play-services-auth:21.2.0"
+    testImplementation "junit:junit:4.13.2"
 }

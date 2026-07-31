@@ -288,7 +288,7 @@
               "uid": "testdata"
             },
             "scenarioId": "csv_content",
-            "csvContent": "time,sensor,severity,message\n2026-05-24T09:00:00+09:00,Engine Temperature,WARN,Temperature exceeded warning threshold\n2026-05-24T09:03:00+09:00,Fuel Pressure,INFO,Sub line pressure normalized\n2026-05-24T09:06:00+09:00,RPM,CRITICAL,RPM entered danger range\n2026-05-24T09:09:00+09:00,Atmospheric Pressure,INFO,Pressure stable"
+            "csvContent": "time,sensor,severity,message\n__NOW_MINUS_12M__,Engine Temperature,WARN,Temperature exceeded warning threshold\n__NOW_MINUS_9M__,Fuel Pressure,INFO,Sub line pressure normalized\n__NOW_MINUS_6M__,RPM,CRITICAL,RPM entered danger range\n__NOW_MINUS_3M__,Atmospheric Pressure,INFO,Pressure stable"
           }
         ],
         "fieldConfig": {
@@ -351,6 +351,5 @@
   },
   "folderUid": "",
   "message": "Create Ship Sensor Dashboard from Codex",
-  "overwrite": true
+  "overwrite": false
 }
-

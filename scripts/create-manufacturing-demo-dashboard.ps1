@@ -38,6 +38,7 @@ $token = Get-AppAccessToken -ExplicitToken $AccessToken -GcpProjectId $ProjectId
 $headers = @{
   "Content-Type" = "application/json"
   "X-App-Access-Token" = $token
+  "Idempotency-Key" = "dashboard-$([guid]::NewGuid().ToString('N'))"
 }
 
 $proposalBody = @{

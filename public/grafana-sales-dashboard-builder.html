@@ -21,6 +21,21 @@
 
     * { box-sizing: border-box; }
 
+    .skip-link {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 1000;
+      transform: translateY(-150%);
+      background: var(--accent-2);
+      color: #07111f;
+      padding: 10px 14px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+
+    .skip-link:focus { transform: translateY(0); }
+
     body {
       margin: 0;
       background: var(--bg);
@@ -208,19 +223,50 @@
     .history-item {
       border: 1px solid var(--line);
       border-radius: 6px;
-      padding: 10px;
+      padding: 12px;
       background: #0d1118;
       color: var(--muted);
       font-size: 12px;
       line-height: 1.45;
-      overflow-wrap: anywhere;
+      min-width: 0;
     }
 
-    .history-item strong {
-      display: block;
+    .history-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .history-title {
       color: var(--text);
       font-size: 13px;
-      margin-bottom: 4px;
+      line-height: 1.4;
+      min-width: 0;
+      overflow-wrap: break-word;
+    }
+
+    .history-result {
+      flex: 0 0 auto;
+      border: 1px solid rgba(47, 191, 113, 0.45);
+      border-radius: 999px;
+      padding: 2px 7px;
+      color: #baf4d1;
+      background: rgba(47, 191, 113, 0.1);
+      font-size: 10px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .history-context {
+      margin-top: 5px;
+      color: var(--text);
+    }
+
+    .history-time {
+      margin-top: 2px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
     }
 
     .history-meta {
@@ -229,23 +275,57 @@
       margin-top: 6px;
     }
 
+    .history-details {
+      display: grid;
+      gap: 4px;
+      margin-top: 9px;
+      padding-top: 8px;
+      border-top: 1px solid var(--line);
+    }
+
+    .history-detail {
+      display: grid;
+      grid-template-columns: 48px minmax(0, 1fr);
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .history-detail-label {
+      color: var(--muted);
+    }
+
+    .history-detail-value {
+      color: var(--text);
+      overflow-wrap: anywhere;
+    }
+
     .history-actions {
       display: flex;
       gap: 8px;
       align-items: center;
-      justify-content: space-between;
+      flex-wrap: wrap;
       margin-top: 8px;
     }
 
-    .history-actions a {
-      min-width: 0;
-      overflow-wrap: anywhere;
+    .history-open-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 36px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--text);
+      background: var(--panel-2);
+      font-weight: 700;
+      text-decoration: none;
     }
 
     .history-source {
       color: var(--muted);
       font-size: 11px;
-      flex: 0 0 auto;
+      min-width: 0;
+      overflow-wrap: break-word;
     }
 
     .replacement-table {
@@ -612,6 +692,8 @@
 
     a { color: var(--accent-2); }
 
+    .mobile-nav { display: none; }
+
     @media (max-width: 840px) {
       .app { grid-template-columns: 1fr; }
       aside {
@@ -622,6 +704,7 @@
         overflow: visible;
         padding: 18px;
       }
+      body { padding-bottom: 64px; }
       main { padding: 16px; }
       .toolbar { align-items: stretch; flex-direction: column; }
       .toolbar { position: static; }
@@ -633,12 +716,41 @@
       .panel-list-toolbar input[type="search"] { width: 100%; }
       .panel-grid { grid-template-columns: 1fr; }
       .meta, .meta.two { grid-template-columns: 1fr; }
+      .history-toolbar { grid-template-columns: 1fr; }
+      .history-toolbar button { width: 100%; }
+      .history-actions { align-items: stretch; flex-direction: column; }
+      .history-open-link { width: 100%; }
+      .mobile-nav {
+        position: fixed;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 100;
+        min-height: 56px;
+        padding: 6px max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+        gap: 6px;
+        border-top: 1px solid var(--line);
+        background: #111720;
+      }
+      .mobile-nav button {
+        min-width: 0;
+        min-height: 44px;
+        padding: 6px 4px;
+        font-size: 12px;
+        color: var(--text);
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+      }
+      .mobile-nav button[data-action="create"] { color: #111827; background: var(--accent); }
     }
   </style>
 </head>
 <body>
+  <a class="skip-link" href="#mainContent">メインコンテンツへ移動</a>
   <div class="app">
-    <aside>
+    <aside id="conditionsSection" tabindex="-1" aria-label="ダッシュボード作成条件">
       <h1>Grafana Cloud<br>ダッシュボード提案ツール</h1>
 
       <label for="industry">業種欄向けのダッシュボードを作成してください。</label>
@@ -784,8 +896,8 @@
       </details>
     </aside>
 
-    <main>
-      <section class="toolbar">
+    <main id="mainContent" tabindex="-1">
+      <section class="toolbar" id="workflowSection">
         <div>
           <h2 id="dashboardName">パネル案</h2>
           <div id="dashboardMeta" class="status">未作成</div>
@@ -803,7 +915,7 @@
         </div>
       </section>
 
-      <section class="preview">
+      <section class="preview" id="previewSection" tabindex="-1">
         <div class="preview-head">
           <h2>生成前プレビュー</h2>
           <span id="previewSummary">パネル案作成後に表示されます</span>
@@ -813,7 +925,7 @@
         </div>
       </section>
 
-      <section class="panel-list-toolbar" aria-label="パネル編集一覧">
+      <section class="panel-list-toolbar" id="panelEditSection" tabindex="-1" aria-label="パネル編集一覧">
         <div>
           <h2>パネル編集</h2>
           <span id="panelFilterSummary" class="panel-filter-summary">パネル案作成後に編集できます</span>
@@ -837,6 +949,12 @@
       </section>
     </main>
   </div>
+  <nav class="mobile-nav" aria-label="モバイル工程ナビゲーション">
+    <button type="button" data-target="conditionsSection">条件</button>
+    <button type="button" data-target="previewSection">プレビュー</button>
+    <button type="button" data-target="panelEditSection">パネル</button>
+    <button type="button" data-action="create" disabled>作成</button>
+  </nav>
 
   <script>
     const state = {
@@ -921,6 +1039,7 @@
           return Number.isFinite(number) ? number : "";
         };
         const visualizations = new Set(["timeseries", "stat", "gauge", "piechart", "table"]);
+        const riskDirections = new Set(["high", "low", "outside"]);
         return {
           ...draft,
           industry: cleanString(draft.industry || draft.proposal.industry, 120),
@@ -944,6 +1063,7 @@
             max: cleanNumber(panel.max),
             warningThreshold: cleanNumber(panel.warningThreshold),
             criticalThreshold: cleanNumber(panel.criticalThreshold),
+            riskDirection: riskDirections.has(panel.riskDirection) ? panel.riskDirection : "high",
             purpose: cleanString(panel.purpose, 160),
             latestOnly: Boolean(panel.latestOnly),
             scenarioId: panel.scenarioId === "csv_content" ? "csv_content" : "random_walk",
@@ -1062,6 +1182,7 @@
     function authenticationMessage() {
       if (state.authMode === "google-oidc") return "Googleでログインしてください。";
       if (state.authMode === "iap") return "Googleアカウントでログインしてください。";
+      if (state.authMode === "unavailable") return "認証状態を確認できません。ページを再読み込みしてください。";
       return "アクセスコードを入力してください。";
     }
 
@@ -1152,7 +1273,7 @@
       try {
         const response = await fetch(path, {
           method: options.method || "GET",
-          headers: apiHeaders(),
+          headers: { ...apiHeaders(), ...(options.headers || {}) },
           body: options.payload === undefined ? undefined : JSON.stringify(options.payload),
           signal: controller.signal
         });
@@ -1162,6 +1283,17 @@
           data = raw ? JSON.parse(raw) : {};
         } catch {
           throw new Error(`サーバー応答を解析できませんでした。HTTP ${response.status}`);
+        }
+        if (response.status === 401) {
+          state.authenticated = false;
+          state.authActor = "";
+          if (state.authMode === "google-oidc") state.googleOidcCredential = "";
+          renderAuthState();
+          if (state.authMode === "google-oidc") initializeGoogleOidc().catch(() => {});
+          const authError = state.authMode === "google-oidc"
+            ? "Google認証の有効期限が切れたか、許可されていません。再ログインしてください。"
+            : authenticationMessage();
+          throw new Error(authError);
         }
         if (!response.ok || data.ok === false) {
           const details = Array.isArray(data.errors) && data.errors.length ? `\n${data.errors.join("\n")}` : "";
@@ -1181,8 +1313,15 @@
       }
     }
 
-    function api(path, payload, timeoutMs = API_TIMEOUT_MS) {
-      return requestApi(path, { method: "POST", payload, timeoutMs });
+    function api(path, payload, timeoutMs = API_TIMEOUT_MS, headers = {}) {
+      return requestApi(path, { method: "POST", payload, timeoutMs, headers });
+    }
+
+    async function createIdempotencyKey(payload) {
+      const bytes = new TextEncoder().encode(JSON.stringify(payload));
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      const hex = Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
+      return `dashboard-${hex}`;
     }
 
     function apiGet(path, timeoutMs = API_TIMEOUT_MS) {
@@ -1208,11 +1347,13 @@
         renderAuthState();
         if (!state.authenticated && state.authMode === "google-oidc") await initializeGoogleOidc();
         return data;
-      } catch {
-        state.accessRequired = false;
-        state.authMode = "none";
-        state.authenticated = true;
+      } catch (error) {
+        state.accessRequired = true;
+        state.authMode = "unavailable";
+        state.authenticated = false;
+        state.authActor = "";
         renderAuthState();
+        setStatus(`認証状態を確認できません。通信を確認して再読み込みしてください。\n${error.message}`, "error");
         return null;
       }
     }
@@ -1266,6 +1407,15 @@
         state.panels[index][key] = String(value).trim() === "" ? "" : Number(value);
       } else if (key === "latestOnly") {
         state.panels[index][key] = value;
+      } else if (key === "riskDirection") {
+        state.panels[index][key] = ["high", "low", "outside"].includes(value) ? value : "high";
+        const min = Number(state.panels[index].min);
+        const max = Number(state.panels[index].max);
+        if (Number.isFinite(min) && Number.isFinite(max) && max > min) {
+          const defaults = thresholdDefaults(min, max, state.panels[index].unit, state.panels[index].riskDirection);
+          state.panels[index].warningThreshold = defaults.warning;
+          state.panels[index].criticalThreshold = defaults.critical;
+        }
       } else {
         state.panels[index][key] = value;
       }
@@ -1286,6 +1436,7 @@
       if (!["timeseries", "stat", "gauge", "piechart", "table"].includes(panel.visualization)) {
         errors.push(`${label}: 可視化タイプが不正です。`);
       }
+      const riskDirection = ["high", "low", "outside"].includes(panel.riskDirection) ? panel.riskDirection : "high";
       const min = Number(panel.min);
       const max = Number(panel.max);
       if (!Number.isFinite(min)) errors.push(`${label}: 最小値は数値で入力してください。`);
@@ -1302,11 +1453,12 @@
         errors.push(`${label}: Critical閾値は数値で入力してください。`);
       }
       if (Number.isFinite(min) && Number.isFinite(max)) {
-        const defaults = thresholdDefaults(min, max, panel.unit);
+        const defaults = thresholdDefaults(min, max, panel.unit, riskDirection);
         const warning = Number.isFinite(warningInput) ? warningInput : defaults.warning;
         const critical = Number.isFinite(criticalInput) ? criticalInput : defaults.critical;
-        if (warning >= critical) {
-          errors.push(`${label}: Warning閾値はCritical閾値より小さくしてください。`);
+        const orderValid = riskDirection === "low" ? critical < warning : warning < critical;
+        if (!orderValid) {
+          errors.push(`${label}: 異常方向に合うWarning/Critical閾値の順序にしてください。`);
         }
         if (Number.isFinite(warning) && (warning < min || warning > max)) {
           errors.push(`${label}: Warning閾値は最小値と最大値の範囲内にしてください。`);
@@ -1324,19 +1476,34 @@
       return state.panels.flatMap(panelValidationErrors);
     }
 
-    function thresholdDefaults(min, max, unit) {
+    function thresholdDefaults(min, max, unit, riskDirection = "high") {
       const span = max - min;
+      if (riskDirection === "low") return { warning: min + span * 0.6, critical: min + span * 0.4 };
+      if (riskDirection === "outside") return { warning: min + span * 0.25, critical: min + span * 0.75 };
       if (unit === "celsius" || unit === "amp" || unit === "dB" || unit === "accMS2") {
         return { warning: min + span * 0.75, critical: min + span * 0.9 };
       }
       return { warning: min + span * 0.8, critical: max };
     }
 
+    function syncMobileCreateState() {
+      const mobileCreate = document.querySelector('.mobile-nav [data-action="create"]');
+      if (mobileCreate) mobileCreate.disabled = $("create").disabled;
+    }
+
     function updateCreateState() {
       $("create").disabled = !state.proposal || validatePanels().length > 0;
+      syncMobileCreateState();
       $("printProposal").disabled = !state.proposal || !state.panels.length;
       $("buildReplacementPlan").disabled = !state.panels.length || !state.datasources.length;
       $("discardDraft").disabled = !state.proposal && !readSavedDraft();
+    }
+
+    function navigateToSection(targetId) {
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.setTimeout(() => target.focus({ preventScroll: true }), 250);
     }
 
     function previewSize(panel) {
@@ -1529,7 +1696,7 @@
         el.innerHTML = `
           <div class="preview-title">${escapeHtml(panel.title || `Panel ${index + 1}`)}</div>
           <div class="preview-body">${renderPanelVisualization(panel)}</div>
-          <div class="preview-meta">${escapeHtml(panel.visualization)} / W:${escapeHtml(panel.warningThreshold ?? "")} / C:${escapeHtml(panel.criticalThreshold ?? "")}</div>
+          <div class="preview-meta">${escapeHtml(panel.visualization)} / ${escapeHtml(panel.riskDirection || "high")} / W:${escapeHtml(panel.warningThreshold ?? "")} / C:${escapeHtml(panel.criticalThreshold ?? "")}</div>
         `;
         board.appendChild(el);
       });
@@ -1575,8 +1742,10 @@
       visiblePanels.forEach(({ panel, index }) => {
         const card = document.createElement("article");
         const errors = panelValidationErrors(panel, index);
+        const fieldId = (key) => `panel-${index}-${key}`;
+        const errorId = `panel-${index}-errors`;
         const validationHtml = errors.length
-          ? `<ul class="validation-list">${errors.map((error) => `<li>${escapeHtml(error)}</li>`).join("")}</ul>`
+          ? `<ul id="${errorId}" class="validation-list">${errors.map((error) => `<li>${escapeHtml(error)}</li>`).join("")}</ul>`
           : "";
         card.className = "panel-card";
         card.dataset.panelIndex = String(index);
@@ -1591,12 +1760,12 @@
             </div>
           </div>
           ${validationHtml}
-          <label>パネル名</label>
-          <input data-key="title" value="${escapeHtml(panel.title)}" maxlength="80">
+          <label for="${fieldId("title")}">パネル名</label>
+          <input id="${fieldId("title")}" data-key="title" value="${escapeHtml(panel.title)}" maxlength="80">
           <div class="meta">
             <div>
-              <label>可視化</label>
-              <select data-key="visualization">
+              <label for="${fieldId("visualization")}">可視化</label>
+              <select id="${fieldId("visualization")}" data-key="visualization">
                 ${option("timeseries", "時系列", panel.visualization)}
                 ${option("stat", "Stat", panel.visualization)}
                 ${option("gauge", "Gauge", panel.visualization)}
@@ -1605,12 +1774,12 @@
               </select>
             </div>
             <div>
-              <label>単位</label>
-              <input data-key="unit" value="${escapeHtml(panel.unit)}" maxlength="32">
+              <label for="${fieldId("unit")}">単位</label>
+              <input id="${fieldId("unit")}" data-key="unit" value="${escapeHtml(panel.unit)}" maxlength="32">
             </div>
             <div>
-              <label>最新値のみ</label>
-              <select data-key="latestOnly">
+              <label for="${fieldId("latestOnly")}">最新値のみ</label>
+              <select id="${fieldId("latestOnly")}" data-key="latestOnly">
                 ${option("false", "いいえ", String(Boolean(panel.latestOnly)))}
                 ${option("true", "はい", String(Boolean(panel.latestOnly)))}
               </select>
@@ -1618,27 +1787,40 @@
           </div>
           <div class="meta two">
             <div>
-              <label>最小値</label>
-              <input type="number" step="any" data-key="min" value="${panel.min}">
+              <label for="${fieldId("min")}">最小値</label>
+              <input id="${fieldId("min")}" type="number" step="any" data-key="min" value="${panel.min}">
             </div>
             <div>
-              <label>最大値</label>
-              <input type="number" step="any" data-key="max" value="${panel.max}">
+              <label for="${fieldId("max")}">最大値</label>
+              <input id="${fieldId("max")}" type="number" step="any" data-key="max" value="${panel.max}">
             </div>
           </div>
+          <label for="${fieldId("riskDirection")}">異常方向</label>
+          <select id="${fieldId("riskDirection")}" data-key="riskDirection">
+            ${option("high", "上限超過が異常", panel.riskDirection || "high")}
+            ${option("low", "下限割れが異常", panel.riskDirection || "high")}
+            ${option("outside", "範囲外が異常", panel.riskDirection || "high")}
+          </select>
           <div class="meta two">
             <div>
-              <label>Warning 閾値</label>
-              <input type="number" step="any" data-key="warningThreshold" value="${panel.warningThreshold ?? ""}">
+              <label for="${fieldId("warningThreshold")}">Warning 閾値</label>
+              <input id="${fieldId("warningThreshold")}" type="number" step="any" data-key="warningThreshold" value="${panel.warningThreshold ?? ""}">
             </div>
             <div>
-              <label>Critical 閾値</label>
-              <input type="number" step="any" data-key="criticalThreshold" value="${panel.criticalThreshold ?? ""}">
+              <label for="${fieldId("criticalThreshold")}">Critical 閾値</label>
+              <input id="${fieldId("criticalThreshold")}" type="number" step="any" data-key="criticalThreshold" value="${panel.criticalThreshold ?? ""}">
             </div>
           </div>
-          <label>目的</label>
-          <textarea data-key="purpose" maxlength="160">${escapeHtml(panel.purpose || "")}</textarea>
+          <label for="${fieldId("purpose")}">目的</label>
+          <textarea id="${fieldId("purpose")}" data-key="purpose" maxlength="160">${escapeHtml(panel.purpose || "")}</textarea>
         `;
+
+        if (errors.length) {
+          card.querySelectorAll("[data-key]").forEach((field) => {
+            field.setAttribute("aria-invalid", "true");
+            field.setAttribute("aria-describedby", errorId);
+          });
+        }
 
         card.querySelector(".delete-panel").addEventListener("click", () => deletePanel(index));
 
@@ -1789,6 +1971,22 @@
       ].some((value) => String(value || "").toLowerCase().includes(query)));
     }
 
+    function dashboardHistoryResult(row) {
+      const message = String(row.message || "").toLowerCase();
+      if (message.includes("overwrite=true")) return "上書き";
+      if (message.includes("created")) return "新規作成";
+      return "作成済み";
+    }
+
+    function dashboardHistoryTime(value) {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? "日時不明" : date.toLocaleString();
+    }
+
+    function dashboardHistoryUrl(value) {
+      return configuredGrafanaUrl(value);
+    }
+
     function renderDashboardHistory(rows) {
       const root = $("dashboardHistory");
       const visibleRows = rows || filteredDashboardHistoryRows();
@@ -1799,21 +1997,28 @@
         return;
       }
       root.innerHTML = visibleRows.map((row) => `
-        <div class="history-item">
-          <strong>${escapeHtml(row.dashboardTitle || row.dashboardUid || "Untitled")}</strong>
-          <div>${escapeHtml(row.projectLabel || row.industry || "")} / ${escapeHtml(row.dashboardType || "")}</div>
-          <div>${escapeHtml(new Date(row.time).toLocaleString())}</div>
-          <div class="history-meta">
-            UID: ${escapeHtml(row.dashboardUid || "-")}
-            ${row.folderUid ? ` / Folder: ${escapeHtml(row.folderUid)}` : ""}
-            ${row.actor ? ` / Actor: ${escapeHtml(row.actor)}` : ""}
-            ${row.salesOwner ? ` / Sales: ${escapeHtml(row.salesOwner)}` : ""}
+        <article class="history-item">
+          <header class="history-header">
+            <strong class="history-title">${escapeHtml(row.dashboardTitle || row.dashboardUid || "Untitled")}</strong>
+            <span class="history-result">${escapeHtml(dashboardHistoryResult(row))}</span>
+          </header>
+          <div class="history-context">${escapeHtml(row.projectLabel || row.industry || "未分類")} / ${escapeHtml(row.dashboardType || "種別なし")}</div>
+          <div class="history-time">${escapeHtml(dashboardHistoryTime(row.time))}</div>
+          <div class="history-details">
+            <div class="history-detail">
+              <span class="history-detail-label">UID</span>
+              <span class="history-detail-value">${escapeHtml(row.dashboardUid || "-")}</span>
+            </div>
+            ${row.folderUid ? `<div class="history-detail"><span class="history-detail-label">Folder</span><span class="history-detail-value">${escapeHtml(row.folderUid)}</span></div>` : ""}
+            ${row.actor ? `<div class="history-detail"><span class="history-detail-label">作成者</span><span class="history-detail-value">${escapeHtml(row.actor)}</span></div>` : ""}
+            ${row.salesOwner ? `<div class="history-detail"><span class="history-detail-label">営業</span><span class="history-detail-value">${escapeHtml(row.salesOwner)}</span></div>` : ""}
           </div>
           <div class="history-actions">
-            <a href="${escapeHtml(row.dashboardUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(row.dashboardUrl)}</a>
-            <span class="history-source">${escapeHtml(row.message || "")}</span>
+            ${dashboardHistoryUrl(row.dashboardUrl)
+              ? `<a class="history-open-link" href="${escapeHtml(dashboardHistoryUrl(row.dashboardUrl))}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(row.dashboardTitle || row.dashboardUid || "ダッシュボード")}をGrafanaで開く">Grafanaで開く</a>`
+              : '<span class="history-source">URLを利用できません</span>'}
           </div>
-        </div>
+        </article>
       `).join("");
     }
 
@@ -2019,6 +2224,7 @@
         const sourceLabel = proposal.source === "ai" ? "AI生成" : proposal.source === "fallback" ? "汎用テンプレート" : "既知業種テンプレート";
         const warning = proposal.warning ? `\n${proposal.warning}` : "";
         setStatus(`パネル案を作成しました。方式: ${sourceLabel}\n内容を編集してから作成できます。${warning}`, proposal.warning ? "error" : "ok");
+        if (window.matchMedia("(max-width: 840px)").matches) navigateToSection("previewSection");
       } catch (error) {
         setStatus(error.message, "error");
       } finally {
@@ -2044,6 +2250,7 @@
         max: 100,
         warningThreshold: 80,
         criticalThreshold: 95,
+        riskDirection: "high",
         purpose: "追加センサーの推移を監視",
         latestOnly: false
       });
@@ -2197,12 +2404,16 @@
       $("create").disabled = true;
       setStatus("Grafana Cloud にダッシュボードを作成しています...");
       try {
-        const result = await api("/api/create-dashboard", {
+        const createPayload = {
           industry: $("industry").value.trim(),
           dashboardType: $("dashboardType").value,
           folderUid: $("folderUid").value,
           panels: state.panels,
           overwrite: $("overwriteDashboard").checked
+        };
+        const idempotencyKey = await createIdempotencyKey(createPayload);
+        const result = await api("/api/create-dashboard", createPayload, API_TIMEOUT_MS, {
+          "Idempotency-Key": idempotencyKey
         });
         const label = state.proposal.dashboardType === "iot" ? "IoTデバイス監視ダッシュボード" : "保全用ダッシュボード";
         const status = $("status");
@@ -2235,6 +2446,17 @@
       renderMeta();
       renderPreview();
       scheduleDraftSave();
+    });
+
+    document.querySelectorAll('.mobile-nav [data-target]').forEach((button) => {
+      button.addEventListener("click", () => navigateToSection(button.dataset.target));
+    });
+    document.querySelector('.mobile-nav [data-action="create"]').addEventListener("click", () => {
+      if (!$("create").disabled) $("create").click();
+    });
+    new MutationObserver(syncMobileCreateState).observe($("create"), {
+      attributes: true,
+      attributeFilter: ["disabled"]
     });
 
     ["industry", "dashboardType", "projectLabel", "salesOwner", "overwriteDashboard"].forEach((id) => {

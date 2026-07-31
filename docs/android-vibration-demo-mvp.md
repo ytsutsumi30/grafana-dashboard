@@ -59,6 +59,8 @@ Register the displayed SHA-1 in Google Auth Platform before testing the Android 
 
 ### Cloud Run API
 
+Use the `SERVICE_ROLE=public` Cloud Run service (`grafana-sensor-api`) for Android transmission and Grafana reads. The admin dashboard-builder service intentionally returns 404 for `POST /api/mobile-sensor` and monitoring GET routes. Enter the promoted public service URL in the Android app's API URL field.
+
 Endpoints:
 
 ```text
@@ -123,18 +125,26 @@ Panels:
 
 ```json
 {
+  "eventId": "sensor-event-0001",
   "deviceId": "android-demo-001",
   "timestamp": "2026-06-29T10:00:00Z",
   "accelX": 0.12,
   "accelY": -0.03,
   "accelZ": 9.81,
   "accelMagnitude": 9.82,
+  "peakMagnitude": 10.14,
+  "sampleCount": 24,
+  "aggregationWindowMs": 480,
   "shock": false,
   "tapCount": 0,
   "batteryPercent": 83,
   "status": "ONLINE"
 }
 ```
+
+`eventId` は8-128文字の安全なASCII識別子とする。同じ `eventId` と同じpayloadを再送した場合、APIは `duplicate: true` を返して履歴へ重複保存しない。
+
+Androidアプリは送信間隔内の加速度を集約し、平均XYZ、RMS magnitude、peak magnitude、sample count、shock ORを1イベントとして送信する。送信前に最大1,000件の永続FIFOへ保存し、HTTP 2xxを受けたイベントだけ削除する。通信失敗時は1秒から最大60秒まで指数バックオフし、アプリ再起動後もキューを復元する。再送には同じ `eventId` を使用する。
 
 ## Setup
 
@@ -166,6 +176,8 @@ C:\Users\tsuts\AndroidStudioProjects\helloworld\gradlew.bat `
   -p "C:\Users\tsuts\OneDrive\...\Grafana\mobile\android-vibration-demo" `
   assembleDebug
 ```
+
+OneDriveやDBCSを含むパスでGradle生成先がロックされる場合は、`ANDROID_DEMO_BUILD_DIR` にASCIIの一時パスを指定する。
 
 Debug APK output:
 
@@ -263,8 +275,10 @@ The diagnosis is for demo and maintenance assistance. It does not confirm an act
 
 ## MVP limits
 
-- Data is stored in Cloud Run memory only.
-- Data can be lost when Cloud Run restarts.
+- By default, data is stored in Cloud Run memory only and can be lost on restart.
+- With `FIRESTORE_SENSOR_ENABLED=true`, accepted events are stored by `eventId`; history, latest values, Grafana JSON reads, and AI analysis survive restarts and scale-out.
+- Persistent write failures return HTTP 503 so the Android offline queue retries. Persistent read failures fall back to the current instance memory and expose a warning in JSON responses.
+- The default retention is seven days. Configure Firestore TTL on `expiresAt` for `mobile_sensor_points` and `mobile_sensor_latest`.
 - The dashboard is for a live sales demo, not long-term storage.
 - The AI diagnosis is an assistance feature based on simple statistics and generated comments.
 - For production, replace memory storage with Grafana Cloud Metrics, InfluxDB, BigQuery, or another time-series store.

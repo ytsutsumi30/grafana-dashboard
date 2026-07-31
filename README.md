@@ -227,12 +227,25 @@ chmod +x scripts/setup-power-monitoring-dashboard-cloud.sh
 
 - `/api/health` で Grafana Cloud への接続を確認
 - `uid=testdata` の TestData datasource がなければ作成
-- `dashboards/power-monitoring-dashboard.json` を `/api/dashboards/db` に `overwrite: true` で投入
+- TestDataの相対時刻トークンを投入時点のUTC日時へ変換
+- 対象UIDが既に存在する場合は停止し、静的JSONを既定の `overwrite: false` で投入
 - `/api/dashboards/uid/power-monitoring-demo` で作成結果を確認
+
+既存ダッシュボードを意図的に更新する場合だけ、次を設定して再実行します。
+
+```bash
+export OVERWRITE_DASHBOARD=true
+```
 
 完了後のURL:
 
 https://ytsutsumi30.grafana.net/d/power-monitoring-demo/power-monitoring-iot-demo
+
+時系列CSVを含む静的ダッシュボードJSONでは固定日時を使用していないため、Grafana APIへ直接送信せず、対応するセットアップスクリプトまたは次の実体化コマンドを使用します。
+
+```powershell
+node .\scripts\materialize-dashboard-json.js .\dashboards\power-monitoring-dashboard.json
+```
 
 ## Grafana MCP を使う場合
 
@@ -474,10 +487,21 @@ https://ytsutsumi30.grafana.net/d/<業種slug>-iot-monitoring-demo/<業種slug>-
 
 ```text
 Browser
-  -> Cloud Run: Grafana dashboard proposal UI
-  -> Grafana Cloud HTTP API
-  -> Vertex AI Gemini（未知業種のパネル案生成時のみ）
+  -> Cloud Run admin service: dashboard proposal UI / AI / Grafana write
+Android + Grafana Infinity
+  -> Cloud Run public service: sensor ingest / monitoring read
+Both Cloud Run services
+  -> Firestore: sensor data / idempotency
 ```
+
+Cloud Runでは同じコンテナを2サービスへ分離します。
+
+| Service | `SERVICE_ROLE` | 主な経路 | Secret/IAM |
+| --- | --- | --- | --- |
+| `grafana-dashboard-builder` | `admin` | UI、AI、Grafana作成、デモ生成・reset | Grafana token、必要時Vertex AI、Firestore |
+| `grafana-sensor-api` | `public` | Android `POST /api/mobile-sensor`、Grafana向けGET | Firestoreのみ。Grafana/OpenAI secretは禁止 |
+
+Cloud Run上の`combined` roleは起動時に拒否されます。publicサービスはGrafanaから匿名GETできるtransport設定にしつつ、Android POSTはGoogle OIDCで認証します。adminサービスではpublic監視APIを、publicサービスでは静的UIと管理APIを404にします。
 
 Cloud Run では以下を Secret Manager 経由で渡してください。
 
@@ -502,14 +526,39 @@ $appPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropS
 $appPlain | gcloud secrets versions add grafana-dashboard-builder-access-token --data-file=-
 ```
 
-デプロイします。通常は認証ありで運用してください。
+デプロイします。通常は認証ありで運用してください。スクリプトはArtifact Registryへ固有タグでビルドし、解決したimage digestを固定して、既定では本番トラフィックを変更しない候補revisionを作成します。
+
+admin候補:
 
 ```powershell
 .\scripts\deploy-cloud-run.ps1 `
   -ProjectId "<GCP Project ID>" `
   -Region "asia-northeast1" `
-  -AiProvider "vertex"
+  -ServiceName "grafana-dashboard-builder" `
+  -ServiceRole admin `
+  -AppAccessTokenSecret "grafana-dashboard-builder-access-token" `
+  -AiProvider "vertex" `
+  -ServiceAccount "grafana-dashboard-builder-run@<GCP Project ID>.iam.gserviceaccount.com"
 ```
+
+public候補:
+
+```powershell
+.\scripts\deploy-cloud-run.ps1 `
+  -ProjectId "<GCP Project ID>" `
+  -Region "asia-northeast1" `
+  -ServiceName "grafana-sensor-api" `
+  -ServiceRole public `
+  -AppAuthMode google-oidc `
+  -GoogleOidcClientId "<Web OAuth Client ID>" `
+  -GoogleOidcAllowedEmails "<許可メール>" `
+  -EnableFirestoreSensorData `
+  -ServiceAccount "grafana-sensor-api-run@<GCP Project ID>.iam.gserviceaccount.com" `
+  -AllowUnauthenticated `
+  -SkipOpenAiSecret
+```
+
+両候補を検証後、それぞれ出力されたRelease IDとdigestを使って個別に`-Promote`します。Grafanaダッシュボード投入時の`MOBILE_SENSOR_API_BASE_URL`と`SHIPPING_INSPECTION_API_BASE_URL`、Android画面のAPI URLにはpublicサービスの本番URLを設定します。
 
 社内検証などで一時的にURLを知っている人がアクセスできる形にする場合のみ、明示的に公開します。
 
@@ -517,17 +566,37 @@ $appPlain | gcloud secrets versions add grafana-dashboard-builder-access-token -
 .\scripts\deploy-cloud-run.ps1 `
   -ProjectId "<GCP Project ID>" `
   -Region "asia-northeast1" `
+  -ServiceName "grafana-dashboard-builder" `
+  -ServiceRole admin `
   -AppAccessTokenSecret "grafana-dashboard-builder-access-token" `
+  -ServiceAccount "grafana-dashboard-builder-run@<GCP Project ID>.iam.gserviceaccount.com" `
   -AllowUnauthenticated
 ```
 
-Cloud Run のサービスURLが表示されたら、そのURLをブラウザで開きます。
+出力されたCandidate URLで `/api/ping`、認証、主要操作を確認します。確認後だけ、同じリリースを明示的に昇格します。
+
+```powershell
+.\scripts\deploy-cloud-run.ps1 `
+  -ProjectId "<GCP Project ID>" `
+  -Region "asia-northeast1" `
+  -ServiceName "grafana-dashboard-builder" `
+  -ServiceRole admin `
+  -AppAccessTokenSecret "grafana-dashboard-builder-access-token" `
+  -ServiceAccount "grafana-dashboard-builder-run@<GCP Project ID>.iam.gserviceaccount.com" `
+  -AllowUnauthenticated `
+  -ReleaseId "<候補作成時と同じRelease ID>" `
+  -ExpectedImageDigest "sha256:<候補作成時に表示されたdigest>" `
+  -Promote
+```
+
+`-Promote`は既存候補のRelease ID、image digest、candidate tagのrevision紐付けを再検証してからCloud Runトラフィックを100%切り替えるため、人の承認後だけ使用します。通常のデプロイでは`--no-traffic`が使われます。Artifact Repositoryの既定名は`grafana-apps`です。Release IDは衝突防止のため正規化や切り詰めを行わず、不正形式を拒否します。
 
 注意:
 
-- `--allow-unauthenticated` で公開すると、URLを知っている人がGrafana Cloudにダッシュボードを作成できます。
+- `--allow-unauthenticated`はCloud Run transportの公開を意味します。admin操作とAndroid書き込みはアプリ層認証が必要です。
+- 同じ`ReleaseId`の再ビルドは避け、1回の候補検証から昇格まで同じdigestを使ってください。
 - `APP_ACCESS_TOKEN` を設定すると、パネル案作成、フォルダ取得、Grafana作成、AI実行、デモデータ生成には画面のアクセスコード入力が必要になります。
-- Grafana Cloudが読み取る公開JSON APIとAndroidセンサー受信APIは、デモ連携を壊さないためアクセスコード対象外です。
+- publicサービスのGrafana向けGETだけが匿名です。Android `POST /api/mobile-sensor`はGoogle OIDC必須です。
 - 公開GETのAI診断APIは既定でルールベース判定のみを返します。`ai=true` で生成AIを呼ぶ場合はアクセスコードが必要です。
 - `APP_RATE_LIMIT_WINDOW_MS` / `APP_RATE_LIMIT_MAX_REQUESTS` で、AI利用・Grafana作成・デモデータ生成の連打を抑止できます。既定は1分あたり30回です。
 - 本番利用では Cloud Run IAM、IAP、または社内認証付きの経路で保護してください。
@@ -548,6 +617,27 @@ Invoke-RestMethod "https://<Cloud Run URL>/api/runtime-status"
 `/api/ping` はGrafana tokenなしで起動状態だけを確認します。`/api/runtime-status` は秘密情報の値を返さず、Grafana token設定有無、AI provider、レート制限、アプリ内イベント数などを返します。
 
 作成履歴をFirestoreに保存する場合は、Firestore APIとdatabaseを用意し、Cloud RunサービスアカウントにFirestore書き込み権限を付与したうえで、デプロイ時に `-EnableFirestoreHistory` を追加します。
+
+AndroidセンサーデータもFirestoreへ永続化する場合は`-EnableFirestoreSensorData`を追加します。受信イベントは`eventId`単位で保存され、履歴、最新値、Grafana JSON API、AI故障兆候分析が再起動・スケールアウト後も同じデータを参照します。既定保持期間は7日です。
+
+```powershell
+gcloud firestore indexes composite create `
+  --project "<GCP Project ID>" `
+  --collection-group mobile_sensor_points `
+  --field-config field-path=deviceId,order=ascending `
+  --field-config field-path=time,order=descending
+
+gcloud firestore fields ttls update expiresAt `
+  --project "<GCP Project ID>" `
+  --collection-group mobile_sensor_points `
+  --enable-ttl
+gcloud firestore fields ttls update expiresAt `
+  --project "<GCP Project ID>" `
+  --collection-group mobile_sensor_latest `
+  --enable-ttl
+```
+
+永続化有効時にFirestore書き込みが失敗した受信はHTTP 503となり、Androidアプリのオフラインキューが再送します。読み取り障害時はメモリデータへフォールバックし、JSONレスポンスの`source`と`warning`で判別できます。
 
 ## 製造向けデモダッシュボードの作成/更新
 

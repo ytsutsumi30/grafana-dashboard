@@ -1,21 +1,24 @@
 const fs = require("fs");
 const path = require("path");
+const { dashboardUid, prepareDashboardImport } = require("../server/dashboard-import-policy");
 
 const GRAFANA_URL = (process.env.GRAFANA_URL || "https://ytsutsumi30.grafana.net").replace(/\/$/, "");
 const TOKEN = process.env.GRAFANA_SERVICE_ACCOUNT_TOKEN || process.env.GRAFANA_CLOUD_TOKEN || "";
 const API_BASE_URL = (process.env.MOBILE_SENSOR_API_BASE_URL || "https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app").replace(/\/$/, "");
 const DASHBOARD_PATH = path.resolve(__dirname, "../dashboards/android-vibration-sensor-dashboard.json");
+const OVERWRITE_DASHBOARD = String(process.env.OVERWRITE_DASHBOARD || "false").toLowerCase() === "true";
 
 async function grafana(endpoint, options = {}) {
   if (!TOKEN) {
     throw new Error("GRAFANA_SERVICE_ACCOUNT_TOKEN or GRAFANA_CLOUD_TOKEN is not set.");
   }
+  const { allowNotFound = false, ...fetchOptions } = options;
   const response = await fetch(`${GRAFANA_URL}${endpoint}`, {
-    ...options,
+    ...fetchOptions,
     headers: {
       Authorization: `Bearer ${TOKEN}`,
       "Content-Type": "application/json",
-      ...(options.headers || {})
+      ...(fetchOptions.headers || {})
     }
   });
   const text = await response.text();
@@ -25,6 +28,7 @@ async function grafana(endpoint, options = {}) {
   } catch {
     data = { message: text };
   }
+  if (response.status === 404 && allowNotFound) return null;
   if (!response.ok) {
     throw new Error(`${response.status} ${response.statusText}: ${data.message || text}`);
   }
@@ -34,7 +38,10 @@ async function grafana(endpoint, options = {}) {
 async function main() {
   await grafana("/api/health");
   await grafana("/api/datasources/uid/grafanacloud-infinity");
-  const dashboard = JSON.parse(fs.readFileSync(DASHBOARD_PATH, "utf8").replaceAll("__API_BASE_URL__", API_BASE_URL));
+  const source = JSON.parse(fs.readFileSync(DASHBOARD_PATH, "utf8").replaceAll("__API_BASE_URL__", API_BASE_URL));
+  const uid = dashboardUid(source);
+  const exists = Boolean(await grafana(`/api/dashboards/uid/${encodeURIComponent(uid)}`, { allowNotFound: true }));
+  const dashboard = prepareDashboardImport(source, { exists, overwrite: OVERWRITE_DASHBOARD });
   const result = await grafana("/api/dashboards/db", {
     method: "POST",
     body: JSON.stringify(dashboard)

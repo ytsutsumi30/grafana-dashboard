@@ -11,6 +11,7 @@ TOKEN_NAME="${TOKEN_NAME:-codex-grafana-token}"
 DATASOURCE_NAME="${DATASOURCE_NAME:-TestData}"
 DATASOURCE_UID="${DATASOURCE_UID:-testdata}"
 DASHBOARD_JSON="${DASHBOARD_JSON:-$ROOT_DIR/dashboards/ship-sensor-dashboard.json}"
+OVERWRITE_DASHBOARD="${OVERWRITE_DASHBOARD:-false}"
 
 export GRAFANA_PORT
 export GRAFANA_ADMIN_USER
@@ -125,7 +126,19 @@ upsert_testdata_datasource() {
 import_dashboard() {
   local token="$1"
   local response
-  response="$(api_token POST "/api/dashboards/db" "$token" "$(cat "$DASHBOARD_JSON")")"
+  local dashboard_payload
+  local dashboard_uid
+  local overwrite_arg=""
+  dashboard_uid="$(node -e 'const p=require(process.argv[1]); console.log((p.dashboard||p).uid)' "$DASHBOARD_JSON")"
+  if api_token GET "/api/dashboards/uid/$dashboard_uid" "$token" >/dev/null 2>&1; then
+    if [[ "${OVERWRITE_DASHBOARD,,}" != "true" ]]; then
+      echo "ERROR: Dashboard $dashboard_uid already exists. Set OVERWRITE_DASHBOARD=true to update it explicitly." >&2
+      exit 1
+    fi
+    overwrite_arg="--overwrite"
+  fi
+  dashboard_payload="$(node "$ROOT_DIR/scripts/materialize-dashboard-json.js" "$DASHBOARD_JSON" "$overwrite_arg")"
+  response="$(api_token POST "/api/dashboards/db" "$token" "$dashboard_payload")"
   echo "$response" | jq -r '"Dashboard imported: " + .url'
   DASHBOARD_URL="$(jq -r '.url' <<<"$response")"
 }
@@ -134,6 +147,7 @@ main() {
   need_command curl
   need_command jq
   need_command docker
+  need_command node
 
   cd "$ROOT_DIR"
 
