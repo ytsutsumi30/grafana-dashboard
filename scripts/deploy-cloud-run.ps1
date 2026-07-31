@@ -39,6 +39,7 @@ param(
   [string]$ServiceAccount = "",
   [switch]$SkipOpenAiSecret,
   [switch]$AllowUnauthenticated,
+  [switch]$InitialCreate,
   [switch]$Promote,
   [switch]$DryRun
 )
@@ -116,6 +117,9 @@ if ($releaseSuffix.Length -gt $maxSuffixLength -or $releaseSuffix -cnotmatch "^[
 if ($Promote -and $ExpectedImageDigest -notmatch "^sha256:[a-f0-9]{64}$") {
   throw "ExpectedImageDigest in sha256:<64 lowercase hex characters> format is required with -Promote."
 }
+if ($InitialCreate -and $Promote) {
+  throw "InitialCreate cannot be combined with Promote because the first Cloud Run revision receives traffic immediately."
+}
 
 $imageBase = "$Region-docker.pkg.dev/$ProjectId/$ArtifactRepository/$ServiceName"
 $imageTag = "$imageBase`:$releaseSuffix"
@@ -147,7 +151,6 @@ $deployArgs = @(
   "--image", "__IMAGE_DIGEST_REFERENCE__",
   "--project", $ProjectId,
   "--region", $Region,
-  "--no-traffic",
   "--revision-suffix", $releaseSuffix,
   "--tag", $candidateTag,
   "--set-env-vars", $envArgs,
@@ -156,6 +159,9 @@ $deployArgs = @(
   "--max-instances", "3",
   $authFlag
 )
+if (-not $InitialCreate) {
+  $deployArgs += "--no-traffic"
+}
 if ($secretParts.Count -gt 0) {
   $deployArgs += @("--update-secrets", ($secretParts -join ","))
 }
@@ -267,7 +273,11 @@ if ($DryRun) {
     $dryDeployArgs = $deployArgs | ForEach-Object { if ($_ -eq "__IMAGE_DIGEST_REFERENCE__") { "$imageBase@sha256:<resolved-digest>" } else { $_ } }
     Write-Output ("gcloud " + ($dryDeployArgs -join " "))
     Write-Output "Verify revision Ready=True and deployed image digest before any traffic change: $revisionName"
-    Write-Output "Promotion skipped. Re-run with -Promote only after candidate verification."
+    if ($InitialCreate) {
+      Write-Output "Initial service creation receives production traffic immediately; verify every route and remove invoker access if verification fails."
+    } else {
+      Write-Output "Promotion skipped. Re-run with -Promote only after candidate verification."
+    }
   }
   exit 0
 }
@@ -275,6 +285,17 @@ if ($DryRun) {
 gcloud config set project $ProjectId | Out-Host
 
 Assert-PublicServiceAccountLeastPrivilege
+
+if (-not $Promote) {
+  & gcloud run services describe $ServiceName --project $ProjectId --region $Region *> $null
+  $serviceExists = $LASTEXITCODE -eq 0
+  if ($InitialCreate -and $serviceExists) {
+    throw "InitialCreate is only valid when Cloud Run service $ServiceName does not exist."
+  }
+  if (-not $InitialCreate -and -not $serviceExists) {
+    throw "Cloud Run service $ServiceName does not exist. Re-run with -InitialCreate after reviewing that the first revision receives traffic immediately."
+  }
+}
 
 if ($Promote) {
   $candidate = Get-VerifiedCandidateRevision $ExpectedImageDigest
@@ -331,4 +352,8 @@ Test-CandidateEndpoint $candidate.Url
 Write-Output "Candidate revision verified: $revisionName"
 Write-Output "Image: $($candidate.Image)"
 Write-Output "Candidate URL: $($candidate.Url)"
-Write-Output "No production traffic was changed. Re-run with -Promote, ReleaseId $releaseSuffix, and ExpectedImageDigest $imageDigest after reviewing the candidate URL."
+if ($InitialCreate) {
+  Write-Output "Initial service revision is live because Cloud Run cannot create a service with zero traffic. Verify route boundaries immediately."
+} else {
+  Write-Output "No production traffic was changed. Re-run with -Promote, ReleaseId $releaseSuffix, and ExpectedImageDigest $imageDigest after reviewing the candidate URL."
+}

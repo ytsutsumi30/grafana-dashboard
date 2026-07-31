@@ -59,6 +59,7 @@ Deploy the public sensor/monitoring candidate separately:
   -Region asia-northeast1 `
   -ServiceName grafana-sensor-api `
   -ServiceRole public `
+  -InitialCreate `
   -AppAuthMode google-oidc `
   -GoogleOidcClientId '<configured web client ID>' `
   -GoogleOidcAllowedEmails 'y.tsutsumi30@gmail.com' `
@@ -68,7 +69,9 @@ Deploy the public sensor/monitoring candidate separately:
   -AllowUnauthenticated
 ```
 
-The deployment script removes the legacy `APP_ACCESS_TOKEN` binding in OIDC mode and preserves `grafana-service-account-token`. It builds an immutable image, deploys a tagged candidate revision with no production traffic, and prints the candidate URL, Release ID, and image digest. Complete the verification below, then rerun with the same arguments plus the printed `-ReleaseId`, `-ExpectedImageDigest`, and `-Promote`. Promotion verifies that the tag still points to that revision and digest. Traffic promotion is an explicit human approval point.
+The deployment script removes the legacy `APP_ACCESS_TOKEN` binding in OIDC mode and preserves `grafana-service-account-token`. It builds an immutable image and prints the candidate URL, Release ID, and image digest. Existing services receive a tagged candidate revision with no production traffic; complete the verification below, then rerun with the same arguments plus the printed `-ReleaseId`, `-ExpectedImageDigest`, and `-Promote`.
+
+The first `grafana-sensor-api` deployment requires `-InitialCreate`. Cloud Run cannot create a service with zero traffic, so its first revision becomes live immediately. The script rejects this switch when the service already exists. Verify route boundaries, authentication, Firestore persistence, and secret isolation immediately. If verification fails, remove public invoker access or delete the new service and keep Android and Grafana endpoints on the previous combined service.
 
 The service fails closed at startup. A Cloud Run revision will not become ready when authentication is `none`, the OIDC client ID is missing, or both email/domain allowlists are empty. IAP mode uses the same allowlist for the authenticated-user email header. Access-code mode requires an explicit Secret Manager binding.
 

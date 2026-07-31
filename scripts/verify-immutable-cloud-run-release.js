@@ -18,7 +18,7 @@ function findPowerShell() {
   return "";
 }
 
-function invokeDryRun(powerShell, promote, releaseId = "r20260718-abc123") {
+function invokeDryRun(powerShell, promote, releaseId = "r20260718-abc123", initialCreate = false) {
   const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), "fake-gcloud-"));
   const fakeName = process.platform === "win32" ? "gcloud.cmd" : "gcloud";
   const fakePath = path.join(fakeBin, fakeName);
@@ -37,6 +37,7 @@ function invokeDryRun(powerShell, promote, releaseId = "r20260718-abc123") {
   if (promote) {
     args.push("-ExpectedImageDigest", `sha256:${"a".repeat(64)}`, "-Promote");
   }
+  if (initialCreate) args.push("-InitialCreate");
   const result = spawnSync(powerShell, args, {
     cwd: repoRoot,
     env: { ...process.env, PATH: `${fakeBin}${path.delimiter}${process.env.PATH || ""}` },
@@ -75,6 +76,11 @@ if (powerShell) {
   assert.doesNotMatch(candidateOnly, /gcloud run services update-traffic/);
   assert.doesNotMatch(candidateOnly, /--source/);
 
+  const initialCreate = invokeDryRun(powerShell, false, "r20260718-first01", true);
+  assert.strictEqual(initialCreate.status, 0, initialCreate.stderr || initialCreate.stdout);
+  assert.doesNotMatch(initialCreate.stdout, /--no-traffic/);
+  assert.match(initialCreate.stdout, /receives production traffic immediately/);
+
   const promoted = dryRun(powerShell, true);
   assert.match(promoted, /gcloud run services update-traffic grafana-test --to-revisions grafana-test-r20260718-abc123=100/);
   assert.match(promoted, new RegExp(`Verify existing revision Ready=True, image digest sha256:${"a".repeat(64)}`));
@@ -85,6 +91,8 @@ if (powerShell) {
   assert.notStrictEqual(normalizedCollision.status, 0, "Lossy ReleaseId normalization must be rejected.");
   const truncatedCollision = invokeDryRun(powerShell, false, `release-${"x".repeat(50)}`);
   assert.notStrictEqual(truncatedCollision.status, 0, "Overlong ReleaseId truncation must be rejected.");
+  const initialPromotion = invokeDryRun(powerShell, true, "r20260718-first02", true);
+  assert.notStrictEqual(initialPromotion.status, 0, "InitialCreate must not be combined with Promote.");
 }
 
 console.log("OK Cloud Run releases use verified immutable image digests and explicit promotion.");
