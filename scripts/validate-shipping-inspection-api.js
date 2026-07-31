@@ -1,4 +1,4 @@
-const API_BASE_URL = (process.env.SHIPPING_INSPECTION_API_BASE_URL || "https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app").replace(/\/$/, "");
+const API_BASE_URL = (process.env.SHIPPING_INSPECTION_API_BASE_URL || "").replace(/\/$/, "");
 
 const timestampFields = new Set(["event_date", "last_counted_at", "updated_at"]);
 
@@ -128,6 +128,9 @@ async function validateContract(contract) {
 }
 
 async function main() {
+  if (!API_BASE_URL) {
+    throw new Error("SHIPPING_INSPECTION_API_BASE_URL is not set.");
+  }
   console.log(`Validating shipping inspection API: ${API_BASE_URL}`);
   const results = [];
   for (const contract of contracts) {

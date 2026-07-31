@@ -411,14 +411,14 @@ Android実機がない場合は、ブラウザUIの `デモ波形生成` から 
 ```powershell
 $env:GRAFANA_URL="https://ytsutsumi30.grafana.net"
 $env:GRAFANA_SERVICE_ACCOUNT_TOKEN=[Environment]::GetEnvironmentVariable("GRAFANA_SERVICE_ACCOUNT_TOKEN","User")
-$env:SHIPPING_INSPECTION_API_BASE_URL="https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app"
+$env:SHIPPING_INSPECTION_API_BASE_URL="https://grafana-sensor-api-pjvjufzh3q-an.a.run.app"
 node scripts/setup-shipping-inspection-dashboard.js
 ```
 
 API契約の検証:
 
 ```powershell
-$env:SHIPPING_INSPECTION_API_BASE_URL="https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app"
+$env:SHIPPING_INSPECTION_API_BASE_URL="https://grafana-sensor-api-pjvjufzh3q-an.a.run.app"
 node scripts/validate-shipping-inspection-api.js
 ```
 

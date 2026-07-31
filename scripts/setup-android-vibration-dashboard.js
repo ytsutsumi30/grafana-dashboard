@@ -4,7 +4,7 @@ const { dashboardUid, prepareDashboardImport } = require("../server/dashboard-im
 
 const GRAFANA_URL = (process.env.GRAFANA_URL || "https://ytsutsumi30.grafana.net").replace(/\/$/, "");
 const TOKEN = process.env.GRAFANA_SERVICE_ACCOUNT_TOKEN || process.env.GRAFANA_CLOUD_TOKEN || "";
-const API_BASE_URL = (process.env.MOBILE_SENSOR_API_BASE_URL || "https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app").replace(/\/$/, "");
+const API_BASE_URL = (process.env.MOBILE_SENSOR_API_BASE_URL || "").replace(/\/$/, "");
 const DASHBOARD_PATH = path.resolve(__dirname, "../dashboards/android-vibration-sensor-dashboard.json");
 const OVERWRITE_DASHBOARD = String(process.env.OVERWRITE_DASHBOARD || "false").toLowerCase() === "true";
 
@@ -36,6 +36,9 @@ async function grafana(endpoint, options = {}) {
 }
 
 async function main() {
+  if (!API_BASE_URL) {
+    throw new Error("MOBILE_SENSOR_API_BASE_URL is not set.");
+  }
   await grafana("/api/health");
   await grafana("/api/datasources/uid/grafanacloud-infinity");
   const source = JSON.parse(fs.readFileSync(DASHBOARD_PATH, "utf8").replaceAll("__API_BASE_URL__", API_BASE_URL));

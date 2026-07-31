@@ -153,7 +153,7 @@ Deploy the Cloud Run app first. Then create the Grafana dashboard.
 ```powershell
 $env:GRAFANA_URL="https://ytsutsumi30.grafana.net"
 $env:GRAFANA_SERVICE_ACCOUNT_TOKEN=[Environment]::GetEnvironmentVariable("GRAFANA_SERVICE_ACCOUNT_TOKEN","User")
-$env:MOBILE_SENSOR_API_BASE_URL="https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app"
+$env:MOBILE_SENSOR_API_BASE_URL="https://grafana-sensor-api-pjvjufzh3q-an.a.run.app"
 node scripts/setup-android-vibration-dashboard.js
 ```
 
@@ -174,6 +174,7 @@ $env:ANDROID_HOME="C:\Users\tsuts\AppData\Local\Android\Sdk"
 $env:ANDROID_SDK_ROOT="C:\Users\tsuts\AppData\Local\Android\Sdk"
 C:\Users\tsuts\AndroidStudioProjects\helloworld\gradlew.bat `
   -p "C:\Users\tsuts\OneDrive\...\Grafana\mobile\android-vibration-demo" `
+  -PsensorApiUrl="https://grafana-sensor-api-pjvjufzh3q-an.a.run.app/api/mobile-sensor" `
   assembleDebug
 ```
 
@@ -185,10 +186,10 @@ Debug APK output:
 mobile/android-vibration-demo/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Default API URL:
+Configured public API URL:
 
 ```text
-https://grafana-dashboard-builder-577010681495.asia-northeast1.run.app/api/mobile-sensor
+https://grafana-sensor-api-pjvjufzh3q-an.a.run.app/api/mobile-sensor
 ```
 
 ## Demo flow
