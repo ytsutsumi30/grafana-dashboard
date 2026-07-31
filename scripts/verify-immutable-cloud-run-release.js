@@ -62,6 +62,8 @@ assert.match(source, /deployedImage\.EndsWith/);
 assert.match(source, /if \(\$Promote\)/);
 assert.match(source, /ExpectedImageDigest/);
 assert.match(source, /candidateTraffic\.revisionName/);
+assert.match(source, /46 - \$ServiceName\.Length - 2/);
+assert.match(source, /\$candidateTag = "c-\$releaseSuffix"/);
 assert.doesNotMatch(source, /ReleaseId\.ToLowerInvariant/);
 assert.doesNotMatch(source, /releaseSuffix\.Substring/);
 

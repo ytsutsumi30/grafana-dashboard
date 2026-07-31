@@ -106,7 +106,9 @@ if (-not $ReleaseId) {
   }
   $ReleaseId = "r$((Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss'))-$gitSha"
 }
-$maxSuffixLength = [Math]::Min(36, 62 - $ServiceName.Length)
+$maxRevisionSuffixLength = [Math]::Min(36, 62 - $ServiceName.Length)
+$maxTrafficTagSuffixLength = 46 - $ServiceName.Length - 2 # c-<release-id>
+$maxSuffixLength = [Math]::Min($maxRevisionSuffixLength, $maxTrafficTagSuffixLength)
 if ($maxSuffixLength -lt 1) {
   throw "ReleaseId and ServiceName cannot produce a valid Cloud Run revision name."
 }
@@ -124,7 +126,7 @@ if ($InitialCreate -and $Promote) {
 $imageBase = "$Region-docker.pkg.dev/$ProjectId/$ArtifactRepository/$ServiceName"
 $imageTag = "$imageBase`:$releaseSuffix"
 $revisionName = "$ServiceName-$releaseSuffix"
-$candidateTag = "candidate-$releaseSuffix"
+$candidateTag = "c-$releaseSuffix"
 
 $authFlag = if ($EnableIap) { "--no-allow-unauthenticated" } elseif ($AllowUnauthenticated) { "--allow-unauthenticated" } else { "--no-allow-unauthenticated" }
 $secretParts = @()
