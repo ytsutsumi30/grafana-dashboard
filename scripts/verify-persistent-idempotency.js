@@ -127,6 +127,7 @@ async function main() {
       APP_AUTH_MODE: "access-code",
       APP_ACCESS_TOKEN: "test-access-code",
       GRAFANA_URL: upstreamUrl,
+      GRAFANA_SERVICE_ACCOUNT_TOKEN: "test-grafana-token",
       FIRESTORE_PROJECT: "test-project",
       FIRESTORE_API_ORIGIN: upstreamUrl,
       GOOGLE_OAUTH_ACCESS_TOKEN: "test-google-token",
