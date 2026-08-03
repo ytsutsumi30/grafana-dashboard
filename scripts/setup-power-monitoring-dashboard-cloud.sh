@@ -6,6 +6,7 @@ DASHBOARD_JSON="${DASHBOARD_JSON:-$ROOT_DIR/dashboards/power-monitoring-dashboar
 DATASOURCE_UID="${DATASOURCE_UID:-testdata}"
 DATASOURCE_NAME="${DATASOURCE_NAME:-TestData}"
 DASHBOARD_UID="${DASHBOARD_UID:-power-monitoring-demo}"
+OVERWRITE_DASHBOARD="${OVERWRITE_DASHBOARD:-false}"
 
 require_env() {
   local name="$1"
@@ -61,7 +62,16 @@ JSON
 fi
 
 echo "Uploading dashboard: $DASHBOARD_UID"
-api POST "/api/dashboards/db" --data-binary "@$DASHBOARD_JSON" >/dev/null
+overwrite_arg=""
+if api GET "/api/dashboards/uid/$DASHBOARD_UID" >/dev/null 2>&1; then
+  if [[ "${OVERWRITE_DASHBOARD,,}" != "true" ]]; then
+    echo "ERROR: Dashboard $DASHBOARD_UID already exists. Set OVERWRITE_DASHBOARD=true to update it explicitly." >&2
+    exit 1
+  fi
+  overwrite_arg="--overwrite"
+fi
+node "$ROOT_DIR/scripts/materialize-dashboard-json.js" "$DASHBOARD_JSON" "$overwrite_arg" |
+  api POST "/api/dashboards/db" --data-binary @- >/dev/null
 
 echo "Verifying dashboard..."
 api GET "/api/dashboards/uid/$DASHBOARD_UID" >/dev/null

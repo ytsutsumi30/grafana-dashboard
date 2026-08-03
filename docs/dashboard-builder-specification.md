@@ -24,9 +24,12 @@
 
 ```text
 Browser
-  -> Cloud Run / ローカルNode.jsサーバー
+  -> Cloud Run admin service / ローカルNode.jsサーバー
       -> Grafana Cloud HTTP API
       -> Vertex AI Gemini
+Android / Grafana Infinity
+  -> Cloud Run public service
+      -> Firestore sensor collections
 ```
 
 ### 4.1 フロントエンド
@@ -54,20 +57,29 @@ Browser
 | --- | --- | --- | --- |
 | `PORT` | 任意 | `4173` | HTTPサーバーのポート |
 | `HOST` | 任意 | `0.0.0.0` | HTTPサーバーの待ち受けアドレス |
+| `SERVICE_ROLE` | Cloud Runで必須 | ローカルは`combined` | `admin` / `public` / ローカル互換`combined`のAPI境界 |
 | `GRAFANA_URL` | 必須 | `https://ytsutsumi30.grafana.net` | Grafana Cloud URL |
 | `GRAFANA_SERVICE_ACCOUNT_TOKEN` | 必須 | なし | Grafana Cloud API呼び出し用トークン |
 | `GRAFANA_CLOUD_TOKEN` | 任意 | なし | 代替のGrafana Cloud APIトークン |
 | `APP_AUTH_MODE` | 任意 | `access-code` または `none` | `access-code` / `google-oidc` / `iap` / `none` |
 | `APP_ACCESS_TOKEN` | 任意 | なし | `access-code`互換モードのUI操作API保護用 |
 | `GOOGLE_OIDC_CLIENT_ID` | `google-oidc`時は必須 | なし | Google Web OAuthクライアントID |
-| `GOOGLE_OIDC_ALLOWED_EMAILS` | 任意 | なし | セミコロン区切りの許可メールアドレス |
-| `GOOGLE_OIDC_ALLOWED_DOMAINS` | 任意 | なし | セミコロン区切りの許可ドメイン |
+| `GOOGLE_OIDC_ALLOWED_EMAILS` | OIDC/IAP時はいずれか必須 | なし | セミコロン区切りの許可メールアドレス |
+| `GOOGLE_OIDC_ALLOWED_DOMAINS` | OIDC/IAP時はいずれか必須 | なし | セミコロン区切りの許可ドメイン |
 | `APP_RATE_LIMIT_WINDOW_MS` | 任意 | `60000` | 書き込み・AI系APIのレート制限時間窓 |
 | `APP_RATE_LIMIT_MAX_REQUESTS` | 任意 | `30` | 時間窓あたりの最大リクエスト数。`0` 以下で無効 |
+| `OUTBOUND_API_TIMEOUT_MS` | 任意 | `15000` | 外部HTTP APIの既定タイムアウト |
+| `GRAFANA_API_TIMEOUT_MS` | 任意 | `15000` | Grafana HTTP APIのタイムアウト |
+| `AI_API_TIMEOUT_MS` | 任意 | `45000` | Vertex AI / OpenAI APIのタイムアウト |
 | `FIRESTORE_HISTORY_ENABLED` | 任意 | `false` | 作成履歴をFirestoreへ保存するか |
 | `FIRESTORE_PROJECT` | 任意 | `VERTEX_AI_PROJECT` | FirestoreのGCP Project ID |
 | `FIRESTORE_DATABASE` | 任意 | `(default)` | Firestore database ID |
 | `FIRESTORE_HISTORY_COLLECTION` | 任意 | `dashboard_creation_history` | 作成履歴コレクション名 |
+| `FIRESTORE_IDEMPOTENCY_COLLECTION` | 任意 | `api_idempotency` | Cloud Runインスタンス間の冪等性台帳コレクション |
+| `FIRESTORE_SENSOR_ENABLED` | 任意 | `false` | AndroidセンサーイベントをFirestoreへ永続化するか |
+| `FIRESTORE_SENSOR_COLLECTION` | 任意 | `mobile_sensor_points` | センサー履歴コレクション |
+| `FIRESTORE_SENSOR_LATEST_COLLECTION` | 任意 | `mobile_sensor_latest` | デバイス最新値コレクション |
+| `FIRESTORE_SENSOR_RETENTION_DAYS` | 任意 | `7` | `expiresAt`に設定する保持日数（1-365日） |
 | `AI_PROVIDER` | 任意 | `vertex` | `vertex` または `openai` |
 | `VERTEX_AI_PROJECT` | Vertex利用時必須 | なし | Vertex AIを呼び出すGCP Project ID |
 | `VERTEX_AI_LOCATION` | 任意 | `global` | Vertex AIのロケーション |
@@ -75,11 +87,15 @@ Browser
 | `OPENAI_API_KEY` | OpenAI利用時必須 | なし | OpenAI APIを使う場合のAPIキー |
 | `OPENAI_MODEL` | 任意 | `gpt-4.1-mini` | OpenAIを使う場合のモデル |
 | `AI_ANALYSIS_CACHE_TTL_MS` | 任意 | `60000` | センサー故障診断AIコメントのキャッシュ時間 |
+
+Cloud Runでは`SERVICE_ROLE=combined`を起動時に拒否する。`public` roleはGrafana/OpenAI secretが存在する場合も起動を拒否し、Firestoreセンサー永続化を必須とする。
 | `APP_LOG_MAX_EVENTS` | 任意 | `500` | アプリ内イベントログの最大保持件数 |
 
 `GRAFANA_SERVICE_ACCOUNT_TOKEN` と `GRAFANA_CLOUD_TOKEN` の両方が設定されている場合、`GRAFANA_SERVICE_ACCOUNT_TOKEN` を優先する。
 
 `access-code`モードでは、営業UIからのフォルダ取得、パネル案生成、ダッシュボード作成、AI実行、デモデータ生成には `X-App-Access-Token` ヘッダーが必要になる。`google-oidc`モードではGoogle IDトークンを `Authorization: Bearer` へ指定し、サーバーがGoogle署名、発行者、OAuthクライアントID、有効期限、許可条件を検証する。Android送信APIも対象になるため、切替前にAndroidのGoogle Sign-In対応または別のデバイス認証経路を用意する。
+
+認証設定はフェイルクローズとする。Cloud Runでは `APP_AUTH_MODE=none` を禁止し、`access-code`でトークン未設定、`google-oidc`でClient ID未設定、`google-oidc` / `iap`でメール・ドメインallowlist未設定、不明な認証モードの場合はサーバーを起動しない。ローカル開発だけはCloud Run環境変数がなく認証モード未指定の場合に `none` を許可する。
 
 `APP_RATE_LIMIT_WINDOW_MS` と `APP_RATE_LIMIT_MAX_REQUESTS` は、AI利用、Grafana作成、デモデータ生成などの連打を抑止する。PoC向けのCloud Runインスタンス内メモリ制限であり、本番の厳密な制御にはCloud Armor、API Gateway、IAP、または外部ストアを使う。
 
@@ -189,6 +205,10 @@ IoTデバイス監視:
 - 最大値
 - Warning 閾値
 - Critical 閾値
+- 異常方向
+  - `high`: 上限超過が異常
+  - `low`: 下限割れが異常
+  - `outside`: 許容範囲外が異常
 - 目的
 
 また、パネルの追加、複製、削除、削除取り消し、上下移動ができる。パネル数は最大24件とし、上限到達時は追加と複製を無効化する。追加・複製後は対象パネル名へフォーカスして初期値を選択する。削除時は直前の1件と位置を一時保持し、専用の操作帯から元の位置へ復元できる。上下移動は編集済みパネル配列を入れ替え、生成前プレビュー、下書き、Grafana dashboard JSONの順序へ即時反映する。先頭の上移動と末尾の下移動は無効化する。
@@ -207,7 +227,8 @@ UIとサーバーの両方で、Grafana Cloudへ投入する前にパネル案�
 - 可視化方式が `timeseries` / `stat` / `gauge` / `piechart` / `table` のいずれかであること
 - 最小値と最大値が数値であり、最大値が最小値より大きいこと
 - Warning / Critical 閾値が入力されている場合は数値であること
-- 実際に使われるWarning閾値がCritical閾値より小さいこと
+- `high` / `outside` はWarning閾値がCritical閾値より小さいこと
+- `low` はCritical閾値がWarning閾値より小さいこと
 - Warning / Critical 閾値が最小値と最大値の範囲内であること
 
 UIではエラーがあるパネルに検証メッセージを表示し、`Grafana Cloud に作成` ボタンを無効化する。サーバー側でも同じ検証を行い、不正なリクエストはHTTP 400で拒否する。
@@ -747,6 +768,22 @@ TestData datasourceで作成したパネル案を、本番データソースへ�
 
 レスポンスには、パネルごとの対象データソース、想定単位、値範囲、クエリ例、確認点を含む。これはクエリ自動変換ではなく、実データ化前のヒアリング・実装確認用の支援情報である。
 
+### 7.16 API安全性共通仕様
+
+- JSON POSTは `Content-Type: application/json` を必須とする
+- リクエストボディ上限は1,000,000 bytesとし、超過時はHTTP 413を返す
+- 不正JSONはHTTP 400、JSON object以外はHTTP 400を返す
+- 外部HTTPは用途別タイムアウトで中断し、上限超過時はHTTP 504 / `UPSTREAM_TIMEOUT` とする
+- `/api/create-dashboard` は8-128文字の `Idempotency-Key` ヘッダーを必須とする
+- 同一キー・同一payloadの再実行は初回結果を返し、`idempotencyReplayed: true` とする
+- 同一キーを異なるpayloadへ再利用した場合はHTTP 409 / `IDEMPOTENCY_KEY_REUSED` とする
+- Cloud RunではFirestoreの原子的ドキュメント作成を使い、複数インスタンス間で冪等性を共有する。ローカル開発ではプロセス内キャッシュを10分保持する
+- 外部副作用後にFirestore完了記録が失敗した場合は3回再試行する。失敗が継続したclaimは削除せず `IDEMPOTENCY_RESULT_UNCERTAIN` とし、重複実行を防ぐ
+- `/api/mobile-sensor` は任意の `eventId` を受け付け、指定時は同じイベントの重複保存を防止する
+- `FIRESTORE_SENSOR_ENABLED=true`では受信成功前に履歴と最新値をFirestoreへ保存する。書き込み失敗はHTTP 503とし、Androidの永続キューに再送させる
+- 履歴・最新値・Grafana向けmetrics・AI故障兆候分析はFirestoreを優先する。読み取り障害時だけメモリへフォールバックし、JSON APIは`source=memory`と`warning`を返す
+- センサー文書には`expiresAt`を設定する。運用時は両センサーコレクションのFirestore TTL policyと、`deviceId ASC + time DESC`複合indexを有効化する
+
 ## 8. Grafana Dashboard生成仕様
 
 ### 8.1 共通設定
@@ -768,6 +805,7 @@ TestData datasourceで作成したパネル案を、本番データソースへ�
 | --- | --- |
 | `warningThreshold` | Grafana上で黄色表示に切り替える値 |
 | `criticalThreshold` | Grafana上で赤表示に切り替える値 |
+| `riskDirection` | 異常方向。`high` / `low` / `outside` |
 
 テンプレートまたはAI生成結果に閾値がない場合、サーバー側で値範囲から自動算出する。
 
@@ -775,6 +813,14 @@ TestData datasourceで作成したパネル案を、本番データソースへ�
 - その他: Warning 80%、Critical 最大値
 
 編集された閾値はGrafana dashboard JSONの `fieldConfig.defaults.thresholds.steps` に反映する。
+
+異常方向に応じたGrafanaのステップは以下とする。
+
+- `high`: Green -> WarningでYellow -> CriticalでRed
+- `low`: Red -> CriticalでYellow -> WarningでGreen
+- `outside`: Red -> WarningでGreen -> CriticalでRed
+
+既存の下書きやAI生成結果に異常方向がない場合は、後方互換のため `high` として扱う。
 
 ### 8.2 時間範囲
 
@@ -793,11 +839,25 @@ TestData datasourceで作成したパネル案を、本番データソースへ�
 
 通常のセンサーデータは `random_walk` を使用する。
 
-以下のような固定データ表現が必要な場合は `csv_content` を使用する。
+以下のような行データ表現が必要な場合は `csv_content` を使用する。
 
 - 電力分布ドーナツ
 - IoTデバイス通信状態テーブル
-- 日別電力推移の固定デモデータ
+- 日別電力推移のデモデータ
+
+時系列列と `last_seen` には固定ISO日時を保存せず、`__NOW__` または `__NOW_MINUS_<数値><S|M|H|D>__` の相対時刻トークンを使用する。ダッシュボードJSONはGrafana APIへの投入直前に `scripts/materialize-dashboard-json.js` でUTCのISO日時へ変換する。Webアプリで生成するダッシュボードは `grafanaPanel` のターゲット構築時に同じ変換を行う。
+
+例:
+
+```text
+__NOW_MINUS_30M__ -> API投入時刻の30分前
+__NOW_MINUS_1D__  -> API投入時刻の1日前
+__NOW__           -> API投入時刻
+```
+
+これにより、ダッシュボードの表示期間からTestDataが外れることを防ぐ。相対時刻を含む静的JSONは、直接アップロードせずセットアップスクリプト経由で投入する。
+
+静的ダッシュボードJSONはすべて `overwrite: false` を保持する。セットアップスクリプトは投入前にUIDの存在を確認し、既存の場合は既定で停止する。既存ダッシュボードを更新する場合だけ `OVERWRITE_DASHBOARD=true` を明示する。
 
 ### 8.5 Androidセンサー / AIデモダッシュボード
 
@@ -911,6 +971,10 @@ Vertex AI Gemini利用時は、Cloud Run専用サービスアカウントに `ro
 - memory: `512Mi`
 - cpu: `1`
 - max instances: `3`
+- image repository: `<region>-docker.pkg.dev/<project>/grafana-apps/<service>`
+- release: 固有タグでCloud Buildし、解決した`sha256` digestをCloud Runへ指定
+- traffic: 既定は`--no-traffic`とcandidate tag。`-Promote`指定時だけRelease ID、必須の`ExpectedImageDigest`、tagとrevisionの紐付け、Ready/health確認後に100%切替
+- revision: 正規化した`ReleaseId`をsuffixに使用し、revision名とimage digestを検証
 - secrets:
   - `GRAFANA_SERVICE_ACCOUNT_TOKEN=grafana-service-account-token:latest`
 - env:
@@ -918,6 +982,20 @@ Vertex AI Gemini利用時は、Cloud Run専用サービスアカウントに `ro
   - `VERTEX_AI_PROJECT=<GCP Project ID>`
   - `VERTEX_AI_LOCATION=global`
   - `VERTEX_AI_MODEL=gemini-2.5-flash-lite`
+
+サービス分離:
+
+| role | 許可する経路 | 拒否する経路 |
+| --- | --- | --- |
+| `admin` | 静的UI、`/api/auth-status`、Grafana/AI/提案/作成、デモ生成・reset、管理状態 | Android実受信`POST /api/mobile-sensor`、Grafana向け匿名監視GET |
+| `public` | `/api/ping`、Android実受信、センサー履歴・最新値・metrics、Grafana向け監視GET、AIを呼ばないルール診断GET | 静的UI、auth-status、Grafana作成、AIモデル実行、フォルダ・データソース、デモ管理 |
+
+- admin service account: Grafana token secret、Firestore、利用時のみVertex AI/OpenAI secret
+- public service account: Firestoreのみ。Grafana/OpenAI secret accessorとVertex AI権限を付与しない
+- public transportはGrafana匿名GETのため`AllowUnauthenticated`とし、Android POSTはアプリ層Google OIDCで保護する
+- public/adminでサービス名、サービスアカウント、レート制限、Cloud Run revisionを別管理する
+
+リリースはイミュータブルとする。`gcloud run deploy --source`は使用せず、候補revisionがReadyであり、Cloud Runに記録されたimageが候補作成時のdigestと一致し、candidate tagも同じrevisionを指さない限りトラフィックを変更しない。Release IDは入力を正規化・切り詰めせず、不正形式や長さ超過を拒否する。IAP以外ではcandidate URLの`/api/ping`も確認する。本番トラフィック切替は人の承認点とする。
 
 ### 10.3 GitHub Actions検証
 

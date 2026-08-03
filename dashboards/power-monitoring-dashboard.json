@@ -155,7 +155,7 @@
             "refId": "A",
             "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
             "scenarioId": "csv_content",
-            "csvContent": "time,power_usage_kwh,generated_kwh,co2_kg\n2026-05-09T00:00:00+09:00,540,44,248\n2026-05-10T00:00:00+09:00,690,51,316\n2026-05-11T00:00:00+09:00,810,58,372\n2026-05-12T00:00:00+09:00,760,48,350\n2026-05-13T00:00:00+09:00,1580,112,727\n2026-05-14T00:00:00+09:00,1660,118,764\n2026-05-15T00:00:00+09:00,2090,186,961\n2026-05-16T00:00:00+09:00,2240,205,1030\n2026-05-17T00:00:00+09:00,1910,164,879\n2026-05-18T00:00:00+09:00,780,72,359\n2026-05-19T00:00:00+09:00,420,38,193\n2026-05-20T00:00:00+09:00,350,31,161\n2026-05-21T00:00:00+09:00,1830,145,842\n2026-05-22T00:00:00+09:00,2050,188,943\n2026-05-23T00:00:00+09:00,2110,201,971\n2026-05-24T00:00:00+09:00,1880,160,865\n2026-05-25T00:00:00+09:00,710,62,327\n2026-05-26T00:00:00+09:00,390,35,179\n2026-05-27T00:00:00+09:00,1360,118,626\n2026-05-28T00:00:00+09:00,1980,212,911\n2026-05-29T00:00:00+09:00,2070,226,952\n2026-05-30T00:00:00+09:00,2085,231,959\n2026-05-31T00:00:00+09:00,1810,172,833\n2026-06-01T00:00:00+09:00,1010,90,465\n2026-06-02T00:00:00+09:00,660,56,304\n2026-06-03T00:00:00+09:00,2460,252,1132\n2026-06-04T00:00:00+09:00,1950,178,897\n2026-06-05T00:00:00+09:00,2130,194,980\n2026-06-06T00:00:00+09:00,1800,151,828\n2026-06-07T00:00:00+09:00,2040,187,938\n2026-06-08T00:00:00+09:00,1370,122,630"
+            "csvContent": "time,power_usage_kwh,generated_kwh,co2_kg\n__NOW_MINUS_29D__,540,44,248\n__NOW_MINUS_28D__,690,51,316\n__NOW_MINUS_27D__,810,58,372\n__NOW_MINUS_26D__,760,48,350\n__NOW_MINUS_25D__,1580,112,727\n__NOW_MINUS_24D__,1660,118,764\n__NOW_MINUS_23D__,2090,186,961\n__NOW_MINUS_22D__,2240,205,1030\n__NOW_MINUS_21D__,1910,164,879\n__NOW_MINUS_20D__,780,72,359\n__NOW_MINUS_19D__,420,38,193\n__NOW_MINUS_18D__,350,31,161\n__NOW_MINUS_17D__,1830,145,842\n__NOW_MINUS_16D__,2050,188,943\n__NOW_MINUS_15D__,2110,201,971\n__NOW_MINUS_14D__,1880,160,865\n__NOW_MINUS_13D__,710,62,327\n__NOW_MINUS_12D__,390,35,179\n__NOW_MINUS_11D__,1360,118,626\n__NOW_MINUS_10D__,1980,212,911\n__NOW_MINUS_9D__,2070,226,952\n__NOW_MINUS_8D__,2085,231,959\n__NOW_MINUS_7D__,1810,172,833\n__NOW_MINUS_6D__,1010,90,465\n__NOW_MINUS_5D__,660,56,304\n__NOW_MINUS_4D__,2460,252,1132\n__NOW_MINUS_3D__,1950,178,897\n__NOW_MINUS_2D__,2130,194,980\n__NOW_MINUS_1D__,1800,151,828\n__NOW__,2040,187,938"
           }
         ],
         "fieldConfig": {
@@ -251,7 +251,7 @@
             "refId": "A",
             "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
             "scenarioId": "csv_content",
-            "csvContent": "device,area,status,last_seen,message\nPM-001,Machining Center,ONLINE,2026-06-08T09:31:12+09:00,collecting normally\nPM-002,Molding Machine,ONLINE,2026-06-08T09:31:08+09:00,collecting normally\nPM-003,Air Conditioning,WARN,2026-06-08T09:28:44+09:00,delayed heartbeat\nPM-004,2F Main Feeder,ONLINE,2026-06-08T09:31:02+09:00,collecting normally\nPM-005,Lighting,ONLINE,2026-06-08T09:30:58+09:00,collecting normally\nPM-006,Compressor,WARN,2026-06-08T09:27:31+09:00,packet loss detected\nPM-007,Elevator,OFFLINE,2026-06-08T09:12:10+09:00,no data for 19 minutes"
+            "csvContent": "device,area,status,last_seen,message\nPM-001,Machining Center,ONLINE,__NOW_MINUS_12S__,collecting normally\nPM-002,Molding Machine,ONLINE,__NOW_MINUS_16S__,collecting normally\nPM-003,Air Conditioning,WARN,__NOW_MINUS_3M__,delayed heartbeat\nPM-004,2F Main Feeder,ONLINE,__NOW_MINUS_22S__,collecting normally\nPM-005,Lighting,ONLINE,__NOW_MINUS_26S__,collecting normally\nPM-006,Compressor,WARN,__NOW_MINUS_4M__,packet loss detected\nPM-007,Elevator,OFFLINE,__NOW_MINUS_19M__,no data for 19 minutes"
           }
         ],
         "fieldConfig": {
@@ -293,5 +293,5 @@
   },
   "folderUid": "",
   "message": "Create Power Monitoring IoT dashboard from Codex",
-  "overwrite": true
+  "overwrite": false
 }

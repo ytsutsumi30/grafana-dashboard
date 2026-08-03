@@ -170,5 +170,5 @@ node scripts/validate-shipping-inspection-api.js
 現在のPoCでは以下をBase URLとして利用できる。
 
 ```text
-https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app
+https://grafana-sensor-api-pjvjufzh3q-an.a.run.app
 ```

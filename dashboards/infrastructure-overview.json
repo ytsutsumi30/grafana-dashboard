@@ -427,7 +427,7 @@
             "refId": "A",
             "datasource": {"type": "grafana-testdata-datasource", "uid": "testdata"},
             "scenarioId": "csv_content",
-            "csvContent": "time,severity,service,message\n2026-05-27T00:05:00+09:00,CRITICAL,api,p99 latency exceeded 1200 ms\n2026-05-27T00:08:00+09:00,WARN,postgres,active connections above baseline\n2026-05-27T00:11:00+09:00,WARN,worker,retry queue depth increasing\n2026-05-27T00:14:00+09:00,INFO,web,error rate recovered\n2026-05-27T00:17:00+09:00,CRITICAL,network,inbound throughput saturation"
+            "csvContent": "time,severity,service,message\n__NOW_MINUS_20M__,CRITICAL,api,p99 latency exceeded 1200 ms\n__NOW_MINUS_15M__,WARN,postgres,active connections above baseline\n__NOW_MINUS_10M__,WARN,worker,retry queue depth increasing\n__NOW_MINUS_5M__,INFO,web,error rate recovered\n__NOW_MINUS_1M__,CRITICAL,network,inbound throughput saturation"
           }
         ],
         "fieldConfig": {
@@ -472,5 +472,5 @@
   },
   "folderUid": "",
   "message": "Create Infrastructure Overview dashboard from Codex",
-  "overwrite": true
+  "overwrite": false
 }

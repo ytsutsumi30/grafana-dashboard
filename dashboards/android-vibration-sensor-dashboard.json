@@ -454,6 +454,6 @@
     ]
   },
   "folderUid": "",
-  "overwrite": true,
+  "overwrite": false,
   "message": "Create Android vibration sensor demo dashboard"
 }

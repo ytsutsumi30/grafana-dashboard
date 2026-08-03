@@ -17,7 +17,7 @@ https://ytsutsumi30.grafana.net/d/shipping-inspection-minimal-monitoring/shippin
 PoC API:
 
 ```text
-https://grafana-dashboard-builder-pjvjufzh3q-an.a.run.app
+https://grafana-sensor-api-pjvjufzh3q-an.a.run.app
 ```
 
 ## デモの流れ

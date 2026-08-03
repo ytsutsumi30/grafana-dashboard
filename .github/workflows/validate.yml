@@ -21,6 +21,17 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
       - name: Check JavaScript syntax
         run: |
           node --check server/grafana-dashboard-builder.js
@@ -50,3 +61,13 @@ jobs:
 
       - name: Build Cloud Run container
         run: docker build -t grafana-dashboard-builder:ci .
+
+      - name: Test Android sensor app
+        run: >-
+          gradle
+          -p mobile/android-vibration-demo
+          -PsensorApiUrl=https://grafana-sensor-api-pjvjufzh3q-an.a.run.app/api/mobile-sensor
+          testDebugUnitTest
+          testReleaseUnitTest
+          assembleDebug
+          --no-daemon

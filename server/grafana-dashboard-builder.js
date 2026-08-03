@@ -2,6 +2,21 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const {
+  RISK_DIRECTIONS,
+  normalizeRiskDirection,
+  thresholdValues,
+  thresholdOrderIsValid,
+  grafanaThresholdSteps
+} = require("./panel-thresholds");
+const { materializeRelativeTimeTokens } = require("./mock-csv-time");
+const {
+  ApiError,
+  IdempotencyStore,
+  fetchWithTimeout,
+  readJsonBody,
+  validateIdempotencyKey
+} = require("./api-safety");
 
 const PORT = Number(process.env.PORT || 4173);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -9,11 +24,17 @@ const GRAFANA_URL = (process.env.GRAFANA_URL || "https://ytsutsumi30.grafana.net
 const TOKEN = process.env.GRAFANA_SERVICE_ACCOUNT_TOKEN || process.env.GRAFANA_CLOUD_TOKEN || "";
 const APP_ACCESS_TOKEN = process.env.APP_ACCESS_TOKEN || process.env.DASHBOARD_BUILDER_ACCESS_TOKEN || "";
 const APP_AUTH_MODE = configuredAppAuthMode();
+const SERVICE_ROLE = String(process.env.SERVICE_ROLE || "combined").toLowerCase();
 const GOOGLE_OIDC_CLIENT_ID = process.env.GOOGLE_OIDC_CLIENT_ID || "";
 const GOOGLE_OIDC_ALLOWED_EMAILS = parseCommaSeparated(process.env.GOOGLE_OIDC_ALLOWED_EMAILS);
 const GOOGLE_OIDC_ALLOWED_DOMAINS = parseCommaSeparated(process.env.GOOGLE_OIDC_ALLOWED_DOMAINS);
+validateAuthConfiguration();
+validateServiceRoleConfiguration();
 const RATE_LIMIT_WINDOW_MS = Number(process.env.APP_RATE_LIMIT_WINDOW_MS || 60000);
 const RATE_LIMIT_MAX_REQUESTS = Number(process.env.APP_RATE_LIMIT_MAX_REQUESTS || 30);
+const OUTBOUND_API_TIMEOUT_MS = Number(process.env.OUTBOUND_API_TIMEOUT_MS || 15000);
+const GRAFANA_API_TIMEOUT_MS = Number(process.env.GRAFANA_API_TIMEOUT_MS || 15000);
+const AI_API_TIMEOUT_MS = Number(process.env.AI_API_TIMEOUT_MS || 45000);
 const AI_PROVIDER = (process.env.AI_PROVIDER || "vertex").toLowerCase();
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
@@ -24,6 +45,27 @@ const FIRESTORE_HISTORY_ENABLED = String(process.env.FIRESTORE_HISTORY_ENABLED |
 const FIRESTORE_PROJECT = process.env.FIRESTORE_PROJECT || VERTEX_AI_PROJECT;
 const FIRESTORE_DATABASE = process.env.FIRESTORE_DATABASE || "(default)";
 const FIRESTORE_HISTORY_COLLECTION = process.env.FIRESTORE_HISTORY_COLLECTION || "dashboard_creation_history";
+const FIRESTORE_IDEMPOTENCY_COLLECTION = process.env.FIRESTORE_IDEMPOTENCY_COLLECTION || "api_idempotency";
+const FIRESTORE_SENSOR_ENABLED = String(process.env.FIRESTORE_SENSOR_ENABLED || "false").toLowerCase() === "true";
+const FIRESTORE_SENSOR_COLLECTION = process.env.FIRESTORE_SENSOR_COLLECTION || "mobile_sensor_points";
+const FIRESTORE_SENSOR_LATEST_COLLECTION = process.env.FIRESTORE_SENSOR_LATEST_COLLECTION || "mobile_sensor_latest";
+const FIRESTORE_SENSOR_RETENTION_DAYS = Math.max(1, Math.min(365, Number(process.env.FIRESTORE_SENSOR_RETENTION_DAYS) || 7));
+const FIRESTORE_API_ORIGIN = (process.env.FIRESTORE_API_ORIGIN || "https://firestore.googleapis.com").replace(/\/$/, "");
+const IDEMPOTENCY_TTL_MS = Number(process.env.IDEMPOTENCY_TTL_MS || 10 * 60 * 1000);
+const IDEMPOTENCY_WAIT_MS = Number(process.env.IDEMPOTENCY_WAIT_MS || 60 * 1000);
+const PERSISTENT_IDEMPOTENCY_ENABLED = Boolean((process.env.K_SERVICE || process.env.K_REVISION) && FIRESTORE_PROJECT);
+if ((process.env.K_SERVICE || process.env.K_REVISION) && !FIRESTORE_PROJECT) {
+  throw new Error("FIRESTORE_PROJECT is required for Cloud Run idempotency.");
+}
+if (FIRESTORE_SENSOR_ENABLED && !FIRESTORE_PROJECT) {
+  throw new Error("FIRESTORE_PROJECT is required when FIRESTORE_SENSOR_ENABLED=true.");
+}
+if (SERVICE_ROLE === "public" && (TOKEN || OPENAI_API_KEY)) {
+  throw new Error("Public API service must not receive Grafana or OpenAI secrets.");
+}
+if ((process.env.K_SERVICE || process.env.K_REVISION) && SERVICE_ROLE === "public" && !FIRESTORE_SENSOR_ENABLED) {
+  throw new Error("FIRESTORE_SENSOR_ENABLED=true is required for the Cloud Run public API service.");
+}
 const ROOT = path.resolve(__dirname, "..");
 const PUBLIC_DIR = path.join(ROOT, "public");
 const VISUALIZATIONS = new Set(["timeseries", "stat", "gauge", "piechart", "table"]);
@@ -44,6 +86,11 @@ const googleOidcKeyCache = {
   keys: [],
   expiresAt: 0
 };
+const idempotencyStore = new IdempotencyStore();
+
+function externalFetch(url, options = {}) {
+  return fetchWithTimeout(url, options, OUTBOUND_API_TIMEOUT_MS);
+}
 
 function parseCommaSeparated(value) {
   return String(value || "")
@@ -55,7 +102,34 @@ function parseCommaSeparated(value) {
 function configuredAppAuthMode() {
   const configured = String(process.env.APP_AUTH_MODE || "").trim().toLowerCase();
   if (["access-code", "google-oidc", "iap", "none"].includes(configured)) return configured;
+  if (configured) throw new Error(`Unsupported APP_AUTH_MODE: ${configured}`);
   return APP_ACCESS_TOKEN ? "access-code" : "none";
+}
+
+function validateAuthConfiguration() {
+  const hasAllowlist = GOOGLE_OIDC_ALLOWED_EMAILS.length > 0 || GOOGLE_OIDC_ALLOWED_DOMAINS.length > 0;
+  const isCloudRun = Boolean(process.env.K_SERVICE || process.env.K_REVISION);
+  if (isCloudRun && APP_AUTH_MODE === "none") {
+    throw new Error("APP_AUTH_MODE=none is not allowed on Cloud Run.");
+  }
+  if (APP_AUTH_MODE === "access-code" && !APP_ACCESS_TOKEN) {
+    throw new Error("APP_ACCESS_TOKEN is required when APP_AUTH_MODE=access-code.");
+  }
+  if (APP_AUTH_MODE === "google-oidc" && !GOOGLE_OIDC_CLIENT_ID) {
+    throw new Error("GOOGLE_OIDC_CLIENT_ID is required when APP_AUTH_MODE=google-oidc.");
+  }
+  if ((APP_AUTH_MODE === "google-oidc" || APP_AUTH_MODE === "iap") && !hasAllowlist) {
+    throw new Error("GOOGLE_OIDC_ALLOWED_EMAILS or GOOGLE_OIDC_ALLOWED_DOMAINS is required for authenticated user access.");
+  }
+}
+
+function validateServiceRoleConfiguration() {
+  if (!["combined", "admin", "public"].includes(SERVICE_ROLE)) {
+    throw new Error("SERVICE_ROLE must be admin, public, or combined.");
+  }
+  if ((process.env.K_SERVICE || process.env.K_REVISION) && SERVICE_ROLE === "combined") {
+    throw new Error("SERVICE_ROLE=combined is not allowed on Cloud Run. Deploy separate admin and public services.");
+  }
 }
 
 const manufacturingProfiles = [
@@ -67,7 +141,7 @@ const manufacturingProfiles = [
       ["Cycle Time", "timeseries", "s", 18, 75, "加工1サイクルのばらつきと遅延を監視"],
       ["Press Brake Load", "timeseries", "short", 20, 120, "曲げ工程の負荷変動を監視"],
       ["Laser Cutter Power", "timeseries", "kwatt", 1, 8, "レーザー加工機の出力を監視"],
-      ["Compressor Pressure", "gauge", "pressurebar", 0.5, 1.0, "エア圧低下を監視"],
+      ["Compressor Pressure", "gauge", "pressurebar", 0.5, 1.0, "エア圧低下を監視", "low"],
       ["Ambient Temperature", "stat", "celsius", 10, 40, "作業場温度の最新値"],
       ["Ambient Humidity", "stat", "percent", 10, 70, "作業場湿度の最新値"],
       ["Motor Current", "timeseries", "amp", 20, 95, "搬送・加工設備の電流負荷を監視"],
@@ -112,7 +186,7 @@ const manufacturingProfiles = [
       ["Cleanroom Temperature", "timeseries", "celsius", 20, 25, "クリーンルーム温度の安定性を監視"],
       ["Cleanroom Humidity", "timeseries", "percent", 35, 55, "クリーンルーム湿度の安定性を監視"],
       ["Particle Count", "timeseries", "short", 0, 1200, "パーティクル数の増加を監視"],
-      ["Tool Utilization", "gauge", "percent", 40, 98, "製造装置の稼働率を監視"],
+      ["Tool Utilization", "gauge", "percent", 40, 98, "製造装置の稼働率を監視", "low"],
       ["Vacuum Pressure", "timeseries", "pressurembar", 0.001, 10, "真空圧の異常を監視"],
       ["Chiller Temperature", "timeseries", "celsius", 5, 25, "チラー温度を監視"],
       ["Motor Current", "timeseries", "amp", 5, 60, "搬送・補機の電流負荷を監視"],
@@ -238,7 +312,7 @@ const iotProfiles = [
         max: 2500,
         purpose: "日別の電力使用量、発電量、CO2排出量を比較",
         scenarioId: "csv_content",
-        csvContent: "time,power_usage_kwh,generated_kwh,co2_kg\n2026-05-16T00:00:00+09:00,2240,205,1030\n2026-05-17T00:00:00+09:00,1910,164,879\n2026-05-18T00:00:00+09:00,780,72,359\n2026-05-19T00:00:00+09:00,420,38,193\n2026-05-20T00:00:00+09:00,350,31,161\n2026-05-21T00:00:00+09:00,1830,145,842\n2026-05-22T00:00:00+09:00,2050,188,943\n2026-05-23T00:00:00+09:00,2110,201,971\n2026-05-24T00:00:00+09:00,1880,160,865\n2026-05-25T00:00:00+09:00,710,62,327\n2026-05-26T00:00:00+09:00,390,35,179\n2026-05-27T00:00:00+09:00,1360,118,626\n2026-05-28T00:00:00+09:00,1980,212,911\n2026-05-29T00:00:00+09:00,2070,226,952\n2026-05-30T00:00:00+09:00,2085,231,959\n2026-05-31T00:00:00+09:00,1810,172,833\n2026-06-01T00:00:00+09:00,1010,90,465\n2026-06-02T00:00:00+09:00,660,56,304\n2026-06-03T00:00:00+09:00,2460,252,1132\n2026-06-04T00:00:00+09:00,1950,178,897\n2026-06-05T00:00:00+09:00,2130,194,980\n2026-06-06T00:00:00+09:00,1800,151,828\n2026-06-07T00:00:00+09:00,2040,187,938\n2026-06-08T00:00:00+09:00,1370,122,630\n2026-06-09T00:00:00+09:00,1710,148,787\n2026-06-10T00:00:00+09:00,1990,174,915\n2026-06-11T00:00:00+09:00,2180,192,1003\n2026-06-12T00:00:00+09:00,2320,215,1067\n2026-06-13T00:00:00+09:00,1850,168,851\n2026-06-14T00:00:00+09:00,1420,136,653"
+        csvContent: "time,power_usage_kwh,generated_kwh,co2_kg\n__NOW_MINUS_29D__,2240,205,1030\n__NOW_MINUS_28D__,1910,164,879\n__NOW_MINUS_27D__,780,72,359\n__NOW_MINUS_26D__,420,38,193\n__NOW_MINUS_25D__,350,31,161\n__NOW_MINUS_24D__,1830,145,842\n__NOW_MINUS_23D__,2050,188,943\n__NOW_MINUS_22D__,2110,201,971\n__NOW_MINUS_21D__,1880,160,865\n__NOW_MINUS_20D__,710,62,327\n__NOW_MINUS_19D__,390,35,179\n__NOW_MINUS_18D__,1360,118,626\n__NOW_MINUS_17D__,1980,212,911\n__NOW_MINUS_16D__,2070,226,952\n__NOW_MINUS_15D__,2085,231,959\n__NOW_MINUS_14D__,1810,172,833\n__NOW_MINUS_13D__,1010,90,465\n__NOW_MINUS_12D__,660,56,304\n__NOW_MINUS_11D__,2460,252,1132\n__NOW_MINUS_10D__,1950,178,897\n__NOW_MINUS_9D__,2130,194,980\n__NOW_MINUS_8D__,1800,151,828\n__NOW_MINUS_7D__,2040,187,938\n__NOW_MINUS_6D__,1370,122,630\n__NOW_MINUS_5D__,1710,148,787\n__NOW_MINUS_4D__,1990,174,915\n__NOW_MINUS_3D__,2180,192,1003\n__NOW_MINUS_2D__,2320,215,1067\n__NOW_MINUS_1D__,1850,168,851\n__NOW__,1420,136,653"
       },
       {
         title: "Power Distribution by Category",
@@ -258,7 +332,7 @@ const iotProfiles = [
         max: 1,
         purpose: "IoTデバイスの通信状態を確認",
         scenarioId: "csv_content",
-        csvContent: "device,area,status,last_seen,message\nPM-001,Machining Center,ONLINE,2026-06-14T09:31:12+09:00,collecting normally\nPM-002,Molding Machine,ONLINE,2026-06-14T09:31:08+09:00,collecting normally\nPM-003,Air Conditioning,WARN,2026-06-14T09:28:44+09:00,delayed heartbeat\nPM-004,2F Main Feeder,ONLINE,2026-06-14T09:31:02+09:00,collecting normally\nPM-005,Lighting,ONLINE,2026-06-14T09:30:58+09:00,collecting normally\nPM-006,Compressor,WARN,2026-06-14T09:27:31+09:00,packet loss detected\nPM-007,Elevator,OFFLINE,2026-06-14T09:12:10+09:00,no data for 19 minutes"
+        csvContent: "device,area,status,last_seen,message\nPM-001,Machining Center,ONLINE,__NOW_MINUS_12S__,collecting normally\nPM-002,Molding Machine,ONLINE,__NOW_MINUS_16S__,collecting normally\nPM-003,Air Conditioning,WARN,__NOW_MINUS_3M__,delayed heartbeat\nPM-004,2F Main Feeder,ONLINE,__NOW_MINUS_22S__,collecting normally\nPM-005,Lighting,ONLINE,__NOW_MINUS_26S__,collecting normally\nPM-006,Compressor,WARN,__NOW_MINUS_4M__,packet loss detected\nPM-007,Elevator,OFFLINE,__NOW_MINUS_19M__,no data for 19 minutes"
       }
     ]
   },
@@ -267,11 +341,11 @@ const iotProfiles = [
     slug: "logistics-warehouse",
     focus: "物流倉庫IoT",
     panels: [
-      ["Gateway Online Rate", "stat", "percent", 80, 100, "IoTゲートウェイのオンライン率を確認"],
+      ["Gateway Online Rate", "stat", "percent", 80, 100, "IoTゲートウェイのオンライン率を確認", "low"],
       ["Temperature Sensor Trend", "timeseries", "celsius", 0, 35, "保管エリア温度の推移を監視"],
       ["Humidity Sensor Trend", "timeseries", "percent", 20, 85, "保管エリア湿度の推移を監視"],
       ["Door Open Count", "timeseries", "short", 0, 120, "搬入口や冷蔵庫扉の開閉回数を監視"],
-      ["Battery Level", "gauge", "percent", 0, 100, "無線センサーの電池残量を監視"],
+      ["Battery Level", "gauge", "percent", 0, 100, "無線センサーの電池残量を監視", "low"],
       {
         title: "Device Communication Status",
         visualization: "table",
@@ -280,7 +354,7 @@ const iotProfiles = [
         max: 1,
         purpose: "倉庫IoTデバイスの通信状態を確認",
         scenarioId: "csv_content",
-        csvContent: "device,area,status,last_seen,message\nGW-001,Receiving,ONLINE,2026-06-14T09:31:12+09:00,collecting normally\nTEMP-014,Cold Storage,WARN,2026-06-14T09:27:44+09:00,delayed heartbeat\nDOOR-003,Shipping,ONLINE,2026-06-14T09:30:58+09:00,collecting normally\nBATT-021,Rack A,OFFLINE,2026-06-14T09:10:10+09:00,no data for 20 minutes"
+        csvContent: "device,area,status,last_seen,message\nGW-001,Receiving,ONLINE,__NOW_MINUS_12S__,collecting normally\nTEMP-014,Cold Storage,WARN,__NOW_MINUS_3M__,delayed heartbeat\nDOOR-003,Shipping,ONLINE,__NOW_MINUS_26S__,collecting normally\nBATT-021,Rack A,OFFLINE,__NOW_MINUS_20M__,no data for 20 minutes"
       },
       {
         title: "Area Occupancy",
@@ -355,7 +429,7 @@ function panelFromTuple(tuple, index) {
   if (!Array.isArray(tuple)) {
     return normalizePanel({ id: index + 1, ...tuple }, index);
   }
-  const [title, visualization, unit, min, max, purpose] = tuple;
+  const [title, visualization, unit, min, max, purpose, riskDirection] = tuple;
   return normalizePanel({
     id: index + 1,
     title,
@@ -364,6 +438,7 @@ function panelFromTuple(tuple, index) {
     min,
     max,
     purpose,
+    riskDirection,
     latestOnly: visualization === "stat" || visualization === "gauge"
   }, index);
 }
@@ -376,8 +451,8 @@ function resolveDashboardType(industry, dashboardType) {
 
 function manufacturingOverviewPanels() {
   return [
-    ["Overall Equipment Effectiveness", "gauge", "percent", 40, 98, "設備総合効率を一目で確認"],
-    ["Availability / Uptime", "stat", "percent", 60, 100, "現在のライン稼働率を確認"],
+    ["Overall Equipment Effectiveness", "gauge", "percent", 40, 98, "設備総合効率を一目で確認", "low"],
+    ["Availability / Uptime", "stat", "percent", 60, 100, "現在のライン稼働率を確認", "low"],
     ["Unplanned Downtime", "stat", "short", 0, 120, "直近の計画外停止時間を分単位で確認"],
     ["Active Alarm Count", "stat", "short", 0, 20, "未解決アラーム件数を確認"],
     {
@@ -422,7 +497,7 @@ function manufacturingOverviewPanels() {
       purpose: "時間帯ごとの不良率推移を確認し、設備状態やシフト差との関係を見る",
       latestOnly: false,
       scenarioId: "csv_content",
-      csvContent: "time,defect_rate_percent\n2026-07-10T08:00:00+09:00,1.2\n2026-07-10T09:00:00+09:00,1.5\n2026-07-10T10:00:00+09:00,2.1\n2026-07-10T11:00:00+09:00,1.8\n2026-07-10T12:00:00+09:00,2.6\n2026-07-10T13:00:00+09:00,3.4\n2026-07-10T14:00:00+09:00,2.9\n2026-07-10T15:00:00+09:00,2.2\n2026-07-10T16:00:00+09:00,1.9\n2026-07-10T17:00:00+09:00,2.4\n2026-07-10T18:00:00+09:00,3.1\n2026-07-10T19:00:00+09:00,2.7"
+      csvContent: "time,defect_rate_percent\n__NOW_MINUS_11H__,1.2\n__NOW_MINUS_10H__,1.5\n__NOW_MINUS_9H__,2.1\n__NOW_MINUS_8H__,1.8\n__NOW_MINUS_7H__,2.6\n__NOW_MINUS_6H__,3.4\n__NOW_MINUS_5H__,2.9\n__NOW_MINUS_4H__,2.2\n__NOW_MINUS_3H__,1.9\n__NOW_MINUS_2H__,2.4\n__NOW_MINUS_1H__,3.1\n__NOW__,2.7"
     },
     {
       title: "Top Defect Reasons",
@@ -444,7 +519,7 @@ function manufacturingOverviewPanels() {
       purpose: "平均故障間隔と平均復旧時間の推移を確認し、保全改善効果を説明",
       latestOnly: false,
       scenarioId: "csv_content",
-      csvContent: "time,mtbf_hours,mttr_minutes\n2026-07-04T00:00:00+09:00,96,42\n2026-07-05T00:00:00+09:00,104,38\n2026-07-06T00:00:00+09:00,118,35\n2026-07-07T00:00:00+09:00,112,37\n2026-07-08T00:00:00+09:00,126,32\n2026-07-09T00:00:00+09:00,134,29\n2026-07-10T00:00:00+09:00,142,27"
+      csvContent: "time,mtbf_hours,mttr_minutes\n__NOW_MINUS_6D__,96,42\n__NOW_MINUS_5D__,104,38\n__NOW_MINUS_4D__,118,35\n__NOW_MINUS_3D__,112,37\n__NOW_MINUS_2D__,126,32\n__NOW_MINUS_1D__,134,29\n__NOW__,142,27"
     },
     {
       title: "Alert Rule Candidates",
@@ -512,7 +587,8 @@ function normalizePanel(panel, index) {
   const visualization = VISUALIZATIONS.has(panel.visualization) ? panel.visualization : "timeseries";
   const normalizedMin = Number.isFinite(min) ? min : 0;
   const normalizedMax = Number.isFinite(max) && max > normalizedMin ? max : normalizedMin + 100;
-  const defaultThresholds = thresholdValues(normalizedMin, normalizedMax, panel.unit);
+  const riskDirection = normalizeRiskDirection(panel.riskDirection);
+  const defaultThresholds = thresholdValues(normalizedMin, normalizedMax, panel.unit, riskDirection);
   const warningThreshold = Number(panel.warningThreshold);
   const criticalThreshold = Number(panel.criticalThreshold);
   return {
@@ -522,6 +598,7 @@ function normalizePanel(panel, index) {
     unit: String(panel.unit || "short").slice(0, 32),
     min: normalizedMin,
     max: normalizedMax,
+    riskDirection,
     warningThreshold: Number.isFinite(warningThreshold) ? warningThreshold : defaultThresholds.warning,
     criticalThreshold: Number.isFinite(criticalThreshold) ? criticalThreshold : defaultThresholds.critical,
     purpose: String(panel.purpose || "監視対象の状態を確認").slice(0, 160),
@@ -559,6 +636,9 @@ function validatePanelDrafts(panels) {
     if (!VISUALIZATIONS.has(panel.visualization)) {
       errors.push(`${label}: visualization must be one of ${Array.from(VISUALIZATIONS).join(", ")}.`);
     }
+    if (hasValue(panel.riskDirection) && !RISK_DIRECTIONS.has(panel.riskDirection)) {
+      errors.push(`${label}: riskDirection must be high, low, or outside.`);
+    }
 
     const min = Number(panel.min);
     const max = Number(panel.max);
@@ -581,11 +661,12 @@ function validatePanelDrafts(panels) {
       errors.push(`${label}: critical threshold must be a number.`);
     }
     if (Number.isFinite(min) && Number.isFinite(max)) {
-      const defaults = thresholdValues(min, max, panel.unit);
+      const riskDirection = normalizeRiskDirection(panel.riskDirection);
+      const defaults = thresholdValues(min, max, panel.unit, riskDirection);
       const warning = Number.isFinite(warningInput) ? warningInput : defaults.warning;
       const critical = Number.isFinite(criticalInput) ? criticalInput : defaults.critical;
-      if (warning >= critical) {
-        errors.push(`${label}: warning threshold must be lower than critical threshold.`);
+      if (!thresholdOrderIsValid(riskDirection, warning, critical)) {
+        errors.push(`${label}: threshold order is invalid for riskDirection ${riskDirection}.`);
       }
       if (Number.isFinite(warning) && (warning < min || warning > max)) {
         errors.push(`${label}: warning threshold must be within min and max.`);
@@ -610,6 +691,10 @@ function validateAiProposal(raw, industry, dashboardType) {
   const panels = enrichPanelsForDashboardType(raw.panels.slice(0, panelCount).map(normalizePanel), resolvedType);
   if (panels.length < 5) {
     throw new Error("AI proposal response returned too few panels.");
+  }
+  const validationErrors = validatePanelDrafts(panels);
+  if (validationErrors.length) {
+    throw new Error(`AI proposal response failed panel validation: ${validationErrors.join(" ")}`);
   }
   return {
     ...base,
@@ -650,6 +735,7 @@ function aiProposalSchema() {
             "max",
             "warningThreshold",
             "criticalThreshold",
+            "riskDirection",
             "purpose",
             "latestOnly",
             "scenarioId",
@@ -663,6 +749,7 @@ function aiProposalSchema() {
             max: { type: "number" },
             warningThreshold: { type: "number" },
             criticalThreshold: { type: "number" },
+            riskDirection: { type: "string", enum: ["high", "low", "outside"] },
             purpose: { type: "string" },
             latestOnly: { type: "boolean" },
             scenarioId: { type: "string", enum: ["random_walk", "csv_content"] },
@@ -681,7 +768,8 @@ function proposalPrompt(industry, dashboardType) {
 TestData datasourceでモックできる、営業デモ向けの実用的なGrafanaパネル案を5-10個作成してください。
 各パネルは編集可能な案として短く具体的にしてください。
 Grafana-compatible units only: s, celsius, percent, amp, dB, accMS2, kwatt, kwatth, short, pressurebar, ops.
-Each panel must include warningThreshold and criticalThreshold within or near the min/max range.
+Each panel must include riskDirection (high, low, or outside) and warningThreshold/criticalThreshold within the min/max range.
+Use low when values below the thresholds are dangerous, high when values above them are dangerous, and outside when values outside an acceptable band are dangerous.
 Prefer random_walk mock data. Use csv_content only when piechart or table needs fixed demo rows.
 Return JSON only.`;
 }
@@ -689,7 +777,7 @@ Return JSON only.`;
 async function getGoogleAccessToken() {
   if (process.env.GOOGLE_OAUTH_ACCESS_TOKEN) return process.env.GOOGLE_OAUTH_ACCESS_TOKEN;
 
-  const response = await fetch(
+  const response = await externalFetch(
     "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
     { headers: { "Metadata-Flavor": "Google" } }
   );
@@ -716,7 +804,8 @@ async function proposePanelsWithVertex(industry, dashboardType) {
   const token = await getGoogleAccessToken();
   const host = VERTEX_AI_LOCATION === "global" ? "aiplatform.googleapis.com" : `${VERTEX_AI_LOCATION}-aiplatform.googleapis.com`;
   const endpoint = `https://${host}/v1/projects/${encodeURIComponent(VERTEX_AI_PROJECT)}/locations/${encodeURIComponent(VERTEX_AI_LOCATION)}/publishers/google/models/${encodeURIComponent(VERTEX_AI_MODEL)}:generateContent`;
-  const response = await fetch(endpoint, {
+  const response = await externalFetch(endpoint, {
+    timeoutMs: AI_API_TIMEOUT_MS,
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -763,7 +852,8 @@ async function proposePanelsWithAi(industry, dashboardType) {
   }
 
   const resolvedType = resolveDashboardType(industry, dashboardType);
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const response = await externalFetch("https://api.openai.com/v1/responses", {
+    timeoutMs: AI_API_TIMEOUT_MS,
     method: "POST",
     headers: {
       Authorization: `Bearer ${OPENAI_API_KEY}`,
@@ -842,38 +932,6 @@ function layoutPanels(panels) {
   });
 }
 
-function thresholdValues(min, max, unit) {
-  const span = max - min;
-  if (unit === "celsius" || unit === "amp" || unit === "dB" || unit === "accMS2") {
-    return {
-      warning: min + span * 0.75,
-      critical: min + span * 0.9
-    };
-  }
-  return {
-    warning: min + span * 0.8,
-    critical: max
-  };
-}
-
-function thresholds(min, max, unit, warningThreshold, criticalThreshold) {
-  const defaultThresholds = thresholdValues(min, max, unit);
-  const warning = Number.isFinite(Number(warningThreshold)) ? Number(warningThreshold) : defaultThresholds.warning;
-  const critical = Number.isFinite(Number(criticalThreshold)) ? Number(criticalThreshold) : defaultThresholds.critical;
-  if (warning <= critical) {
-    return [
-      { color: "green", value: null },
-      { color: "yellow", value: warning },
-      { color: "red", value: critical }
-    ];
-  }
-  return [
-    { color: "green", value: null },
-    { color: "red", value: critical },
-    { color: "yellow", value: warning }
-  ];
-}
-
 function grafanaPanel(panel, index, gridPos) {
   const normalized = normalizePanel(panel, index);
   const type =
@@ -896,13 +954,13 @@ function grafanaPanel(panel, index, gridPos) {
     max: Number(normalized.max)
   };
   if (normalized.csvContent) {
-    target.csvContent = normalized.csvContent;
+    target.csvContent = materializeRelativeTimeTokens(normalized.csvContent);
   }
   const base = {
     id: index + 1,
     type,
     title: normalized.title,
-    description: `${normalized.purpose || ""} Mock range: ${normalized.min}-${normalized.max} ${normalized.unit}. Warning: ${normalized.warningThreshold}, Critical: ${normalized.criticalThreshold}.`.trim(),
+    description: `${normalized.purpose || ""} Mock range: ${normalized.min}-${normalized.max} ${normalized.unit}. Risk direction: ${normalized.riskDirection}. Warning: ${normalized.warningThreshold}, Critical: ${normalized.criticalThreshold}.`.trim(),
     datasource: { type: "grafana-testdata-datasource", uid: "testdata" },
     gridPos,
     targets: [target],
@@ -914,7 +972,7 @@ function grafanaPanel(panel, index, gridPos) {
         decimals: Number(normalized.max) <= 1 ? 3 : 1,
         thresholds: {
           mode: "absolute",
-          steps: thresholds(Number(normalized.min), Number(normalized.max), normalized.unit, normalized.warningThreshold, normalized.criticalThreshold)
+          steps: grafanaThresholdSteps(Number(normalized.min), Number(normalized.max), normalized.unit, normalized.warningThreshold, normalized.criticalThreshold, normalized.riskDirection)
         }
       },
       overrides: []
@@ -1050,8 +1108,9 @@ async function grafana(pathname, options = {}) {
   if (!TOKEN) {
     throw new Error("GRAFANA_SERVICE_ACCOUNT_TOKEN or GRAFANA_CLOUD_TOKEN is not set.");
   }
-  const response = await fetch(`${GRAFANA_URL}${pathname}`, {
+  const response = await externalFetch(`${GRAFANA_URL}${pathname}`, {
     ...options,
+    timeoutMs: GRAFANA_API_TIMEOUT_MS,
     headers: {
       Authorization: `Bearer ${TOKEN}`,
       "Content-Type": "application/json",
@@ -1152,6 +1211,7 @@ function runtimeStatus() {
   return {
     ok: true,
     service: "grafana-dashboard-builder",
+    serviceRole: SERVICE_ROLE,
     time: new Date().toISOString(),
     grafanaUrl: GRAFANA_URL,
     grafanaTokenConfigured: Boolean(TOKEN),
@@ -1169,6 +1229,9 @@ function runtimeStatus() {
     firestoreProjectConfigured: Boolean(FIRESTORE_PROJECT),
     firestoreDatabase: FIRESTORE_DATABASE,
     firestoreCollection: FIRESTORE_HISTORY_COLLECTION,
+    firestoreSensorEnabled: FIRESTORE_SENSOR_ENABLED,
+    firestoreSensorCollection: FIRESTORE_SENSOR_COLLECTION,
+    firestoreSensorRetentionDays: FIRESTORE_SENSOR_RETENTION_DAYS,
     rateLimitWindowMs: RATE_LIMIT_WINDOW_MS,
     rateLimitMaxRequests: RATE_LIMIT_MAX_REQUESTS,
     appLogEvents: appLogState.events.length,
@@ -1184,7 +1247,7 @@ function sendJson(res, status, payload) {
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(body),
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-App-Access-Token"
+    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-App-Access-Token,Idempotency-Key"
   });
   res.end(body);
 }
@@ -1204,7 +1267,8 @@ function bearerTokenFromRequest(req) {
 function iapActorFromRequest(req) {
   const value = req.headers["x-goog-authenticated-user-email"];
   if (typeof value !== "string" || !value) return "";
-  return truncateText(value.replace(/^accounts\.google\.com:/, ""), 160);
+  const email = truncateText(value.replace(/^accounts\.google\.com:/, ""), 160);
+  return isAllowedGoogleOidcEmail(email) ? email : "";
 }
 
 function decodeJwtPart(value) {
@@ -1213,7 +1277,7 @@ function decodeJwtPart(value) {
 
 async function googleOidcKeys() {
   if (googleOidcKeyCache.keys.length && Date.now() < googleOidcKeyCache.expiresAt) return googleOidcKeyCache.keys;
-  const response = await fetch("https://www.googleapis.com/oauth2/v3/certs");
+  const response = await externalFetch("https://www.googleapis.com/oauth2/v3/certs");
   if (!response.ok) throw new Error(`Google OIDC key fetch failed: ${response.status}`);
   const data = await response.json();
   if (!Array.isArray(data.keys)) throw new Error("Google OIDC key response was invalid.");
@@ -1225,7 +1289,6 @@ async function googleOidcKeys() {
 function isAllowedGoogleOidcEmail(email) {
   const normalized = String(email || "").trim().toLowerCase();
   if (!normalized) return false;
-  if (!GOOGLE_OIDC_ALLOWED_EMAILS.length && !GOOGLE_OIDC_ALLOWED_DOMAINS.length) return true;
   if (GOOGLE_OIDC_ALLOWED_EMAILS.includes(normalized)) return true;
   const domain = normalized.split("@")[1] || "";
   return GOOGLE_OIDC_ALLOWED_DOMAINS.includes(domain);
@@ -1278,6 +1341,18 @@ function isPublicMonitoringReadApi(req) {
     ((pathname === "/api/ai/failure-risk" || pathname === "/api/ai/analyze-log") && parsed.searchParams.get("ai") !== "true");
 }
 
+function isApiAllowedForService(req) {
+  if (SERVICE_ROLE === "combined") return true;
+  const pathname = new URL(req.url, "http://localhost").pathname;
+  if (req.method === "GET" && pathname === "/api/ping") return true;
+  if (SERVICE_ROLE === "public") {
+    return (req.method === "POST" && pathname === "/api/mobile-sensor") || isPublicMonitoringReadApi(req);
+  }
+  if (req.method === "POST" && pathname === "/api/mobile-sensor") return false;
+  if (isPublicMonitoringReadApi(req)) return false;
+  return true;
+}
+
 function isProtectedUiApi(req) {
   if (APP_AUTH_MODE === "none") return false;
   if (APP_AUTH_MODE === "iap") {
@@ -1292,6 +1367,7 @@ function isProtectedUiApi(req) {
   if (req.method === "GET" && (req.url === "/api/health" || req.url === "/api/runtime-status" || req.url === "/api/folders" || req.url === "/api/datasources" || req.url.startsWith("/api/dashboard-history"))) return true;
   if (req.method !== "POST") return false;
   return [
+    "/api/mobile-sensor",
     "/api/propose",
     "/api/datasource-replacement-plan",
     "/api/create-dashboard",
@@ -1335,6 +1411,7 @@ function isRateLimitedApi(req) {
   if (RATE_LIMIT_MAX_REQUESTS <= 0 || RATE_LIMIT_WINDOW_MS <= 0) return false;
   if (req.method !== "POST") return false;
   return [
+    "/api/mobile-sensor",
     "/api/propose",
     "/api/datasource-replacement-plan",
     "/api/create-dashboard",
@@ -1371,23 +1448,73 @@ function rateLimitResult(req) {
 }
 
 function readBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = "";
-    req.on("data", (chunk) => {
-      body += chunk;
-      if (body.length > 1_000_000) {
-        reject(new Error("Request body too large."));
-        req.destroy();
-      }
-    });
-    req.on("end", () => {
-      try {
-        resolve(body ? JSON.parse(body) : {});
-      } catch (error) {
-        reject(error);
-      }
-    });
-  });
+  return readJsonBody(req);
+}
+
+function requireBoundedString(value, field, { min = 1, max = 120 } = {}) {
+  if (typeof value !== "string") throw new ApiError(400, "INVALID_INPUT", `${field} must be a string.`);
+  const normalized = value.trim();
+  if (normalized.length < min || normalized.length > max) {
+    throw new ApiError(400, "INVALID_INPUT", `${field} must be ${min}-${max} characters.`);
+  }
+  return normalized;
+}
+
+function requireFiniteNumber(value, field, { min = -1_000_000, max = 1_000_000 } = {}) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) {
+    throw new ApiError(400, "INVALID_INPUT", `${field} must be a finite number between ${min} and ${max}.`);
+  }
+  return value;
+}
+
+function validateProposalInput(body) {
+  body.industry = requireBoundedString(body.industry, "industry", { max: 120 });
+  if (!['manufacturing', 'iot'].includes(body.dashboardType)) {
+    throw new ApiError(400, "INVALID_INPUT", "dashboardType must be manufacturing or iot.");
+  }
+  return body;
+}
+
+function validateCreateDashboardInput(body) {
+  validateProposalInput(body);
+  if (body.folderUid !== undefined && (typeof body.folderUid !== "string" || body.folderUid.length > 120)) {
+    throw new ApiError(400, "INVALID_INPUT", "folderUid must be a string of at most 120 characters.");
+  }
+  if (body.overwrite !== undefined && typeof body.overwrite !== "boolean") {
+    throw new ApiError(400, "INVALID_INPUT", "overwrite must be a boolean.");
+  }
+  if (body.panels !== undefined && !Array.isArray(body.panels)) {
+    throw new ApiError(400, "INVALID_INPUT", "panels must be an array.");
+  }
+  return body;
+}
+
+function validateMobileSensorInput(body) {
+  body.deviceId = requireBoundedString(body.deviceId, "deviceId", { max: 64 });
+  requireFiniteNumber(body.accelX, "accelX", { min: -200, max: 200 });
+  requireFiniteNumber(body.accelY, "accelY", { min: -200, max: 200 });
+  requireFiniteNumber(body.accelZ, "accelZ", { min: -200, max: 200 });
+  if (body.accelMagnitude !== undefined) requireFiniteNumber(body.accelMagnitude, "accelMagnitude", { min: 0, max: 400 });
+  if (body.peakMagnitude !== undefined) requireFiniteNumber(body.peakMagnitude, "peakMagnitude", { min: 0, max: 400 });
+  if (body.sampleCount !== undefined) requireFiniteNumber(body.sampleCount, "sampleCount", { min: 1, max: 10000 });
+  if (body.aggregationWindowMs !== undefined) requireFiniteNumber(body.aggregationWindowMs, "aggregationWindowMs", { min: 1, max: 300000 });
+  if (body.batteryPercent !== undefined) requireFiniteNumber(body.batteryPercent, "batteryPercent", { min: 0, max: 100 });
+  if (body.tapCount !== undefined) requireFiniteNumber(body.tapCount, "tapCount", { min: 0, max: 1_000_000_000 });
+  if (body.shock !== undefined && typeof body.shock !== "boolean") {
+    throw new ApiError(400, "INVALID_INPUT", "shock must be a boolean.");
+  }
+  if (body.status !== undefined && !["ONLINE", "WARN", "OFFLINE"].includes(body.status)) {
+    throw new ApiError(400, "INVALID_INPUT", "status must be ONLINE, WARN, or OFFLINE.");
+  }
+  if (body.timestamp !== undefined && !Number.isFinite(new Date(body.timestamp).getTime())) {
+    throw new ApiError(400, "INVALID_INPUT", "timestamp must be a valid date-time.");
+  }
+  if (body.eventId !== undefined) validateIdempotencyKey(body.eventId);
+  return body;
+}
+
+function requestFingerprint(body) {
+  return crypto.createHash("sha256").update(JSON.stringify(body)).digest("hex");
 }
 
 function numberOrDefault(value, defaultValue = 0) {
@@ -1417,6 +1544,7 @@ function buildMobileSensorPoint(body) {
   const shock = body.shock === true || body.shock === 1 || body.shock === "true";
   const timestamp = isoTimestamp(body.timestamp);
   return {
+    eventId: typeof body.eventId === "string" && body.eventId ? body.eventId : crypto.randomUUID(),
     time: timestamp,
     epochMs: new Date(timestamp).getTime(),
     deviceId: cleanDeviceId(body.deviceId),
@@ -1424,6 +1552,9 @@ function buildMobileSensorPoint(body) {
     accelY,
     accelZ,
     accelMagnitude,
+    peakMagnitude: Number.isFinite(Number(body.peakMagnitude)) ? Number(body.peakMagnitude) : accelMagnitude,
+    sampleCount: Math.max(1, Math.trunc(numberOrDefault(body.sampleCount, 1))),
+    aggregationWindowMs: Math.max(1, Math.trunc(numberOrDefault(body.aggregationWindowMs, 1))),
     shock,
     shockValue: shock ? 1 : 0,
     tapCount: Math.max(0, Math.trunc(numberOrDefault(body.tapCount))),
@@ -1437,6 +1568,8 @@ function storeMobileSensorPoint(point) {
   if (mobileSensorState.points.length > MOBILE_SENSOR_MAX_POINTS) {
     mobileSensorState.points.splice(0, mobileSensorState.points.length - MOBILE_SENSOR_MAX_POINTS);
   }
+  const current = mobileSensorState.devices.get(point.deviceId);
+  if (current && current.epochMs > point.epochMs) return;
   mobileSensorState.devices.set(point.deviceId, {
     deviceId: point.deviceId,
     time: point.time,
@@ -1453,7 +1586,9 @@ function storeMobileSensorPoint(point) {
 function mobileSensorHistory(limit = 500, deviceId = "") {
   const cleanId = deviceId ? cleanDeviceId(deviceId) : "";
   const rows = cleanId ? mobileSensorState.points.filter((point) => point.deviceId === cleanId) : mobileSensorState.points;
-  return rows.slice(-Math.max(1, Math.min(2000, Number(limit) || 500)));
+  return [...rows]
+    .sort((left, right) => left.epochMs - right.epochMs)
+    .slice(-Math.max(1, Math.min(2000, Number(limit) || 500)));
 }
 
 function demoWaveValue(index, total, mode) {
@@ -1465,7 +1600,7 @@ function demoWaveValue(index, total, mode) {
   return Math.max(0.01, base + Math.sin(phase) * amplitude + Math.sin(phase / 3) * amplitude * 0.35 + trend + pulse);
 }
 
-function generateDemoSensorData(options = {}) {
+async function generateDemoSensorData(options = {}) {
   const deviceId = cleanDeviceId(options.deviceId || "android-demo-001");
   const mode = ["normal", "warn", "critical"].includes(String(options.mode || "").toLowerCase())
     ? String(options.mode).toLowerCase()
@@ -1487,6 +1622,7 @@ function generateDemoSensorData(options = {}) {
     const accelY = Math.cos(angle / 1.7) * magnitude * 0.22;
     const accelZ = Math.sqrt(Math.max(0.01, magnitude * magnitude - accelX * accelX - accelY * accelY));
     const point = buildMobileSensorPoint({
+      eventId: `demo-${deviceId}-${start + index * intervalMs}-${index}`,
       deviceId,
       timestamp: new Date(start + index * intervalMs).toISOString(),
       accelX,
@@ -1498,9 +1634,11 @@ function generateDemoSensorData(options = {}) {
       batteryPercent: Math.max(5, mode === "critical" ? 58 - index / count * 8 : 82 - index / count * 3),
       status: mode === "critical" && index > count * 0.9 ? "WARN" : "ONLINE"
     });
-    storeMobileSensorPoint(point);
     points.push(point);
   }
+
+  await persistMobileSensorPoints(points);
+  points.forEach(storeMobileSensorPoint);
 
   mobileSensorState.aiAnalysisCache.clear();
   return {
@@ -1515,8 +1653,9 @@ function generateDemoSensorData(options = {}) {
   };
 }
 
-function resetMobileSensorData(deviceId = "") {
+async function resetMobileSensorData(deviceId = "") {
   const cleanId = deviceId ? cleanDeviceId(deviceId) : "";
+  await deleteFirestoreSensorData(cleanId);
   const beforePoints = mobileSensorState.points.length;
   const beforeDevices = mobileSensorState.devices.size;
   if (cleanId) {
@@ -1541,8 +1680,8 @@ async function runDemoScenario(options = {}) {
     ? String(options.mode).toLowerCase()
     : "warn";
   const count = Math.max(10, Math.min(1000, Math.trunc(numberOrDefault(options.count, 240))));
-  const reset = resetMobileSensorData(deviceId);
-  const generated = generateDemoSensorData({
+  const reset = await resetMobileSensorData(deviceId);
+  const generated = await generateDemoSensorData({
     deviceId,
     mode,
     count,
@@ -1565,8 +1704,7 @@ function prometheusLine(name, labels, value, epochMs) {
   return `${name}{${labelText}} ${Number(value) || 0} ${epochMs}`;
 }
 
-function mobileSensorPrometheusText() {
-  const latest = Array.from(mobileSensorState.devices.values());
+function mobileSensorPrometheusText(latest = Array.from(mobileSensorState.devices.values())) {
   const lines = [
     "# HELP mobile_sensor_accel_magnitude Acceleration magnitude from Android demo device.",
     "# TYPE mobile_sensor_accel_magnitude gauge",
@@ -1676,6 +1814,9 @@ function firestoreFieldValue(field) {
   if (!field) return "";
   if (field.stringValue !== undefined) return field.stringValue;
   if (field.timestampValue !== undefined) return field.timestampValue;
+  if (field.integerValue !== undefined) return Number(field.integerValue);
+  if (field.doubleValue !== undefined) return Number(field.doubleValue);
+  if (field.booleanValue !== undefined) return Boolean(field.booleanValue);
   return "";
 }
 
@@ -1701,11 +1842,198 @@ function firestoreBaseUrl() {
   return `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(FIRESTORE_PROJECT)}/databases/${encodeURIComponent(FIRESTORE_DATABASE)}/documents/${encodeURIComponent(FIRESTORE_HISTORY_COLLECTION)}`;
 }
 
+function firestoreCollectionUrl(collection) {
+  if (!FIRESTORE_PROJECT) throw new Error("FIRESTORE_PROJECT is required for persistent idempotency.");
+  return `${FIRESTORE_API_ORIGIN}/v1/projects/${encodeURIComponent(FIRESTORE_PROJECT)}/databases/${encodeURIComponent(FIRESTORE_DATABASE)}/documents/${encodeURIComponent(collection)}`;
+}
+
+function idempotencyDocumentId(scope, key) {
+  return crypto.createHash("sha256").update(`${scope}:${key}`).digest("hex");
+}
+
+function idempotencyDocument(fields) {
+  return {
+    fields: {
+      scope: firestoreString(fields.scope),
+      fingerprint: firestoreString(fields.fingerprint),
+      state: firestoreString(fields.state),
+      owner: firestoreString(fields.owner),
+      resultJson: firestoreString(fields.resultJson),
+      createdAt: { timestampValue: fields.createdAt },
+      expiresAt: { timestampValue: fields.expiresAt }
+    }
+  };
+}
+
+function idempotencyRecord(document) {
+  const fields = document?.fields || {};
+  return {
+    fingerprint: firestoreFieldValue(fields.fingerprint),
+    state: firestoreFieldValue(fields.state),
+    resultJson: firestoreFieldValue(fields.resultJson),
+    expiresAt: firestoreFieldValue(fields.expiresAt)
+  };
+}
+
+async function firestoreIdempotencyFetch(documentId, options = {}) {
+  const token = await getGoogleAccessToken();
+  return externalFetch(`${firestoreCollectionUrl(FIRESTORE_IDEMPOTENCY_COLLECTION)}/${encodeURIComponent(documentId)}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  });
+}
+
+async function createIdempotencyClaim(documentId, scope, fingerprint, owner) {
+  const token = await getGoogleAccessToken();
+  const now = new Date();
+  const response = await externalFetch(`${firestoreCollectionUrl(FIRESTORE_IDEMPOTENCY_COLLECTION)}?documentId=${encodeURIComponent(documentId)}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(idempotencyDocument({
+      scope,
+      fingerprint,
+      state: "pending",
+      owner,
+      resultJson: "",
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + IDEMPOTENCY_TTL_MS).toISOString()
+    }))
+  });
+  if (response.status === 409) {
+    await response.arrayBuffer();
+    return false;
+  }
+  if (!response.ok) {
+    const text = await response.text();
+    throw new ApiError(503, "IDEMPOTENCY_STORE_UNAVAILABLE", `Firestore idempotency claim failed: ${response.status} ${text}`);
+  }
+  const document = await response.json();
+  return { updateTime: document.updateTime || "" };
+}
+
+async function releaseIdempotencyClaim(documentId, updateTime) {
+  const token = await getGoogleAccessToken();
+  const precondition = updateTime ? `?currentDocument.updateTime=${encodeURIComponent(updateTime)}` : "";
+  const response = await externalFetch(
+    `${firestoreCollectionUrl(FIRESTORE_IDEMPOTENCY_COLLECTION)}/${encodeURIComponent(documentId)}${precondition}`,
+    { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!response.ok && response.status !== 404) {
+    const text = await response.text();
+    throw new ApiError(503, "IDEMPOTENCY_STORE_UNAVAILABLE", `Firestore idempotency release failed: ${response.status} ${text}`);
+  }
+  await response.arrayBuffer();
+}
+
+async function readIdempotencyRecord(documentId) {
+  const response = await firestoreIdempotencyFetch(documentId);
+  if (response.status === 404) {
+    await response.arrayBuffer();
+    return null;
+  }
+  if (!response.ok) {
+    const text = await response.text();
+    throw new ApiError(503, "IDEMPOTENCY_STORE_UNAVAILABLE", `Firestore idempotency read failed: ${response.status} ${text}`);
+  }
+  return idempotencyRecord(await response.json());
+}
+
+async function completeIdempotencyClaim(documentId, scope, fingerprint, owner, value) {
+  const now = new Date();
+  const response = await firestoreIdempotencyFetch(documentId, {
+    method: "PATCH",
+    body: JSON.stringify(idempotencyDocument({
+      scope,
+      fingerprint,
+      state: "complete",
+      owner,
+      resultJson: JSON.stringify(value),
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + IDEMPOTENCY_TTL_MS).toISOString()
+    }))
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new ApiError(503, "IDEMPOTENCY_STORE_UNAVAILABLE", `Firestore idempotency completion failed: ${response.status} ${text}`);
+  }
+  await response.arrayBuffer();
+}
+
+async function completeIdempotencyClaimWithRetry(documentId, scope, fingerprint, owner, value) {
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await completeIdempotencyClaim(documentId, scope, fingerprint, owner, value);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
+    }
+  }
+  throw new ApiError(
+    503,
+    "IDEMPOTENCY_RESULT_UNCERTAIN",
+    `The operation completed but its idempotency result could not be persisted. The claim was retained to prevent duplicate execution. ${lastError?.message || ""}`.trim()
+  );
+}
+
+async function waitForIdempotencyResult(documentId, fingerprint) {
+  const deadline = Date.now() + IDEMPOTENCY_WAIT_MS;
+  while (Date.now() < deadline) {
+    const record = await readIdempotencyRecord(documentId);
+    if (!record) return null;
+    if (record.fingerprint !== fingerprint) {
+      throw new ApiError(409, "IDEMPOTENCY_KEY_REUSED", "Idempotency-Key was already used with a different request.");
+    }
+    if (record.state === "complete") return JSON.parse(record.resultJson);
+    if (record.expiresAt && new Date(record.expiresAt).getTime() <= Date.now()) {
+      throw new ApiError(
+        409,
+        "IDEMPOTENCY_RESULT_UNCERTAIN",
+        "The original operation result is uncertain. The retained claim prevents duplicate execution and requires operator review."
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new ApiError(409, "IDEMPOTENCY_IN_PROGRESS", "An identical request is still in progress. Retry with the same key.");
+}
+
+async function runIdempotentOperation(scope, key, fingerprint, operation) {
+  if (!PERSISTENT_IDEMPOTENCY_ENABLED) {
+    return idempotencyStore.run(scope, key, fingerprint, operation);
+  }
+  const documentId = idempotencyDocumentId(scope, key);
+  const owner = crypto.randomUUID();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const claim = await createIdempotencyClaim(documentId, scope, fingerprint, owner);
+    if (claim) {
+      let value;
+      try {
+        value = await operation();
+      } catch (error) {
+        if (scope === "mobile-sensor" && ["SENSOR_STORE_UNAVAILABLE", "SENSOR_STORE_CONFLICT"].includes(error.code)) {
+          await releaseIdempotencyClaim(documentId, claim.updateTime);
+        }
+        throw error;
+      }
+      await completeIdempotencyClaimWithRetry(documentId, scope, fingerprint, owner, value);
+      return { value, replayed: false };
+    }
+    const value = await waitForIdempotencyResult(documentId, fingerprint);
+    if (value) return { value, replayed: true };
+  }
+  throw new ApiError(409, "IDEMPOTENCY_IN_PROGRESS", "Unable to acquire idempotency claim. Retry with the same key.");
+}
+
 async function saveDashboardHistoryToFirestore(row) {
   if (!FIRESTORE_HISTORY_ENABLED) return false;
   const token = await getGoogleAccessToken();
   const documentId = `${Date.now()}-${String(row.dashboardUid || "dashboard").replace(/[^a-zA-Z0-9_-]/g, "_")}`.slice(0, 180);
-  const response = await fetch(`${firestoreBaseUrl()}?documentId=${encodeURIComponent(documentId)}`, {
+  const response = await externalFetch(`${firestoreBaseUrl()}?documentId=${encodeURIComponent(documentId)}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -1724,7 +2052,7 @@ async function firestoreDashboardHistory(limit = 20) {
   if (!FIRESTORE_HISTORY_ENABLED) return [];
   const token = await getGoogleAccessToken();
   const pageSize = Math.max(1, Math.min(100, Number(limit) || 20));
-  const response = await fetch(`${firestoreBaseUrl()}?pageSize=${pageSize}&orderBy=time%20desc`, {
+  const response = await externalFetch(`${firestoreBaseUrl()}?pageSize=${pageSize}&orderBy=time%20desc`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!response.ok) {
@@ -1733,6 +2061,248 @@ async function firestoreDashboardHistory(limit = 20) {
   }
   const data = await response.json();
   return (data.documents || []).map(dashboardRowFromFirestore);
+}
+
+function firestoreDocumentName(collection, documentId) {
+  return `projects/${FIRESTORE_PROJECT}/databases/${FIRESTORE_DATABASE}/documents/${collection}/${documentId}`;
+}
+
+function sensorDocumentId(value) {
+  return crypto.createHash("sha256").update(String(value)).digest("hex");
+}
+
+function firestoreDocumentFromSensor(point) {
+  const expiresAt = new Date(Date.now() + FIRESTORE_SENSOR_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  return {
+    eventId: firestoreString(point.eventId),
+    time: { timestampValue: point.time },
+    epochMs: { integerValue: String(point.epochMs) },
+    deviceId: firestoreString(point.deviceId),
+    accelX: { doubleValue: point.accelX },
+    accelY: { doubleValue: point.accelY },
+    accelZ: { doubleValue: point.accelZ },
+    accelMagnitude: { doubleValue: point.accelMagnitude },
+    peakMagnitude: { doubleValue: point.peakMagnitude },
+    sampleCount: { integerValue: String(point.sampleCount) },
+    aggregationWindowMs: { integerValue: String(point.aggregationWindowMs) },
+    shock: { booleanValue: point.shock },
+    shockValue: { integerValue: String(point.shockValue) },
+    tapCount: { integerValue: String(point.tapCount) },
+    batteryPercent: { doubleValue: point.batteryPercent },
+    status: firestoreString(point.status),
+    expiresAt: { timestampValue: expiresAt }
+  };
+}
+
+function mobileSensorPointFromFirestore(document) {
+  const fields = document?.fields || {};
+  const time = firestoreFieldValue(fields.time);
+  return {
+    eventId: firestoreFieldValue(fields.eventId),
+    time,
+    epochMs: Number(firestoreFieldValue(fields.epochMs)) || new Date(time).getTime(),
+    deviceId: cleanDeviceId(firestoreFieldValue(fields.deviceId)),
+    accelX: Number(firestoreFieldValue(fields.accelX)) || 0,
+    accelY: Number(firestoreFieldValue(fields.accelY)) || 0,
+    accelZ: Number(firestoreFieldValue(fields.accelZ)) || 0,
+    accelMagnitude: Number(firestoreFieldValue(fields.accelMagnitude)) || 0,
+    peakMagnitude: Number(firestoreFieldValue(fields.peakMagnitude)) || 0,
+    sampleCount: Number(firestoreFieldValue(fields.sampleCount)) || 1,
+    aggregationWindowMs: Number(firestoreFieldValue(fields.aggregationWindowMs)) || 1,
+    shock: Boolean(firestoreFieldValue(fields.shock)),
+    shockValue: Number(firestoreFieldValue(fields.shockValue)) || 0,
+    tapCount: Number(firestoreFieldValue(fields.tapCount)) || 0,
+    batteryPercent: Number(firestoreFieldValue(fields.batteryPercent)) || 0,
+    status: String(firestoreFieldValue(fields.status) || "ONLINE")
+  };
+}
+
+function latestDeviceFromPoint(point) {
+  return {
+    ...point,
+    online: point.status === "OFFLINE" ? 0 : 1,
+    message: point.status === "OFFLINE" ? "no data" : point.status === "WARN" ? "check sensor" : "streaming"
+  };
+}
+
+async function commitFirestoreWrites(writes) {
+  if (!writes.length) return;
+  const token = await getGoogleAccessToken();
+  const response = await externalFetch(
+    `${FIRESTORE_API_ORIGIN}/v1/projects/${encodeURIComponent(FIRESTORE_PROJECT)}/databases/${encodeURIComponent(FIRESTORE_DATABASE)}/documents:commit`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ writes })
+    }
+  );
+  if (response.status === 409 || response.status === 412) {
+    const text = await response.text();
+    throw new ApiError(409, "SENSOR_STORE_CONFLICT", `Firestore sensor commit conflict: ${response.status} ${text}`);
+  }
+  if (!response.ok) {
+    const text = await response.text();
+    throw new ApiError(503, "SENSOR_STORE_UNAVAILABLE", `Firestore sensor commit failed: ${response.status} ${text}`);
+  }
+  await response.arrayBuffer();
+}
+
+async function readFirestoreLatestState(deviceId) {
+  const token = await getGoogleAccessToken();
+  const documentId = sensorDocumentId(deviceId);
+  const response = await externalFetch(
+    `${firestoreCollectionUrl(FIRESTORE_SENSOR_LATEST_COLLECTION)}/${encodeURIComponent(documentId)}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (response.status === 404) {
+    await response.arrayBuffer();
+    return null;
+  }
+  if (!response.ok) {
+    const text = await response.text();
+    throw new ApiError(503, "SENSOR_STORE_UNAVAILABLE", `Firestore latest sensor read failed: ${response.status} ${text}`);
+  }
+  const document = await response.json();
+  return {
+    point: mobileSensorPointFromFirestore(document),
+    updateTime: document.updateTime || ""
+  };
+}
+
+async function persistMobileSensorPoints(points) {
+  if (!FIRESTORE_SENSOR_ENABLED || !points.length) return false;
+  for (let offset = 0; offset < points.length; offset += 240) {
+    const chunk = points.slice(offset, offset + 240);
+    const latestByDevice = new Map();
+    const eventWrites = chunk.map((point) => {
+      const current = latestByDevice.get(point.deviceId);
+      if (!current || point.epochMs >= current.epochMs) latestByDevice.set(point.deviceId, point);
+      return {
+        update: {
+          name: firestoreDocumentName(FIRESTORE_SENSOR_COLLECTION, sensorDocumentId(point.eventId)),
+          fields: firestoreDocumentFromSensor(point)
+        }
+      };
+    });
+    let committed = false;
+    for (let attempt = 0; attempt < 3 && !committed; attempt += 1) {
+      const writes = [...eventWrites];
+      for (const point of latestByDevice.values()) {
+        const current = await readFirestoreLatestState(point.deviceId);
+        if (current && current.point.epochMs > point.epochMs) continue;
+        writes.push({
+          update: {
+            name: firestoreDocumentName(FIRESTORE_SENSOR_LATEST_COLLECTION, sensorDocumentId(point.deviceId)),
+            fields: firestoreDocumentFromSensor(point)
+          },
+          currentDocument: current?.updateTime ? { updateTime: current.updateTime } : { exists: false }
+        });
+      }
+      try {
+        await commitFirestoreWrites(writes);
+        committed = true;
+      } catch (error) {
+        if (error.code !== "SENSOR_STORE_CONFLICT" || attempt === 2) throw error;
+      }
+    }
+  }
+  return true;
+}
+
+async function runFirestoreSensorQuery(collection, options = {}) {
+  const token = await getGoogleAccessToken();
+  const structuredQuery = {
+    from: [{ collectionId: collection }],
+    limit: Math.max(1, Math.min(10000, Number(options.limit) || 500))
+  };
+  if (options.deviceId) {
+    structuredQuery.where = {
+      fieldFilter: {
+        field: { fieldPath: "deviceId" },
+        op: "EQUAL",
+        value: firestoreString(cleanDeviceId(options.deviceId))
+      }
+    };
+  }
+  if (options.orderByTime) {
+    structuredQuery.orderBy = [{ field: { fieldPath: "time" }, direction: "DESCENDING" }];
+  }
+  const response = await externalFetch(
+    `${FIRESTORE_API_ORIGIN}/v1/projects/${encodeURIComponent(FIRESTORE_PROJECT)}/databases/${encodeURIComponent(FIRESTORE_DATABASE)}/documents:runQuery`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ structuredQuery })
+    }
+  );
+  if (!response.ok) {
+    const text = await response.text();
+    throw new ApiError(503, "SENSOR_STORE_UNAVAILABLE", `Firestore sensor query failed: ${response.status} ${text}`);
+  }
+  const data = await response.json();
+  return (Array.isArray(data) ? data : []).map((item) => item.document).filter(Boolean);
+}
+
+async function firestoreMobileSensorHistory(limit = 500, deviceId = "") {
+  if (!FIRESTORE_SENSOR_ENABLED) return [];
+  const pageSize = Math.max(1, Math.min(2000, Number(limit) || 500));
+  const documents = await runFirestoreSensorQuery(FIRESTORE_SENSOR_COLLECTION, {
+    deviceId,
+    limit: pageSize,
+    orderByTime: true
+  });
+  return documents.map(mobileSensorPointFromFirestore).reverse();
+}
+
+async function firestoreMobileSensorLatest() {
+  if (!FIRESTORE_SENSOR_ENABLED) return [];
+  const documents = await runFirestoreSensorQuery(FIRESTORE_SENSOR_LATEST_COLLECTION, {
+    limit: 1000,
+    orderByTime: true
+  });
+  return documents.map((document) => latestDeviceFromPoint(mobileSensorPointFromFirestore(document)));
+}
+
+async function resolvedMobileSensorHistory(limit = 500, deviceId = "") {
+  if (!FIRESTORE_SENSOR_ENABLED) return { source: "memory", warning: "", data: mobileSensorHistory(limit, deviceId) };
+  try {
+    return { source: "firestore", warning: "", data: await firestoreMobileSensorHistory(limit, deviceId) };
+  } catch (error) {
+    return { source: "memory", warning: error.message, data: mobileSensorHistory(limit, deviceId) };
+  }
+}
+
+async function resolvedMobileSensorLatest() {
+  const memory = Array.from(mobileSensorState.devices.values()).sort((a, b) => b.epochMs - a.epochMs);
+  if (!FIRESTORE_SENSOR_ENABLED) return { source: "memory", warning: "", data: memory };
+  try {
+    return { source: "firestore", warning: "", data: await firestoreMobileSensorLatest() };
+  } catch (error) {
+    return { source: "memory", warning: error.message, data: memory };
+  }
+}
+
+async function deleteFirestoreSensorData(deviceId = "") {
+  if (!FIRESTORE_SENSOR_ENABLED) return false;
+  async function deleteMatchingDocuments(collection, filterDeviceId = "") {
+    while (true) {
+      const documents = await runFirestoreSensorQuery(collection, { deviceId: filterDeviceId, limit: 450 });
+      if (!documents.length) return;
+      await commitFirestoreWrites(documents
+        .map((document) => document?.name)
+        .filter(Boolean)
+        .map((name) => ({ delete: name })));
+    }
+  }
+  await deleteMatchingDocuments(FIRESTORE_SENSOR_COLLECTION, deviceId);
+  if (deviceId) {
+    await commitFirestoreWrites([{
+      delete: firestoreDocumentName(FIRESTORE_SENSOR_LATEST_COLLECTION, sensorDocumentId(cleanDeviceId(deviceId)))
+    }]);
+  } else {
+    await deleteMatchingDocuments(FIRESTORE_SENSOR_LATEST_COLLECTION);
+  }
+  return true;
 }
 
 function logAnalysisSchema() {
@@ -1828,7 +2398,8 @@ async function logAnalysisWithVertex(stats) {
   const token = await getGoogleAccessToken();
   const host = VERTEX_AI_LOCATION === "global" ? "aiplatform.googleapis.com" : `${VERTEX_AI_LOCATION}-aiplatform.googleapis.com`;
   const endpoint = `https://${host}/v1/projects/${encodeURIComponent(VERTEX_AI_PROJECT)}/locations/${encodeURIComponent(VERTEX_AI_LOCATION)}/publishers/google/models/${encodeURIComponent(VERTEX_AI_MODEL)}:generateContent`;
-  const response = await fetch(endpoint, {
+  const response = await externalFetch(endpoint, {
+    timeoutMs: AI_API_TIMEOUT_MS,
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -1867,7 +2438,8 @@ async function logAnalysisWithOpenAi(stats) {
   if (!OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is not set.");
   }
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const response = await externalFetch("https://api.openai.com/v1/responses", {
+    timeoutMs: AI_API_TIMEOUT_MS,
     method: "POST",
     headers: {
       Authorization: `Bearer ${OPENAI_API_KEY}`,
@@ -2006,13 +2578,15 @@ function deterministicMaintenanceText(stats) {
   };
 }
 
-function buildMaintenanceStats(deviceId, windowMinutes) {
+async function buildMaintenanceStats(deviceId, windowMinutes) {
   const cleanId = cleanDeviceId(deviceId);
   const minutes = Math.max(1, Math.min(120, Number(windowMinutes) || 10));
   const now = Date.now();
   const windowStart = now - minutes * 60 * 1000;
-  const rows = mobileSensorHistory(2000, cleanId).filter((point) => point.epochMs >= windowStart);
-  const latest = rows.length ? rows[rows.length - 1] : mobileSensorState.devices.get(cleanId);
+  const resolved = await resolvedMobileSensorHistory(2000, cleanId);
+  const allRows = resolved.data;
+  const rows = allRows.filter((point) => point.epochMs >= windowStart);
+  const latest = allRows.length ? allRows[allRows.length - 1] : mobileSensorState.devices.get(cleanId);
   const magnitudes = rows.map((point) => point.accelMagnitude);
   const shocks = rows.filter((point) => point.shock).length;
   const tapDelta = rows.length ? Math.max(0, rows[rows.length - 1].tapCount - rows[0].tapCount) : 0;
@@ -2052,7 +2626,9 @@ function buildMaintenanceStats(deviceId, windowMinutes) {
     stdMagnitude: roundNumber(stdMagnitude),
     shockCount: shocks,
     tapDelta,
-    batteryPercent: roundNumber(latest?.batteryPercent || 0, 0)
+    batteryPercent: roundNumber(latest?.batteryPercent || 0, 0),
+    dataSource: resolved.source,
+    storageWarning: resolved.warning
   };
 }
 
@@ -2072,7 +2648,8 @@ async function maintenanceTextWithVertex(stats) {
   const token = await getGoogleAccessToken();
   const host = VERTEX_AI_LOCATION === "global" ? "aiplatform.googleapis.com" : `${VERTEX_AI_LOCATION}-aiplatform.googleapis.com`;
   const endpoint = `https://${host}/v1/projects/${encodeURIComponent(VERTEX_AI_PROJECT)}/locations/${encodeURIComponent(VERTEX_AI_LOCATION)}/publishers/google/models/${encodeURIComponent(VERTEX_AI_MODEL)}:generateContent`;
-  const response = await fetch(endpoint, {
+  const response = await externalFetch(endpoint, {
+    timeoutMs: AI_API_TIMEOUT_MS,
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -2111,7 +2688,8 @@ async function maintenanceTextWithOpenAi(stats) {
   if (!OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is not set.");
   }
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const response = await externalFetch("https://api.openai.com/v1/responses", {
+    timeoutMs: AI_API_TIMEOUT_MS,
     method: "POST",
     headers: {
       Authorization: `Bearer ${OPENAI_API_KEY}`,
@@ -2148,7 +2726,7 @@ async function maintenanceTextWithOpenAi(stats) {
 }
 
 async function buildFailureRiskAnalysis(deviceId = "android-demo-001", windowMinutes = 10, useAi = true) {
-  const stats = buildMaintenanceStats(deviceId, windowMinutes);
+  const stats = await buildMaintenanceStats(deviceId, windowMinutes);
   const cacheKey = `${stats.deviceId}:${stats.windowMinutes}`;
   const cached = mobileSensorState.aiAnalysisCache.get(cacheKey);
   if (useAi && cached && Date.now() - cached.cachedAt < AI_ANALYSIS_CACHE_TTL_MS) {
@@ -2325,15 +2903,76 @@ function shippingAlertStatusRows() {
   ];
 }
 
+async function createDashboardResult(body, req) {
+  const proposed = proposePanels(body.industry, body.dashboardType);
+  const draftPanels = Array.isArray(body.panels) && body.panels.length ? body.panels : proposed.panels;
+  const validationErrors = validatePanelDrafts(draftPanels);
+  if (validationErrors.length) {
+    throw new ApiError(400, "PANEL_VALIDATION_FAILED", validationErrors.join(" "));
+  }
+  const overwrite = body.overwrite === true;
+  const identity = await resolveDashboardIdentity(proposed, overwrite);
+  const dashboard = buildDashboard(body.industry, draftPanels, body.dashboardType);
+  dashboard.uid = identity.uid;
+  dashboard.title = identity.suffix ? `${dashboard.title} ${identity.suffix}` : dashboard.title;
+  await ensureTestData();
+  const folderUid = typeof body.folderUid === "string" ? body.folderUid : "";
+  const result = await grafana("/api/dashboards/db", {
+    method: "POST",
+    body: JSON.stringify({
+      dashboard,
+      folderUid,
+      message: `Create ${proposed.industry} maintenance dashboard from sales UI`,
+      overwrite
+    })
+  });
+  const url = result.url ? `${GRAFANA_URL}${result.url}` : `${GRAFANA_URL}/d/${identity.uid}/${identity.slug}`;
+  const createdEvent = recordAppEvent("dashboard_created", {
+    route: "/api/create-dashboard",
+    industry: proposed.industry,
+    dashboardType: proposed.dashboardType,
+    dashboardUid: identity.uid,
+    dashboardTitle: dashboard.title,
+    dashboardUrl: url,
+    folderUid,
+    actor: requestActor(req),
+    message: `Dashboard created. overwrite=${overwrite}`
+  });
+  try {
+    await saveDashboardHistoryToFirestore(createdEvent);
+  } catch (error) {
+    recordAppEvent("dashboard_history_save_failed", {
+      route: "/api/create-dashboard",
+      level: "warn",
+      message: error.message,
+      dashboardUid: identity.uid,
+      dashboardUrl: url
+    });
+  }
+  return {
+    ok: true,
+    name: identity.uid,
+    title: dashboard.title,
+    overwritten: overwrite && identity.uid === proposed.dashboardUid,
+    url,
+    result
+  };
+}
+
 async function handleApi(req, res) {
   try {
     if (req.method === "OPTIONS") {
       res.writeHead(204, {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type,Authorization,X-App-Access-Token"
+        "Access-Control-Allow-Headers": "Content-Type,Authorization,X-App-Access-Token,Idempotency-Key"
       });
       res.end();
+      return;
+    }
+
+    if (!isApiAllowedForService(req)) {
+      sendJson(res, 404, { ok: false, error: "Not found", code: "ROUTE_NOT_AVAILABLE" });
       return;
     }
 
@@ -2422,32 +3061,42 @@ async function handleApi(req, res) {
 
     if (req.method === "POST" && req.url === "/api/mobile-sensor") {
       const body = await readBody(req);
-      const point = buildMobileSensorPoint(body);
-      storeMobileSensorPoint(point);
-      recordAppEvent("mobile_sensor_received", {
-        route: "/api/mobile-sensor",
-        deviceId: point.deviceId,
-        message: `Sensor sample accepted. magnitude=${roundNumber(point.accelMagnitude)} shock=${point.shock}`
-      });
-      sendJson(res, 200, { ok: true, accepted: point });
+      validateMobileSensorInput(body);
+      const eventId = validateIdempotencyKey(body.eventId);
+      const storePoint = async () => {
+        const point = buildMobileSensorPoint(body);
+        await persistMobileSensorPoints([point]);
+        storeMobileSensorPoint(point);
+        recordAppEvent("mobile_sensor_received", {
+          route: "/api/mobile-sensor",
+          deviceId: point.deviceId,
+          message: `Sensor sample accepted. magnitude=${roundNumber(point.accelMagnitude)} shock=${point.shock}`
+        });
+        return point;
+      };
+      const outcome = eventId
+        ? await runIdempotentOperation("mobile-sensor", eventId, requestFingerprint(body), storePoint)
+        : { value: await storePoint(), replayed: false };
+      sendJson(res, 200, { ok: true, accepted: outcome.value, duplicate: outcome.replayed });
       return;
     }
 
     if (req.method === "GET" && req.url.startsWith("/api/mobile-sensor/history")) {
       const parsed = new URL(req.url, "http://localhost");
-      const rows = mobileSensorHistory(parsed.searchParams.get("limit"), parsed.searchParams.get("deviceId") || "");
-      sendJson(res, 200, { ok: true, data: rows });
+      const result = await resolvedMobileSensorHistory(parsed.searchParams.get("limit"), parsed.searchParams.get("deviceId") || "");
+      sendJson(res, 200, { ok: true, ...result });
       return;
     }
 
     if (req.method === "GET" && req.url === "/api/mobile-sensor/latest") {
-      const latest = Array.from(mobileSensorState.devices.values()).sort((a, b) => b.epochMs - a.epochMs);
-      sendJson(res, 200, { ok: true, data: latest });
+      const result = await resolvedMobileSensorLatest();
+      sendJson(res, 200, { ok: true, ...result });
       return;
     }
 
     if (req.method === "GET" && req.url === "/api/mobile-sensor/metrics") {
-      const body = mobileSensorPrometheusText();
+      const latest = await resolvedMobileSensorLatest();
+      const body = mobileSensorPrometheusText(latest.data);
       res.writeHead(200, {
         "Content-Type": "text/plain; version=0.0.4; charset=utf-8",
         "Content-Length": Buffer.byteLength(body),
@@ -2459,7 +3108,7 @@ async function handleApi(req, res) {
 
     if (req.method === "POST" && req.url === "/api/mobile-sensor/demo-data") {
       const body = await readBody(req);
-      const result = generateDemoSensorData(body);
+      const result = await generateDemoSensorData(body);
       recordAppEvent("mobile_sensor_demo_generated", {
         route: "/api/mobile-sensor/demo-data",
         deviceId: result.deviceId,
@@ -2473,7 +3122,7 @@ async function handleApi(req, res) {
 
     if (req.method === "POST" && req.url === "/api/mobile-sensor/reset") {
       const body = await readBody(req);
-      const result = resetMobileSensorData(body.deviceId || "");
+      const result = await resetMobileSensorData(body.deviceId || "");
       recordAppEvent("mobile_sensor_reset", {
         route: "/api/mobile-sensor/reset",
         deviceId: result.deviceId,
@@ -2597,6 +3246,7 @@ async function handleApi(req, res) {
 
     if (req.method === "POST" && req.url === "/api/propose") {
       const body = await readBody(req);
+      validateProposalInput(body);
       const proposal = await hybridProposal(body.industry, body.dashboardType);
       recordAppEvent("dashboard_proposed", {
         route: "/api/propose",
@@ -2629,76 +3279,37 @@ async function handleApi(req, res) {
 
     if (req.method === "POST" && req.url === "/api/create-dashboard") {
       const body = await readBody(req);
-      const proposed = proposePanels(body.industry, body.dashboardType);
-      const draftPanels = Array.isArray(body.panels) && body.panels.length ? body.panels : proposed.panels;
-      const validationErrors = validatePanelDrafts(draftPanels);
-      if (validationErrors.length) {
-        sendJson(res, 400, { ok: false, error: "Panel validation failed.", errors: validationErrors });
-        return;
-      }
-      const overwrite = body.overwrite === true;
-      const identity = await resolveDashboardIdentity(proposed, overwrite);
-      const dashboard = buildDashboard(body.industry, draftPanels, body.dashboardType);
-      dashboard.uid = identity.uid;
-      dashboard.title = identity.suffix ? `${dashboard.title} ${identity.suffix}` : dashboard.title;
-      await ensureTestData();
-      const folderUid = typeof body.folderUid === "string" ? body.folderUid : "";
-      const result = await grafana("/api/dashboards/db", {
-        method: "POST",
-        body: JSON.stringify({
-          dashboard,
-          folderUid,
-          message: `Create ${proposed.industry} maintenance dashboard from sales UI`,
-          overwrite
-        })
-      });
-      const url = result.url ? `${GRAFANA_URL}${result.url}` : `${GRAFANA_URL}/d/${identity.uid}/${identity.slug}`;
-      const createdEvent = recordAppEvent("dashboard_created", {
-        route: "/api/create-dashboard",
-        industry: proposed.industry,
-        dashboardType: proposed.dashboardType,
-        dashboardUid: identity.uid,
-        dashboardTitle: dashboard.title,
-        dashboardUrl: url,
-        folderUid,
-        actor: requestActor(req),
-        message: `Dashboard created. overwrite=${overwrite}`
-      });
-      try {
-        await saveDashboardHistoryToFirestore(createdEvent);
-      } catch (error) {
-        recordAppEvent("dashboard_history_save_failed", {
-          route: "/api/create-dashboard",
-          level: "warn",
-          message: error.message,
-          dashboardUid: identity.uid,
-          dashboardUrl: url
-        });
-      }
-      sendJson(res, 200, {
-        ok: true,
-        name: identity.uid,
-        title: dashboard.title,
-        overwritten: overwrite && identity.uid === proposed.dashboardUid,
-        url,
-        result
-      });
+      validateCreateDashboardInput(body);
+      const key = validateIdempotencyKey(req.headers["idempotency-key"], { required: true });
+      const outcome = await runIdempotentOperation(
+        "create-dashboard",
+        key,
+        requestFingerprint(body),
+        () => createDashboardResult(body, req)
+      );
+      sendJson(res, 200, { ...outcome.value, idempotencyReplayed: outcome.replayed });
       return;
     }
 
     sendJson(res, 404, { ok: false, error: "Not found" });
   } catch (error) {
+    const statusCode = Number(error.statusCode) || 500;
     recordAppEvent("api_error", {
       route: req.url,
       level: "error",
       message: error.message,
-      statusCode: 500
+      statusCode
     });
-    sendJson(res, 500, { ok: false, error: error.message });
+    sendJson(res, statusCode, { ok: false, error: error.message, code: error.code || "INTERNAL_ERROR" });
   }
 }
 
 function serveStatic(req, res) {
+  if (SERVICE_ROLE === "public") {
+    res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end("Not found");
+    return;
+  }
   const requestPath = req.url === "/" ? "/grafana-sales-dashboard-builder.html" : decodeURIComponent(req.url.split("?")[0]);
   const filePath = path.normalize(path.join(PUBLIC_DIR, requestPath));
   if (!filePath.startsWith(PUBLIC_DIR)) {

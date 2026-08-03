@@ -18,7 +18,16 @@ const outputDir = path.join(repoRoot, "outputs", "ui-verification");
 const relatedTests = [
   ["node", ["--check", "server/grafana-dashboard-builder.js"]],
   ["node", ["--check", "scripts/verify-ui-change-loop.js"]],
+  ["node", ["scripts/verify-risk-direction.js"]],
+  ["node", ["scripts/verify-relative-testdata-time.js"]],
   ["node", ["scripts/verify-google-oidc-mode.js"]],
+  ["node", ["scripts/verify-auth-fail-closed.js"]],
+  ["node", ["scripts/verify-static-dashboard-import-policy.js"]],
+  ["node", ["scripts/verify-api-safety.js"]],
+  ["node", ["scripts/verify-persistent-idempotency.js"]],
+  ["node", ["scripts/verify-immutable-cloud-run-release.js"]],
+  ["node", ["scripts/verify-firestore-sensor-persistence.js"]],
+  ["node", ["scripts/verify-service-role-separation.js"]],
   ["node", ["scripts/validate-repository.js"]]
 ];
 
@@ -461,6 +470,66 @@ async function verifyBrowser(apiEvidence) {
       fail(`OIDC UI mode check failed: ${JSON.stringify(oidcUiState)}`);
     }
 
+    const authFailureState = await evaluate(client, `(async () => {
+      const originalFetch = window.fetch;
+      const originalGoogle = window.google;
+      const original = {
+        authMode: state.authMode,
+        authenticated: state.authenticated,
+        authActor: state.authActor,
+        googleOidcClientId: state.googleOidcClientId,
+        googleOidcCredential: state.googleOidcCredential
+      };
+      window.google = { accounts: { id: {
+        initialize() {},
+        renderButton() {},
+        disableAutoSelect() {}
+      } } };
+      state.authMode = "google-oidc";
+      state.authenticated = true;
+      state.authActor = "test@example.com";
+      state.googleOidcClientId = "test-client.apps.googleusercontent.com";
+      state.googleOidcCredential = "expired-token";
+      window.fetch = async () => new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" }
+      });
+      let expiredMessage = "";
+      try {
+        await requestApi("/api/test-auth-expiry");
+      } catch (error) {
+        expiredMessage = error.message;
+      }
+      const expired = {
+        expiredMessage,
+        authenticated: state.authenticated,
+        credentialCleared: state.googleOidcCredential === "",
+        authText: document.querySelector("#authState").textContent
+      };
+      window.fetch = async () => { throw new TypeError("offline"); };
+      await loadAuthStatus();
+      const unavailable = {
+        mode: state.authMode,
+        authenticated: state.authenticated,
+        authText: document.querySelector("#authState").textContent
+      };
+      window.fetch = originalFetch;
+      if (originalGoogle === undefined) delete window.google;
+      else window.google = originalGoogle;
+      Object.assign(state, original);
+      renderAuthState();
+      return { expired, unavailable };
+    })()`);
+    if (!authFailureState?.expired.expiredMessage.includes("再ログイン") ||
+        authFailureState.expired.authenticated ||
+        !authFailureState.expired.credentialCleared ||
+        !authFailureState.expired.authText.includes("Googleでログイン") ||
+        authFailureState.unavailable.mode !== "unavailable" ||
+        authFailureState.unavailable.authenticated ||
+        !authFailureState.unavailable.authText.includes("認証状態を確認できません")) {
+      fail(`Authentication recovery/fail-closed UI check failed: ${JSON.stringify(authFailureState)}`);
+    }
+
     await evaluate(client, `(() => {
       const industry = document.querySelector("#industry");
       const propose = document.querySelector("#propose");
@@ -518,6 +587,19 @@ async function verifyBrowser(apiEvidence) {
       return {
         previewPanelCount: document.querySelectorAll("#previewBoard .preview-panel").length,
         panelCardCount: document.querySelectorAll("#panels .panel-card").length,
+        riskDirectionSelectCount: document.querySelectorAll('#panels select[data-key="riskDirection"]').length,
+        lowRiskPanelCount: state.panels.filter((panel) => panel.riskDirection === "low").length,
+        panelFieldCount: document.querySelectorAll("#panels [data-key]").length,
+        associatedPanelFieldCount: Array.from(document.querySelectorAll("#panels [data-key]"))
+          .filter((field) => field.id && document.querySelector('label[for="' + field.id + '"]')).length,
+        oeeRisk: (() => {
+          const panel = state.panels.find((item) => item.title === "Overall Equipment Effectiveness");
+          return panel ? {
+            direction: panel.riskDirection,
+            warning: panel.warningThreshold,
+            critical: panel.criticalThreshold
+          } : null;
+        })(),
         activeStep,
         appColumns: getComputedStyle(app).gridTemplateColumns,
         asideWidth: Math.round(aside.getBoundingClientRect().width),
@@ -527,6 +609,15 @@ async function verifyBrowser(apiEvidence) {
     })()`) || {};
     if (desktopState.previewPanelCount < 8 || desktopState.panelCardCount < 8) {
       fail(`Proposal did not render enough panels: ${JSON.stringify(desktopState)}`);
+    }
+    if (desktopState.riskDirectionSelectCount !== desktopState.panelCardCount ||
+        desktopState.lowRiskPanelCount < 2 ||
+        desktopState.oeeRisk?.direction !== "low" ||
+        !(desktopState.oeeRisk.warning > desktopState.oeeRisk.critical)) {
+      fail(`Risk-direction UI check failed: ${JSON.stringify(desktopState)}`);
+    }
+    if (!desktopState.panelFieldCount || desktopState.associatedPanelFieldCount !== desktopState.panelFieldCount) {
+      fail(`Panel form labels are not fully associated: ${JSON.stringify(desktopState)}`);
     }
     if (desktopState.activeStep !== "2") fail(`Workflow must advance to step 2 after proposal: ${JSON.stringify(desktopState)}`);
     if (desktopState.asideWidth < 300 || desktopState.mainWidth < 700 || desktopState.documentOverflow) {
@@ -871,6 +962,37 @@ async function verifyBrowser(apiEvidence) {
     }
     await client.send("Page.bringToFront");
     await wait(750);
+    const dashboardHistoryState = await evaluate(client, `(() => {
+      state.dashboardHistorySource = "firestore";
+      state.dashboardHistoryRows = [{
+        time: "2026-07-10T14:53:20.000Z",
+        dashboardUid: "sheet-metal-maintenance-demo",
+        dashboardTitle: "sheet-metal machine maintenance demo",
+        dashboardType: "manufacturing",
+        dashboardUrl: "https://ytsutsumi30.grafana.net/d/sheet-metal-maintenance-demo/sheet-metal-machine-maintenance-demo",
+        industry: "板金加工業者",
+        message: "Dashboard created. overwrite=true"
+      }];
+      renderDashboardHistory();
+      const item = document.querySelector("#dashboardHistory .history-item");
+      const link = item?.querySelector(".history-open-link");
+      return {
+        itemCount: document.querySelectorAll("#dashboardHistory .history-item").length,
+        title: item?.querySelector(".history-title")?.textContent || "",
+        result: item?.querySelector(".history-result")?.textContent || "",
+        linkText: link?.textContent || "",
+        linkHref: link?.href || "",
+        rawUrlVisible: item?.innerText.includes("https://") || false
+      };
+    })()`);
+    if (dashboardHistoryState?.itemCount !== 1 ||
+        dashboardHistoryState.title !== "sheet-metal machine maintenance demo" ||
+        dashboardHistoryState.result !== "上書き" ||
+        dashboardHistoryState.linkText !== "Grafanaで開く" ||
+        !dashboardHistoryState.linkHref.startsWith("https://ytsutsumi30.grafana.net/d/") ||
+        dashboardHistoryState.rawUrlVisible) {
+      fail(`Dashboard history visualization check failed: ${JSON.stringify(dashboardHistoryState)}`);
+    }
     const desktopScreenshot = await captureScreenshot(client, "latest-desktop.png");
 
     await client.send("Emulation.setDeviceMetricsOverride", {
@@ -885,20 +1007,64 @@ async function verifyBrowser(apiEvidence) {
       const aside = document.querySelector("aside");
       const main = document.querySelector("main");
       const preview = document.querySelector(".preview");
+      const historyItem = document.querySelector("#dashboardHistory .history-item");
+      const historyLink = historyItem?.querySelector(".history-open-link");
       return {
         appColumns: getComputedStyle(app).gridTemplateColumns,
         asideWidth: Math.round(aside.getBoundingClientRect().width),
         mainWidth: Math.round(main.getBoundingClientRect().width),
         viewportWidth: document.documentElement.clientWidth,
         documentOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
-        previewScrollable: preview.scrollWidth > preview.clientWidth
+        previewScrollable: preview.scrollWidth > preview.clientWidth,
+        historyFits: Boolean(historyItem) && historyItem.scrollWidth <= historyItem.clientWidth,
+        historyLinkFits: Boolean(historyLink) && historyLink.scrollWidth <= historyLink.clientWidth
       };
     })()`) || {};
     if (mobileState.asideWidth > mobileState.viewportWidth || mobileState.mainWidth > mobileState.viewportWidth) {
       fail(`Mobile content exceeds viewport: ${JSON.stringify(mobileState)}`);
     }
-    if (mobileState.documentOverflow || !mobileState.previewScrollable) {
+    if (mobileState.documentOverflow || !mobileState.previewScrollable || !mobileState.historyFits || !mobileState.historyLinkFits) {
       fail(`Mobile overflow containment check failed: ${JSON.stringify(mobileState)}`);
+    }
+    await evaluate(client, `(() => {
+      document.querySelector("#dashboardHistory")?.scrollIntoView({ block: "center" });
+      return true;
+    })()`);
+    await wait(350);
+    const historyMobileScreenshot = await captureScreenshot(client, "latest-history-mobile.png");
+    const mobileNavigationState = await evaluate(client, `(async () => {
+      const nav = document.querySelector(".mobile-nav");
+      const previewButton = nav.querySelector('[data-target="previewSection"]');
+      previewButton.click();
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      const previewFocused = document.activeElement?.id === "previewSection";
+      nav.querySelector('[data-target="conditionsSection"]').click();
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      const conditionsFocused = document.activeElement?.id === "conditionsSection";
+      let createForwarded = false;
+      const create = document.querySelector("#create");
+      create.addEventListener("click", (event) => {
+        createForwarded = true;
+        event.stopImmediatePropagation();
+        event.preventDefault();
+      }, { capture: true, once: true });
+      nav.querySelector('[data-action="create"]').click();
+      return {
+        display: getComputedStyle(nav).display,
+        buttonCount: nav.querySelectorAll("button").length,
+        previewFocused,
+        conditionsFocused,
+        createEnabled: !nav.querySelector('[data-action="create"]').disabled,
+        createForwarded
+      };
+    })()`);
+    if (mobileNavigationState?.display === "none" ||
+        mobileNavigationState.buttonCount !== 4 ||
+        !mobileNavigationState.previewFocused ||
+        !mobileNavigationState.conditionsFocused ||
+        !mobileNavigationState.createEnabled ||
+        !mobileNavigationState.createForwarded) {
+      fail(`Mobile navigation check failed: ${JSON.stringify(mobileNavigationState)}`);
     }
     const mobileScreenshot = await captureScreenshot(client, "latest-mobile.png");
 
@@ -940,7 +1106,6 @@ async function verifyBrowser(apiEvidence) {
     }
 
     const evidence = {
-      verifiedAt: new Date().toISOString(),
       targetUrl,
       title: initialState.title,
       consoleErrors: 0,
@@ -959,16 +1124,16 @@ async function verifyBrowser(apiEvidence) {
         panel: panelInputConstraintState
       },
       oidcUi: oidcUiState,
+      dashboardHistory: dashboardHistoryState,
       mobile: mobileState,
       draftRestore: draftRestoreState,
       expiredDraft: expiredDraftState,
       apiFailureGuidance: apiFailureState,
-      screenshots: [desktopScreenshot, mobileScreenshot]
+      screenshots: [desktopScreenshot, mobileScreenshot, historyMobileScreenshot]
     };
-    fs.writeFileSync(path.join(outputDir, "latest-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
     log(`Target screen OK: title="${initialState.title}", panels=${desktopState.previewPanelCount}, consoleErrors=0`);
-    log(`UI evidence: ${path.relative(repoRoot, outputDir)}`);
     client.close();
+    return evidence;
   } finally {
     await killProcess(chrome);
     await removeDirWithRetry(userDataDir);
@@ -976,12 +1141,35 @@ async function verifyBrowser(apiEvidence) {
 }
 
 async function runRelatedTests() {
+  const results = [];
   for (const [command, args] of relatedTests) {
     log(`Running related test: ${command} ${args.join(" ")}`);
+    const startedAt = Date.now();
     const result = await runCommand(command, args);
     const output = `${result.stdout}${result.stderr}`.trim();
     if (output) console.log(output);
+    results.push({
+      command: [command, ...args].join(" "),
+      status: "passed",
+      durationMs: Date.now() - startedAt
+    });
   }
+  return results;
+}
+
+async function getGitSha() {
+  const result = await runCommand("git", ["rev-parse", "HEAD"]);
+  const sha = result.stdout.trim();
+  if (!/^[0-9a-f]{40}$/i.test(sha)) fail(`Could not determine Git SHA: ${sha || "empty output"}`);
+  return sha;
+}
+
+function writeVerifiedEvidence(evidence) {
+  fs.mkdirSync(outputDir, { recursive: true });
+  const latestPath = path.join(outputDir, "latest-result.json");
+  const temporaryPath = path.join(outputDir, `latest-result.${process.pid}.tmp`);
+  fs.writeFileSync(temporaryPath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  fs.renameSync(temporaryPath, latestPath);
 }
 
 async function runOnce(attempt) {
@@ -990,9 +1178,18 @@ async function runOnce(attempt) {
   try {
     await waitForServer();
     log(`Dev server ready: ${targetUrl}`);
+    const gitSha = await getGitSha();
     const apiEvidence = await verifyLocalApi();
-    await verifyBrowser(apiEvidence);
-    await runRelatedTests();
+    const browserEvidence = await verifyBrowser(apiEvidence);
+    const relatedTestResults = await runRelatedTests();
+    const evidence = {
+      verifiedAt: new Date().toISOString(),
+      gitSha,
+      relatedTests: relatedTestResults,
+      ...browserEvidence
+    };
+    writeVerifiedEvidence(evidence);
+    log(`UI evidence: ${path.relative(repoRoot, outputDir)} (git ${gitSha})`);
     log("UI verification loop succeeded.");
   } finally {
     await killProcess(server);

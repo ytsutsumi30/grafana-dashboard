@@ -61,6 +61,7 @@ async function main() {
       PORT: String(port),
       APP_AUTH_MODE: "google-oidc",
       GOOGLE_OIDC_CLIENT_ID: "test-client.apps.googleusercontent.com",
+      GOOGLE_OIDC_ALLOWED_DOMAINS: "example.com",
       APP_ACCESS_TOKEN: ""
     },
     stdio: "ignore"

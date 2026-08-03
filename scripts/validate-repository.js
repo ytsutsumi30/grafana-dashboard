@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { containsFixedIsoTimestamp } = require("../server/mock-csv-time");
 
 const root = path.resolve(__dirname, "..");
 const dashboardDir = path.join(root, "dashboards");
@@ -28,6 +29,10 @@ function validateDashboard(filePath) {
   if (!payload) return;
 
   const dashboard = payload.dashboard && typeof payload.dashboard === "object" ? payload.dashboard : payload;
+
+  if (payload.dashboard && payload.overwrite !== false) {
+    fail(`${label}: static dashboard import payload must set overwrite to false`);
+  }
 
   if (!dashboard.uid || typeof dashboard.uid !== "string") {
     fail(`${label}: dashboard.uid must be a non-empty string`);
@@ -58,6 +63,11 @@ function validateDashboard(filePath) {
     }
     if (!panel.gridPos || typeof panel.gridPos !== "object") {
       fail(`${label}: panel ${panel.title || panel.id || "(unknown)"} gridPos is required`);
+    }
+    for (const target of panel.targets || []) {
+      if (target.scenarioId === "csv_content" && containsFixedIsoTimestamp(target.csvContent)) {
+        fail(`${label}: panel ${panel.title || panel.id} csvContent must use relative time tokens instead of fixed ISO timestamps`);
+      }
     }
   }
 
