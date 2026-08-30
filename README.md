@@ -5,11 +5,13 @@
 ## 関連ドキュメント
 
 - [Grafana Cloud 製造業向けダッシュボード作成支援ツール 仕様書](docs/dashboard-builder-specification.md)
+- [Grafana Cloud ダッシュボード提案ツール 統合機能仕様](docs/dashboard-builder-integrated-feature-specification.md)
 - [営業担当者向け Grafana Cloud ダッシュボード提案ツール 利用ガイド](docs/sales-user-guide.md)
 - [Android Vibration Sensor Demo MVP](docs/android-vibration-demo-mvp.md)
 - [出荷検品アプリ監視ダッシュボード デモガイド](docs/shipping-inspection-demo-guide.md)
 - [出荷検品アプリ監視API 契約書](docs/shipping-inspection-api-contract.md)
 - [Project Skill Application Plan](docs/skill-application-plan.md)
+- [製造業向け AI 需給予測システム計画書](docs/ai-demand-supply-forecast-plan.md)
 
 対象記事:
 https://blog.elcamy.com/articles/0f371c89
@@ -335,6 +337,8 @@ New-NetFirewallRule `
 UIでは以下ができます。
 
 - 「業種欄向けのダッシュボードを作成してください。」に訪問先業種を入力
+- `会社資料から作成` で企業Webサイト、キーワード、営業メモ、会社案内画像/PDFを分析
+- 分析結果を確認済み情報、AI推定、顧客への確認事項に分けて確認・編集
 - `ダッシュボード種別` で `製造ライン・設備保全` または `IoTデバイス監視` を選択
 - `Dashboard folder` でGrafana Cloud上の作成先フォルダを選択
 - `パネル案作成` で業種向けパネル案を生成
@@ -344,6 +348,10 @@ UIでは以下ができます。
 - 誤って削除した直前のパネルを元の位置へ復元
 - `エラーのみ`で検証エラーのあるパネルを絞り込み
 - 作成前に生成前プレビューでレイアウトを確認
+- `プレビュー編集`と`一覧編集`を切り替え、3点メニューのダイアログでパネルを編集
+- パネルタイトルをマウスまたはタッチでドラッグし、Grafanaの24カラム配置を変更
+- 配置の取り消し、自動配置、下書きへの配置保存
+- `自動` / `PC` / `Tablet` 表示とTablet用条件ドロワー
 - `提案メモ印刷` からブラウザ印刷/PDF保存向けの提案メモを出力
 - `実データソース差し替え` でGrafana Cloudのデータソース一覧とパネル別の差し替え確認表を表示
 - `作成履歴` で作成済みURLを再表示。ブラウザにも直近履歴を保存
@@ -359,6 +367,10 @@ UIでは以下ができます。
 - AI生成結果はサーバー側で検証・正規化し、UIで編集可能なパネル案として表示
 - 製造ライン・設備保全では、業種別センサーに加えて OEE、稼働率、計画外停止、アラーム件数、保全アクションキュー、ロス内訳、シフト別生産サマリ、品質不良トレンド、不良理由内訳、MTBF/MTTR、アラート候補を先頭に追加
 - Vertex AI または OpenAI API が使えない場合は汎用テンプレートへフォールバック
+
+`会社資料から作成` は、業種入力とは独立したタブです。URLはHTTPまたはHTTPSを受け付け、localhost、プライベートIP、クラウドメタデータ、HTTPSからHTTPへのダウングレードなどを拒否します。HTTPサイトは通信が暗号化されないため、公開情報だけを対象にします。添付はJPEG、PNG、WebP、PDFを最大3件、1件5MB、合計10MBまでとし、リクエスト処理後に保存しません。分析前に、入力内容を設定済みAIサービスへ送信する同意が必要です。分析結果はそのまま確定せず、営業担当者が編集してからパネル案へ反映します。
+
+会社資料分析の実装・検証ループは [企業資料分析機能の検証ループ](docs/company-source-analysis-loop.md) を参照してください。
 
 現在の主な既知業種テンプレート:
 

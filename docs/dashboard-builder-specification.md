@@ -106,9 +106,19 @@ Cloud Runでは`SERVICE_ROLE=combined`を起動時に拒否する。`public` rol
 ユーザーは以下を入力・選択する。
 
 - 業種または監視対象
+- 入力方法
+  - 業種から作成
+  - 会社資料から作成
 - ダッシュボード種別
   - 製造ライン・設備保全
   - IoTデバイス監視
+- 監視目的
+  - 保全・故障予兆
+  - 生産性・稼働
+  - 品質・不良低減
+  - エネルギー・環境
+- 主要工程 任意。工程自動判定後に選択可能
+- 監視対象設備 任意。工程自動判定後に複数選択可能
 - 顧客/案件ラベル 任意。提案メモとブラウザ保存履歴に使用
 - 営業担当者 任意。提案メモに使用
 - Dashboard folder
@@ -117,28 +127,36 @@ Cloud Runでは`SERVICE_ROLE=combined`を起動時に拒否する。`public` rol
 
 パネル案作成時の動作:
 
-1. 入力された業種とダッシュボード種別をサーバーへ送信する
-2. 既知業種に該当する場合はテンプレートを返す
-3. 未知業種の場合は標準でVertex AI Geminiによりパネル案を生成する
-4. 製造ライン・設備保全では、業種別パネルの前に共通KPI行を追加する
-5. Vertex AIまたはOpenAI APIが使えない場合は汎用テンプレートにフォールバックする
-6. UI上で編集可能なパネル一覧として表示する
+1. 業種入力と会社資料分析を同じ工程判定器へ入力する
+2. 9工程カタログに該当する場合は、工程固有パネルを先頭にした安定提案を返す
+3. 主要工程には最大5件、その他工程には最大3件を割り当て、対象設備の選択があれば工程を絞り込む
+4. 既知業種に該当する場合はテンプレート、未知業種の場合はVertex AI Geminiを使う
+5. 製造ライン・設備保全では、監視目的に対応する共通KPIを4件だけ工程固有パネルの後段に追加する
+6. AIが使えない場合は汎用テンプレートへフォールバックし、方式と警告を画面へ常時表示する
+7. 各パネルへ採用理由、工程、対象設備、値範囲の出所を付け、編集可能な一覧として表示する
 
-製造ライン・設備保全の共通KPI:
+### 6.1.1 会社資料からの企業分析
 
-- `Overall Equipment Effectiveness`: 設備総合効率をGaugeで表示
-- `Availability / Uptime`: 現在のライン稼働率をStatで表示
-- `Unplanned Downtime`: 直近の計画外停止時間をStatで表示
-- `Active Alarm Count`: 未解決アラーム件数をStatで表示
-- `Maintenance Action Queue`: 優先度、設備、状態、推奨対応、担当、期限をTableで表示
-- `Production Loss Breakdown`: 停止、段取り、速度低下、品質ロスの構成比をドーナツで表示
-- `Shift Production Summary`: シフト別の計画数、実績数、不良数、停止時間、達成率をTableで表示
-- `Quality Defect Trend`: 時間帯ごとの不良率推移を時系列で表示
-- `Top Defect Reasons`: 主要な不良理由の件数構成をドーナツで表示
-- `MTBF / MTTR Trend`: 平均故障間隔と平均復旧時間の推移を時系列で表示
-- `Alert Rule Candidates`: 本番化時にGrafana Alertingへ移す通知条件、重要度、通知先、一次対応をTableで表示
+`会社資料から作成` は既存の業種入力とは別タブで提供する。ユーザーは企業WebサイトURL、キーワード、営業担当者メモ、会社案内画像またはPDFを組み合わせて入力できる。
 
-### 6.1.1 提案メモ出力
+入力制約:
+
+- URLはHTTPまたはHTTPS、最大2048文字。HTTPは暗号化されないため公開情報だけを対象とする
+- DNS解決後にlocalhost、プライベートIP、リンクローカル、クラウドメタデータ宛てを拒否
+- リダイレクトは同一ホスト内で最大3回
+- HTTPSからHTTPへのダウングレードリダイレクトは拒否
+- Web本文はHTMLまたはプレーンテキスト、最大2MB
+- Web本文はHTTP charsetを尊重し、UTF-8、Shift_JIS/Windows-31J、EUC-JPなどをデコード
+- 添付はJPEG、PNG、WebP、PDFを最大3件、1件5MB、合計10MB
+- 拡張子だけでなくMIMEとmagic bytesを検証
+- URL本文と添付はリクエスト処理中のみ保持し、下書き、作成履歴、ログへ保存しない
+- AI分析サービスへの送信同意をUIとAPIの両方で必須にする
+
+分析結果はJSON Schemaで検証し、`confirmedFacts`、`inferredFacts`、`missingInformation`、`evidence`、`confidence`を分離する。営業担当者は会社名、業種概要、確認済み情報、AI推定、顧客への確認事項を編集してからパネル案生成へ進む。会社分析から既知工程を判定できた場合は工程カタログを優先し、判定できない場合だけ企業文脈をAIパネル提案へ渡す。AIが利用できない場合は汎用テンプレートへフォールバックする。
+
+製造ライン・設備保全の共通KPIは11件を常時追加せず、監視目的に応じて4件を選択する。保全では稼働率、計画外停止、未解決アラーム、MTBF/MTTR、生産ではOEE、稼働率、シフト実績、ロス内訳、品質では不良率推移、不良理由、OEE、未解決アラーム、エネルギーでは総需要、原単位、ピーク需要、CO2を使用する。
+
+### 6.1.2 提案メモ出力
 
 パネル案作成後、`提案メモ印刷` からブラウザ印刷用の提案メモを別ウィンドウで表示する。
 
@@ -190,12 +208,17 @@ IoTデバイス監視:
 - `timeseries`
 - `stat`
 - `gauge`
+- `bargauge`
+- `barchart`
+- `heatmap`
 - `piechart`
 - `table`
 
 ### 6.4 パネル編集
 
 ユーザーはUI上で以下を編集できる。
+
+編集画面は `プレビュー編集` と `一覧編集` の2モードを持つ。プレビュー編集ではGrafana風レイアウト上の3点メニューから単一パネルをダイアログ編集する。一覧編集では従来の編集カード、検索、エラー絞り込みを使って複数パネルを連続編集する。
 
 - パネル名
 - 可視化方式
@@ -213,6 +236,8 @@ IoTデバイス監視:
 
 また、パネルの追加、複製、削除、削除取り消し、上下移動ができる。パネル数は最大24件とし、上限到達時は追加と複製を無効化する。追加・複製後は対象パネル名へフォーカスして初期値を選択する。削除時は直前の1件と位置を一時保持し、専用の操作帯から元の位置へ復元できる。上下移動は編集済みパネル配列を入れ替え、生成前プレビュー、下書き、Grafana dashboard JSONの順序へ即時反映する。先頭の上移動と末尾の下移動は無効化する。
 
+プレビューの3点メニューは `詳細を編集`、`複製`、`自動位置へ移動`、`削除` を提供する。編集ダイアログは変更前の値を保持し、`変更を適用` で検証済みの値だけを反映する。`キャンセル`、閉じるボタン、Esc操作では変更を破棄する。
+
 パネル編集一覧は、パネル名、目的、単位、可視化方式の部分一致と、検証エラーの有無で絞り込める。表示件数、総件数、エラーパネル件数、上限を一覧上部へ表示する。検索とエラー絞り込みは編集カードの表示だけを変更し、生成前プレビュー、パネル順序、下書き、Grafanaへ送るパネルデータは変更しない。新規提案、パネル追加・複製、下書き破棄では絞り込み条件を解除する。
 
 ### 6.4.1 作成前バリデーション
@@ -224,12 +249,14 @@ UIとサーバーの両方で、Grafana Cloudへ投入する前にパネル案�
 - パネル数が1以上24以下であること
 - パネル名が空ではなく、80文字以内であること
 - 単位は32文字以内、目的は160文字以内であること
-- 可視化方式が `timeseries` / `stat` / `gauge` / `piechart` / `table` のいずれかであること
+- 可視化方式が `timeseries` / `stat` / `gauge` / `bargauge` / `barchart` / `heatmap` / `piechart` / `table` のいずれかであること
 - 最小値と最大値が数値であり、最大値が最小値より大きいこと
 - Warning / Critical 閾値が入力されている場合は数値であること
 - `high` / `outside` はWarning閾値がCritical閾値より小さいこと
 - `low` はCritical閾値がWarning閾値より小さいこと
 - Warning / Critical 閾値が最小値と最大値の範囲内であること
+- `gridPos` の `x` / `y` / `w` / `h` が整数であり、24カラム内であること
+- 全パネルに `gridPos` が設定され、パネル同士が重複していないこと
 
 UIではエラーがあるパネルに検証メッセージを表示し、`Grafana Cloud に作成` ボタンを無効化する。サーバー側でも同じ検証を行い、不正なリクエストはHTTP 400で拒否する。
 
@@ -240,13 +267,18 @@ UIではエラーがあるパネルに検証メッセージを表示し、`Grafa
 プレビュー仕様:
 
 - Grafanaと同じ24カラム相当の配置で表示する
-- Grafanaのダークテーマに近いパネル枠、グリッド、凡例、Stat背景色、Gauge、ドーナツ、Tableを簡易描画する
-- `stat` / `gauge` は小型パネルとして表示する
+- Grafanaのダークテーマに近いパネル枠、グリッド、凡例、Stat背景色、Gauge、Bar gauge、棒グラフ、Heatmap、ドーナツ、Tableを簡易描画する
+- `stat` / `gauge` / `bargauge` は小型パネルとして表示する
 - `timeseries` でタイトルに `trend` を含むものは横長パネルとして表示する
 - その他のパネルは標準サイズとして表示する
 - パネル名、可視化方式、単位、Warning/Critical閾値を表示する
 - パネル編集、追加、削除、Dashboard folder変更に応じて即時更新する
 - Grafana内部単位は、`short`を非表示、`accMS2`を`m/s²`、`pressurebar`を`bar`のように表示用記号へ変換する
+- パネルタイトル部分をマウスまたはタッチでドラッグし、24カラム内の表示位置を変更できる
+- Gridstack 13.1.2をローカル配信し、外部CDNへ実行時依存しない
+- ドラッグ前の配置を最大20件保持し、`配置を戻す` で直前の配置へ戻せる
+- `自動配置` で全パネルを可視化種別に応じた既定位置へ戻せる
+- パネルごとの `gridPos` を下書きと作成APIへ渡し、Grafana dashboard JSONへそのまま反映する
 
 ### 6.5.1 営業UIの操作導線
 
@@ -258,6 +290,9 @@ UIではエラーがあるパネルに検証メッセージを表示し、`Grafa
 - パネル案生成後は工程2、Grafana Cloud作成成功後は工程3を現在工程として表示する
 - デスクトップでは入力欄と工程表示をスクロール中も確認できる
 - モバイルでは1カラム表示とし、24カラムのプレビューだけを横スクロール可能にする
+- `自動` / `PC` / `Tablet` の表示モードを提供する
+- Tabletモードでは条件入力を左ドロワー化し、操作部品を44px以上にする
+- Tabletモードは表示と操作性だけを変更し、Grafanaへ保存する配置は常に24カラムとする
 - 想定ダッシュボードURLと提案メモURLは`/api/runtime-status`の`grafanaUrl`から生成し、特定テナントをハードコードしない
 - 実行時Grafana URLを取得できない間はリンクを生成せず、確認中と表示する
 
@@ -266,6 +301,8 @@ UIではエラーがあるパネルに検証メッセージを表示し、`Grafa
 パネル案作成後の編集内容は、ブラウザのlocalStorageへバージョン付き下書きとして自動保存する。
 
 - 保存キーは `grafanaBuilderDraftV1` とする
+- 現行下書き形式はversion 2とし、各パネルの `gridPos` を保存する
+- version 1の下書きは読込時に自動配置を補い、version 2として次回保存する
 - 入力後300msのデバウンスで保存する
 - ページ更新や離脱時は待機中の変更を直ちに保存する
 - 業種、ダッシュボード種別、顧客/案件ラベル、営業担当者、Dashboard folder、上書き設定、提案情報、編集済みパネルを保存する
@@ -457,9 +494,18 @@ Grafana CloudのDashboard folder一覧を取得する。
 ```json
 {
   "industry": "板金加工業者",
-  "dashboardType": "manufacturing"
+  "dashboardType": "manufacturing",
+  "monitoringGoal": "maintenance",
+  "primaryProcess": "bending",
+  "selectedEquipment": ["NCプレスブレーキ"]
 }
 ```
+
+会社資料分析を反映する場合は、`companyAnalysis`へ `POST /api/analyze-company-sources` の検証済み分析結果を指定する。`companyAnalysis.dashboardType` とリクエストの `dashboardType` が一致しない場合は400を返す。
+
+製造業では、通常の業種入力と会社資料分析のどちらも、業種、`processes`、`equipment`、`selectedEquipment`から同じ工程別監視カタログを照合する。対象はプレス、熱処理、鍍金（めっき）、放電、研磨、溶接、切削、曲げ、特殊加工とする。
+
+複数工程が検出された場合は、各工程の主要パネルを最低1件ずつ選び、残りを工程間で均等に補完する。カタログの最小値・最大値・閾値はTestData向けの編集可能なデモ初期値であり、顧客設備の正常範囲や保証値として扱わない。実データソースへの差し替え時に、PLCアドレス、センサー仕様、正常範囲、警報条件を顧客確認する。
 
 レスポンス項目:
 
@@ -467,12 +513,31 @@ Grafana CloudのDashboard folder一覧を取得する。
 | --- | --- |
 | `industry` | 入力業種 |
 | `dashboardType` | `manufacturing` または `iot` |
-| `source` | `template`, `ai`, `fallback` |
+| `source` | `process-catalog`, `template`, `ai`, `fallback` |
+| `monitoringGoal` | 選択された監視目的 |
+| `processOptions` | 判定された工程候補 |
+| `equipmentOptions` | 選択可能な設備候補 |
 | `dashboardUid` | 作成予定UID |
 | `dashboardSlug` | Grafana URL用slug |
 | `dashboardTitle` | ダッシュボードタイトル |
 | `time` | Grafana time range |
 | `panels` | パネル案配列 |
+
+### 7.3.1 `POST /api/analyze-company-sources`
+
+企業Webサイト、キーワード、営業メモ、画像/PDFを分析し、編集可能な企業分析を返す。管理サービスでのみ利用でき、UI認証、レート制限、15MBのJSON body上限を適用する。
+
+```json
+{
+  "url": "https://www.example.co.jp/about/",
+  "keywords": ["金属加工", "多品種少量"],
+  "notes": "設備保全を提案したい",
+  "materials": [],
+  "aiConsent": true
+}
+```
+
+`aiConsent` は必ず `true` とする。レスポンスの `source` は `ai` または `fallback`、`analysis` は `server/company-analysis.js` のJSON Schemaに準拠する。入力資料そのものや抽出全文をアプリログ、作成履歴、Firestoreへ保存しない。
 
 ### 7.4 `POST /api/create-dashboard`
 

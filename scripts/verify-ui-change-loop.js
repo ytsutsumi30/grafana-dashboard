@@ -19,6 +19,11 @@ const relatedTests = [
   ["node", ["--check", "server/grafana-dashboard-builder.js"]],
   ["node", ["--check", "scripts/verify-ui-change-loop.js"]],
   ["node", ["scripts/verify-risk-direction.js"]],
+  ["node", ["scripts/verify-panel-layout.js"]],
+  ["node", ["scripts/verify-manufacturing-process-profiles.js"]],
+  ["node", ["scripts/verify-dashboard-proposal-composition.js"]],
+  ["node", ["scripts/verify-extended-visualizations.js"]],
+  ["node", ["scripts/verify-company-analysis-ui.js"]],
   ["node", ["scripts/verify-relative-testdata-time.js"]],
   ["node", ["scripts/verify-google-oidc-mode.js"]],
   ["node", ["scripts/verify-auth-fail-closed.js"]],
@@ -236,7 +241,7 @@ async function verifyLocalApi() {
     method: "POST",
     body: { industry: "板金加工業者", dashboardType: "manufacturing" }
   });
-  if (proposal.statusCode !== 200 || proposal.data?.source !== "template" || proposal.data?.panels?.length < 8) {
+  if (proposal.statusCode !== 200 || proposal.data?.source !== "process-catalog" || proposal.data?.panels?.length < 7) {
     fail(`Known-industry proposal API failed: ${JSON.stringify(proposal)}`);
   }
   log(`Local API OK: ping=200, proposalPanels=${proposal.data.panels.length}`);
@@ -404,6 +409,10 @@ async function verifyBrowser(apiEvidence) {
         h1: document.querySelector("h1")?.innerText || "",
         hasIndustry: Boolean(document.querySelector("#industry")),
         hasDashboardType: Boolean(document.querySelector("#dashboardType")),
+        hasMonitoringGoal: Boolean(document.querySelector("#monitoringGoal")),
+        hasPrimaryProcess: Boolean(document.querySelector("#primaryProcess")),
+        hasEquipmentSelector: Boolean(document.querySelector("#equipmentSelector")),
+        hasProposalSourceSummary: Boolean(document.querySelector("#proposalSourceSummary")),
         hasPropose: Boolean(document.querySelector("#propose")),
         hasCreate: Boolean(document.querySelector("#create")),
         hasDiscardDraft: Boolean(document.querySelector("#discardDraft")),
@@ -412,6 +421,10 @@ async function verifyBrowser(apiEvidence) {
         hasAccessCodeSection: Boolean(document.querySelector("#accessCodeSection")),
         hasGoogleSignInSection: Boolean(document.querySelector("#googleSignInSection")),
         hasAuthState: Boolean(document.querySelector("#authState")),
+        hasPreviewModeTab: Boolean(document.querySelector("#previewModeTab")),
+        hasListModeTab: Boolean(document.querySelector("#listModeTab")),
+        hasPanelDialog: Boolean(document.querySelector("#panelEditorDialog")),
+        hasGridStack: typeof window.GridStack?.init === "function",
         workflowStepCount: document.querySelectorAll("#workflowSteps [data-step]").length,
         toolSectionCount: document.querySelectorAll("details.tool-section").length,
         openToolSectionCount: document.querySelectorAll("details.tool-section[open]").length,
@@ -422,7 +435,7 @@ async function verifyBrowser(apiEvidence) {
       fail(`Unexpected page title: ${initialState.title}`);
     }
     if (!String(initialState.h1).includes("Grafana Cloud")) fail("Target screen h1 was not rendered.");
-    if (!initialState.hasIndustry || !initialState.hasDashboardType || !initialState.hasPropose || !initialState.hasCreate || !initialState.hasDiscardDraft || !initialState.hasDraftState || !initialState.hasPanelFilter || !initialState.hasAccessCodeSection || !initialState.hasGoogleSignInSection || !initialState.hasAuthState) {
+    if (!initialState.hasIndustry || !initialState.hasDashboardType || !initialState.hasMonitoringGoal || !initialState.hasPrimaryProcess || !initialState.hasEquipmentSelector || !initialState.hasProposalSourceSummary || !initialState.hasPropose || !initialState.hasCreate || !initialState.hasDiscardDraft || !initialState.hasDraftState || !initialState.hasPanelFilter || !initialState.hasAccessCodeSection || !initialState.hasGoogleSignInSection || !initialState.hasAuthState || !initialState.hasPreviewModeTab || !initialState.hasListModeTab || !initialState.hasPanelDialog || !initialState.hasGridStack) {
       fail(`Target screen required controls missing: ${JSON.stringify(initialState)}`);
     }
     if (initialState.workflowStepCount !== 3) fail(`Expected 3 workflow steps, found ${initialState.workflowStepCount}.`);
@@ -575,7 +588,7 @@ async function verifyBrowser(apiEvidence) {
     })()`);
     await waitForBrowserCondition(
       client,
-      `document.querySelectorAll("#previewBoard .preview-panel").length >= 8 && !document.querySelector("#propose").disabled`,
+      `document.querySelectorAll("#previewBoard .preview-panel").length >= 7 && !document.querySelector("#propose").disabled`,
       "manufacturing proposal preview"
     );
 
@@ -587,13 +600,27 @@ async function verifyBrowser(apiEvidence) {
       return {
         previewPanelCount: document.querySelectorAll("#previewBoard .preview-panel").length,
         panelCardCount: document.querySelectorAll("#panels .panel-card").length,
+        gridItemCount: document.querySelectorAll("#previewBoard .grid-stack-item").length,
+        previewMenuCount: document.querySelectorAll("#previewBoard .preview-menu-button").length,
+        validGridPosCount: state.panels.filter((panel) => normalizeClientGridPos(panel.gridPos)).length,
+        layoutErrorCount: validateClientPanelLayouts(state.panels).length,
+        previewModeSelected: document.querySelector("#previewModeTab")?.getAttribute("aria-selected"),
+        listEditorHidden: document.querySelector("#listEditor")?.hidden,
         riskDirectionSelectCount: document.querySelectorAll('#panels select[data-key="riskDirection"]').length,
         lowRiskPanelCount: state.panels.filter((panel) => panel.riskDirection === "low").length,
         panelFieldCount: document.querySelectorAll("#panels [data-key]").length,
         associatedPanelFieldCount: Array.from(document.querySelectorAll("#panels [data-key]"))
           .filter((field) => field.id && document.querySelector('label[for="' + field.id + '"]')).length,
-        oeeRisk: (() => {
-          const panel = state.panels.find((item) => item.title === "Overall Equipment Effectiveness");
+        firstPanelTitle: state.panels[0]?.title || "",
+        firstPanelSource: state.panels[0]?.proposalSource || "",
+        rationaleCount: state.panels.filter((panel) => panel.rationale).length,
+        demoRangeCount: state.panels.filter((panel) => panel.rangeSource === "testdata-demo-default").length,
+        processOptionCount: document.querySelectorAll("#primaryProcess option").length,
+        equipmentOptionCount: document.querySelectorAll('#equipmentOptions input[type="checkbox"]').length,
+        proposalSummaryVisible: !document.querySelector("#proposalSourceSummary").hidden,
+        proposalSummaryText: document.querySelector("#proposalSourceSummary").textContent,
+        availabilityRisk: (() => {
+          const panel = state.panels.find((item) => item.title === "Availability / Uptime");
           return panel ? {
             direction: panel.riskDirection,
             warning: panel.warningThreshold,
@@ -607,21 +634,241 @@ async function verifyBrowser(apiEvidence) {
         documentOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
       };
     })()`) || {};
-    if (desktopState.previewPanelCount < 8 || desktopState.panelCardCount < 8) {
+    if (desktopState.previewPanelCount < 7 || desktopState.panelCardCount < 7) {
       fail(`Proposal did not render enough panels: ${JSON.stringify(desktopState)}`);
     }
+    if (desktopState.gridItemCount !== desktopState.previewPanelCount ||
+        desktopState.previewMenuCount !== desktopState.previewPanelCount ||
+        desktopState.validGridPosCount !== desktopState.previewPanelCount ||
+        desktopState.layoutErrorCount !== 0 ||
+        desktopState.previewModeSelected !== "true" ||
+        !desktopState.listEditorHidden) {
+      fail(`Preview editor initialization failed: ${JSON.stringify(desktopState)}`);
+    }
     if (desktopState.riskDirectionSelectCount !== desktopState.panelCardCount ||
-        desktopState.lowRiskPanelCount < 2 ||
-        desktopState.oeeRisk?.direction !== "low" ||
-        !(desktopState.oeeRisk.warning > desktopState.oeeRisk.critical)) {
+        desktopState.lowRiskPanelCount < 1 ||
+        desktopState.availabilityRisk?.direction !== "low" ||
+        !(desktopState.availabilityRisk.warning > desktopState.availabilityRisk.critical)) {
       fail(`Risk-direction UI check failed: ${JSON.stringify(desktopState)}`);
     }
     if (!desktopState.panelFieldCount || desktopState.associatedPanelFieldCount !== desktopState.panelFieldCount) {
       fail(`Panel form labels are not fully associated: ${JSON.stringify(desktopState)}`);
     }
+    if (desktopState.firstPanelTitle !== "Bending Force" ||
+        desktopState.firstPanelSource !== "process-catalog" ||
+        desktopState.rationaleCount !== desktopState.previewPanelCount ||
+        desktopState.demoRangeCount !== desktopState.previewPanelCount ||
+        desktopState.processOptionCount < 2 ||
+        desktopState.equipmentOptionCount < 1 ||
+        !desktopState.proposalSummaryVisible ||
+        !desktopState.proposalSummaryText.includes("工程カタログ") ||
+        !desktopState.proposalSummaryText.includes("TestData")) {
+      fail(`Process proposal explanation check failed: ${JSON.stringify(desktopState)}`);
+    }
+    const extendedVisualizationState = await evaluate(client, `(() => {
+      const original = state.panels.slice(0, 3).map((panel) => ({
+        visualization: panel.visualization,
+        latestOnly: panel.latestOnly
+      }));
+      ["barchart", "bargauge", "heatmap"].forEach((visualization, index) => {
+        state.panels[index].visualization = visualization;
+        state.panels[index].latestOnly = visualization === "bargauge";
+      });
+      renderPanels();
+      const bodies = Array.from(document.querySelectorAll("#previewBoard .preview-body")).slice(0, 3).map((element) => element.innerHTML);
+      const result = {
+        barChartRendered: bodies[0].includes("Period 1") && bodies[0].includes("<rect"),
+        barGaugeRendered: bodies[1].includes("Asset 1") && bodies[1].includes("<rect"),
+        heatmapRendered: bodies[2].includes("High") && bodies[2].includes("-6h"),
+        listOptions: Array.from(document.querySelectorAll('#panels select[data-key="visualization"] option')).map((option) => option.value),
+        dialogOptions: Array.from(document.querySelectorAll('#dialogPanelVisualization option')).map((option) => option.value),
+        errors: validatePanels().length
+      };
+      original.forEach((value, index) => Object.assign(state.panels[index], value));
+      renderPanels();
+      return result;
+    })()`);
+    const requiredExtendedTypes = ["barchart", "bargauge", "heatmap"];
+    if (!extendedVisualizationState?.barChartRendered ||
+        !extendedVisualizationState.barGaugeRendered ||
+        !extendedVisualizationState.heatmapRendered ||
+        !requiredExtendedTypes.every((type) => extendedVisualizationState.listOptions.includes(type)) ||
+        !requiredExtendedTypes.every((type) => extendedVisualizationState.dialogOptions.includes(type)) ||
+        extendedVisualizationState.errors !== 0) {
+      fail(`Extended visualization preview check failed: ${JSON.stringify(extendedVisualizationState)}`);
+    }
     if (desktopState.activeStep !== "2") fail(`Workflow must advance to step 2 after proposal: ${JSON.stringify(desktopState)}`);
     if (desktopState.asideWidth < 300 || desktopState.mainWidth < 700 || desktopState.documentOverflow) {
       fail(`Desktop layout check failed: ${JSON.stringify(desktopState)}`);
+    }
+
+    const editorModeState = await evaluate(client, `(() => {
+      document.querySelector("#listModeTab").click();
+      const list = {
+        listSelected: document.querySelector("#listModeTab").getAttribute("aria-selected"),
+        previewHidden: document.querySelector("#previewSection").hidden,
+        listHidden: document.querySelector("#listEditor").hidden,
+        previewDisplay: getComputedStyle(document.querySelector("#previewSection")).display
+      };
+      document.querySelector("#previewModeTab").click();
+      const preview = {
+        previewSelected: document.querySelector("#previewModeTab").getAttribute("aria-selected"),
+        previewHidden: document.querySelector("#previewSection").hidden,
+        listHidden: document.querySelector("#listEditor").hidden,
+        listDisplay: getComputedStyle(document.querySelector("#listEditor")).display,
+        gridReady: Boolean(previewGrid)
+      };
+      return { list, preview };
+    })()`);
+    if (editorModeState?.list.listSelected !== "true" ||
+        !editorModeState.list.previewHidden ||
+        editorModeState.list.listHidden ||
+        editorModeState.list.previewDisplay !== "none" ||
+        editorModeState.preview.previewSelected !== "true" ||
+        editorModeState.preview.previewHidden ||
+        !editorModeState.preview.listHidden ||
+        editorModeState.preview.listDisplay !== "none" ||
+        !editorModeState.preview.gridReady) {
+      fail(`Editor mode switch failed: ${JSON.stringify(editorModeState)}`);
+    }
+
+    const originalDialogPanel = await evaluate(client, `({ title: state.panels[0].title, purpose: state.panels[0].purpose })`);
+    await evaluate(client, `document.querySelector('#previewBoard .preview-panel[data-panel-index="0"] .preview-menu-button').click()`);
+    const previewMenuState = await evaluate(client, `(() => {
+      const panel = document.querySelector('#previewBoard .preview-panel[data-panel-index="0"]');
+      return {
+        expanded: panel.querySelector(".preview-menu-button").getAttribute("aria-expanded"),
+        menuHidden: panel.querySelector(".preview-context-menu").hidden,
+        actionCount: panel.querySelectorAll(".preview-context-menu button").length
+      };
+    })()`);
+    await evaluate(client, `document.querySelector('#previewBoard .preview-panel[data-panel-index="0"] [data-action="edit"]').click()`);
+    await waitForBrowserCondition(client, `document.querySelector("#panelEditorDialog").open`, "panel edit dialog open");
+    const dialogOpenState = await evaluate(client, `(() => ({
+      open: document.querySelector("#panelEditorDialog").open,
+      title: document.querySelector("#dialogPanelTitle").value,
+      focused: document.activeElement === document.querySelector("#dialogPanelTitle"),
+      fieldCount: document.querySelectorAll("#panelDialogForm [data-dialog-key]").length
+    }))()`);
+    await evaluate(client, `(() => {
+      document.querySelector("#dialogPanelTitle").value = ${JSON.stringify(originalDialogPanel.title + " - Dialog")};
+      document.querySelector("#dialogPanelPurpose").value = "Dialog edit verification";
+      document.querySelector("#panelDialogForm").requestSubmit();
+      return true;
+    })()`);
+    await waitForBrowserCondition(client, `!document.querySelector("#panelEditorDialog").open`, "panel edit dialog apply");
+    const dialogAppliedState = await evaluate(client, `(() => ({
+      stateTitle: state.panels[0].title,
+      statePurpose: state.panels[0].purpose,
+      previewTitle: document.querySelector('#previewBoard .preview-panel[data-panel-index="0"] .preview-title')?.textContent || "",
+      listTitle: document.querySelector('#panels .panel-card[data-panel-index="0"] input[data-key="title"]')?.value || ""
+    }))()`);
+    await evaluate(client, `(() => {
+      openPanelEditor(0);
+      document.querySelector("#dialogPanelTitle").value = ${JSON.stringify(originalDialogPanel.title)};
+      document.querySelector("#dialogPanelPurpose").value = ${JSON.stringify(originalDialogPanel.purpose)};
+      document.querySelector("#panelDialogForm").requestSubmit();
+      return true;
+    })()`);
+    const dialogRestoredState = await evaluate(client, `(() => ({
+      title: state.panels[0].title,
+      purpose: state.panels[0].purpose,
+      dialogClosed: !document.querySelector("#panelEditorDialog").open
+    }))()`);
+    if (previewMenuState?.expanded !== "true" || previewMenuState.menuHidden || previewMenuState.actionCount !== 4 ||
+        !dialogOpenState?.open || dialogOpenState.title !== originalDialogPanel.title || !dialogOpenState.focused || dialogOpenState.fieldCount !== 10 ||
+        dialogAppliedState?.stateTitle !== `${originalDialogPanel.title} - Dialog` ||
+        dialogAppliedState.statePurpose !== "Dialog edit verification" ||
+        dialogAppliedState.previewTitle !== dialogAppliedState.stateTitle ||
+        dialogAppliedState.listTitle !== dialogAppliedState.stateTitle ||
+        dialogRestoredState.title !== originalDialogPanel.title || dialogRestoredState.purpose !== originalDialogPanel.purpose || !dialogRestoredState.dialogClosed) {
+      fail(`Panel preview menu/dialog check failed: ${JSON.stringify({ previewMenuState, dialogOpenState, dialogAppliedState, dialogRestoredState })}`);
+    }
+
+    await evaluate(client, `(() => {
+      document.querySelector('#previewBoard .preview-panel[data-panel-index="0"] .preview-drag-handle').scrollIntoView({ block: "center" });
+      return true;
+    })()`);
+    await wait(400);
+    const dragTarget = await evaluate(client, `(() => {
+      const handle = document.querySelector('#previewBoard .preview-panel[data-panel-index="0"] .preview-drag-handle');
+      const rect = handle.getBoundingClientRect();
+      return {
+        x: Math.round(rect.left + Math.min(90, rect.width / 3)),
+        y: Math.round(rect.top + rect.height / 2),
+        before: state.panels.map((panel) => ({ ...panel.gridPos }))
+      };
+    })()`);
+    await client.send("Input.dispatchMouseEvent", { type: "mousePressed", x: dragTarget.x, y: dragTarget.y, button: "left", buttons: 1, clickCount: 1 });
+    await wait(80);
+    await client.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: dragTarget.x + 8, y: dragTarget.y + 8, button: "left", buttons: 1 });
+    await wait(80);
+    await client.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: dragTarget.x + 70, y: dragTarget.y + 45, button: "left", buttons: 1 });
+    await wait(80);
+    await client.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: dragTarget.x + 210, y: dragTarget.y + 155, button: "left", buttons: 1 });
+    await wait(120);
+    await client.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: dragTarget.x + 210, y: dragTarget.y + 155, button: "left", buttons: 0, clickCount: 1 });
+    await wait(650);
+    const dragState = await evaluate(client, `(() => ({
+      after: state.panels.map((panel) => ({ ...panel.gridPos })),
+      historyCount: state.layoutHistory.length,
+      undoEnabled: !document.querySelector("#undoLayout").disabled,
+      layoutErrors: validateClientPanelLayouts(state.panels).length
+    }))()`);
+    if (JSON.stringify(dragState?.after) === JSON.stringify(dragTarget.before) || dragState.historyCount < 1 || !dragState.undoEnabled || dragState.layoutErrors !== 0) {
+      fail(`Mouse drag layout check failed: ${JSON.stringify({ dragTarget, dragState })}`);
+    }
+    await evaluate(client, `document.querySelector("#undoLayout").click()`);
+    const undoLayoutState = await evaluate(client, `(() => ({
+      restored: sameLayout(layoutSnapshot(), ${JSON.stringify(dragTarget.before)}),
+      errors: validateClientPanelLayouts(state.panels).length
+    }))()`);
+    if (!undoLayoutState?.restored || undoLayoutState.errors !== 0) {
+      fail(`Layout undo check failed: ${JSON.stringify(undoLayoutState)}`);
+    }
+
+    const resetLayoutState = await evaluate(client, `(() => {
+      state.panels[0].gridPos = { ...state.panels[0].gridPos, x: 0, y: 100 };
+      renderPanels();
+      document.querySelector("#resetLayout").click();
+      const expected = previewPositions(state.panels);
+      const actual = state.panels.map((panel) => panel.gridPos);
+      const result = {
+        reset: actual.length === expected.length && actual.every((position, index) =>
+          position.x === expected[index].x && position.y === expected[index].y &&
+          position.w === expected[index].w && position.h === expected[index].h),
+        errors: validateClientPanelLayouts(state.panels).length,
+        historyCount: state.layoutHistory.length,
+        firstActual: actual.slice(0, 6),
+        firstExpected: expected.slice(0, 6)
+      };
+      state.layoutHistory = [];
+      updateCreateState();
+      return result;
+    })()`);
+    if (!resetLayoutState?.reset || resetLayoutState.errors !== 0 || resetLayoutState.historyCount < 1) {
+      fail(`Layout reset check failed: ${JSON.stringify(resetLayoutState)}`);
+    }
+
+    const tabletModeState = await evaluate(client, `(() => {
+      document.querySelector('[data-device-mode="tablet"]').click();
+      const toggle = document.querySelector("#tabletConditionsToggle");
+      toggle.click();
+      const open = {
+        tabletClass: document.body.classList.contains("device-tablet"),
+        drawerOpen: document.body.classList.contains("tablet-conditions-open"),
+        toggleDisplay: getComputedStyle(toggle).display,
+        touchTarget: Math.round(toggle.getBoundingClientRect().height),
+        asidePosition: getComputedStyle(document.querySelector("aside")).position
+      };
+      document.querySelector("#tabletConditionsClose").click();
+      const closed = !document.body.classList.contains("tablet-conditions-open");
+      document.querySelector('[data-device-mode="auto"]').click();
+      return { open, closed, selectedAuto: document.querySelector('[data-device-mode="auto"]').getAttribute("aria-pressed") };
+    })()`);
+    if (!tabletModeState?.open.tabletClass || !tabletModeState.open.drawerOpen || tabletModeState.open.toggleDisplay === "none" ||
+        tabletModeState.open.touchTarget < 44 || tabletModeState.open.asidePosition !== "fixed" || !tabletModeState.closed || tabletModeState.selectedAuto !== "true") {
+      fail(`Tablet mode check failed: ${JSON.stringify(tabletModeState)}`);
     }
 
     const panelLimitState = await evaluate(client, `(() => {
@@ -711,7 +958,7 @@ async function verifyBrowser(apiEvidence) {
         max: copy.max,
         uniqueId: copy.id !== state.panels[0].id,
         activePanelIndex: document.activeElement?.closest(".panel-card")?.dataset.panelIndex || "",
-        previewTitle: document.querySelectorAll("#previewBoard .preview-title")[1]?.textContent || ""
+        previewTitle: document.querySelector('#previewBoard .preview-panel[data-panel-index="1"] .preview-title')?.textContent || ""
       };
       state.panels.splice(1, 1);
       renderPanels();
@@ -816,7 +1063,7 @@ async function verifyBrowser(apiEvidence) {
 
     const panelFilterState = await evaluate(client, `(() => {
       const input = document.querySelector("#panelFilter");
-      input.value = "Vibration";
+      input.value = "Bending";
       input.dispatchEvent(new Event("input", { bubbles: true }));
       const filteredTitles = Array.from(document.querySelectorAll('#panels .panel-card input[data-key="title"]')).map((element) => element.value);
       const filteredSummary = document.querySelector("#panelFilterSummary")?.textContent || "";
@@ -830,7 +1077,7 @@ async function verifyBrowser(apiEvidence) {
     })()`);
     if (!panelFilterState?.filteredTitles.length ||
         panelFilterState.filteredTitles.length >= desktopState.panelCardCount ||
-        !panelFilterState.filteredTitles.every((title) => title.toLowerCase().includes("vibration")) ||
+        !panelFilterState.filteredTitles.every((title) => title.toLowerCase().includes("bending")) ||
         panelFilterState.restoredCount !== desktopState.panelCardCount) {
       fail(`Panel filter check failed: ${JSON.stringify(panelFilterState)}`);
     }
@@ -921,7 +1168,7 @@ async function verifyBrowser(apiEvidence) {
       draftState: document.querySelector("#draftState")?.textContent || "",
       accessTokenRestored: Boolean(document.querySelector("#appAccessToken")?.value)
     }))()`) || {};
-    if (draftRestoreState.panelCount < 8 || draftRestoreState.activeStep !== "2" || draftRestoreState.accessTokenRestored) {
+    if (draftRestoreState.panelCount < 7 || draftRestoreState.activeStep !== "2" || draftRestoreState.accessTokenRestored) {
       fail(`Draft restore check failed: ${JSON.stringify(draftRestoreState)}`);
     }
 
@@ -993,7 +1240,34 @@ async function verifyBrowser(apiEvidence) {
         dashboardHistoryState.rawUrlVisible) {
       fail(`Dashboard history visualization check failed: ${JSON.stringify(dashboardHistoryState)}`);
     }
+    await evaluate(client, `(() => {
+      setEditorMode("preview");
+      setDeviceMode("desktop");
+      document.querySelector("#workflowSection").scrollIntoView({ block: "start" });
+      return true;
+    })()`);
+    await wait(500);
     const desktopScreenshot = await captureScreenshot(client, "latest-desktop.png");
+    await evaluate(client, `openPanelEditor(0)`);
+    await waitForBrowserCondition(client, `document.querySelector("#panelEditorDialog").open`, "panel dialog screenshot");
+    const dialogScreenshot = await captureScreenshot(client, "latest-panel-dialog.png");
+    await evaluate(client, `closePanelEditor()`);
+
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: 1024,
+      height: 768,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
+    await evaluate(client, `(() => {
+      setDeviceMode("tablet");
+      closeTabletConditions();
+      document.querySelector("#workflowSection").scrollIntoView({ block: "start" });
+      return true;
+    })()`);
+    await wait(500);
+    const tabletScreenshot = await captureScreenshot(client, "latest-tablet.png");
+    await evaluate(client, `setDeviceMode("auto")`);
 
     await client.send("Emulation.setDeviceMetricsOverride", {
       width: 390,
@@ -1066,6 +1340,11 @@ async function verifyBrowser(apiEvidence) {
         !mobileNavigationState.createForwarded) {
       fail(`Mobile navigation check failed: ${JSON.stringify(mobileNavigationState)}`);
     }
+    await evaluate(client, `(() => {
+      document.querySelector('.mobile-nav [data-target="previewSection"]').click();
+      return true;
+    })()`);
+    await wait(400);
     const mobileScreenshot = await captureScreenshot(client, "latest-mobile.png");
 
     await evaluate(client, `(() => {
@@ -1129,7 +1408,7 @@ async function verifyBrowser(apiEvidence) {
       draftRestore: draftRestoreState,
       expiredDraft: expiredDraftState,
       apiFailureGuidance: apiFailureState,
-      screenshots: [desktopScreenshot, mobileScreenshot, historyMobileScreenshot]
+      screenshots: [desktopScreenshot, dialogScreenshot, tabletScreenshot, mobileScreenshot, historyMobileScreenshot]
     };
     log(`Target screen OK: title="${initialState.title}", panels=${desktopState.previewPanelCount}, consoleErrors=0`);
     client.close();

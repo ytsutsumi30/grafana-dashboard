@@ -112,6 +112,8 @@ async function main() {
     assert.strictEqual((await request(publicApp.port, "/")).statusCode, 404);
     assert.strictEqual((await request(publicApp.port, "/api/auth-status")).statusCode, 404);
     assert.strictEqual((await request(publicApp.port, "/api/folders")).statusCode, 404);
+    const companyBody = JSON.stringify({ keywords: ["metal processing"], aiConsent: true });
+    assert.strictEqual((await request(publicApp.port, "/api/analyze-company-sources", { method: "POST", body: companyBody })).statusCode, 404);
     assert.strictEqual((await request(publicApp.port, "/api/mobile-sensor/history?limit=5")).statusCode, 200);
 
     const sensorBody = JSON.stringify({ deviceId: "role-test-device", accelX: 0, accelY: 0, accelZ: 9.8 });
@@ -122,6 +124,8 @@ async function main() {
 
     assert.strictEqual((await request(adminApp.port, "/")).statusCode, 200);
     assert.strictEqual((await request(adminApp.port, "/api/auth-status")).statusCode, 200);
+    assert.strictEqual((await request(adminApp.port, "/api/analyze-company-sources", { method: "POST", body: companyBody })).statusCode, 401);
+    assert.strictEqual((await request(adminApp.port, "/api/analyze-company-sources", { method: "POST", body: companyBody, headers: authHeaders })).statusCode, 200);
     assert.strictEqual((await request(adminApp.port, "/api/mobile-sensor/history?limit=5")).statusCode, 404);
     assert.strictEqual((await request(adminApp.port, "/api/mobile-sensor", { method: "POST", body: sensorBody, headers: authHeaders })).statusCode, 404);
   } finally {

@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Grafana Cloud ダッシュボード提案ツール</title>
+  <link rel="stylesheet" href="/vendor/gridstack/gridstack.min.css">
   <style>
     :root {
       color-scheme: dark;
@@ -523,6 +524,136 @@
 
     .panel-undo[hidden] { display: none; }
 
+    .editor-mode-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .segmented-control {
+      display: inline-grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(0, 1fr);
+      gap: 2px;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #0d1118;
+    }
+
+    .segmented-control button {
+      min-height: 34px;
+      padding: 7px 12px;
+      color: var(--muted);
+      background: transparent;
+      border: 0;
+      white-space: nowrap;
+    }
+
+    .segmented-control button[aria-selected="true"],
+    .segmented-control button[aria-pressed="true"] {
+      color: var(--text);
+      background: var(--panel-2);
+      box-shadow: inset 0 0 0 1px #3a4658;
+    }
+
+    .source-mode-control {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      margin-bottom: 14px;
+    }
+
+    .source-panel[hidden],
+    .company-analysis-result[hidden] { display: none; }
+
+    .source-panel {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #0d1118;
+    }
+
+    .source-panel label:first-child { margin-top: 0; }
+
+    .source-help {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .material-list {
+      display: grid;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .material-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .material-item button {
+      min-height: 30px;
+      padding: 4px 8px;
+    }
+
+    .company-analysis-result {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    .company-analysis-result h2 {
+      font-size: 15px;
+    }
+
+    .analysis-confidence {
+      color: #baf4d1;
+      font-size: 12px;
+    }
+
+    .preview-toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .preview-toolbar-actions > button {
+      min-height: 36px;
+      padding: 7px 11px;
+    }
+
+    .tablet-conditions-toggle { display: none; }
+
+    .tablet-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 89;
+      border: 0;
+      border-radius: 0;
+      background: rgba(0, 0, 0, 0.62);
+    }
+
+    .tablet-conditions-close { display: none; }
+
     .preview {
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -531,6 +662,9 @@
       display: grid;
       gap: 12px;
     }
+
+    .preview[hidden],
+    #listEditor[hidden] { display: none !important; }
 
     .preview-head {
       display: flex;
@@ -542,24 +676,36 @@
     }
 
     .preview-board {
-      display: grid;
-      grid-template-columns: repeat(24, minmax(0, 1fr));
-      grid-auto-rows: 24px;
-      gap: 8px;
+      position: relative;
       min-height: 260px;
       min-width: 680px;
     }
 
     .preview-panel {
+      min-width: 0;
+    }
+
+    .preview-board > .preview-panel > .grid-stack-item-content {
       border: 1px solid #2f3745;
       border-radius: 7px;
       background: #151a20;
       display: grid;
       grid-template-rows: auto minmax(0, 1fr) auto;
       overflow: hidden;
-      min-width: 0;
+      inset: 0;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
     }
+
+    .preview-panel-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 44px;
+      align-items: center;
+      min-height: 42px;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .preview-panel.ui-draggable-dragging .preview-panel-head { cursor: grabbing; }
 
     .preview-title {
       font-weight: 700;
@@ -570,6 +716,51 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+
+    .preview-menu-button {
+      width: 44px;
+      min-height: 42px;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      color: var(--muted);
+      background: transparent;
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .preview-menu-button:hover,
+    .preview-menu-button[aria-expanded="true"] {
+      color: var(--text);
+      background: var(--panel-2);
+    }
+
+    .preview-context-menu {
+      position: absolute;
+      top: 42px;
+      right: 6px;
+      z-index: 20;
+      width: 172px;
+      padding: 5px;
+      border: 1px solid #3a4658;
+      border-radius: 6px;
+      background: #111720;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+    }
+
+    .preview-context-menu[hidden] { display: none; }
+
+    .preview-context-menu button {
+      width: 100%;
+      min-height: 38px;
+      padding: 8px 10px;
+      color: var(--text);
+      background: transparent;
+      text-align: left;
+    }
+
+    .preview-context-menu button:hover { background: var(--panel-2); }
+    .preview-context-menu button[data-action="delete"] { color: #ffc2cc; }
 
     .preview-body {
       position: relative;
@@ -603,7 +794,7 @@
       place-items: center;
       background: linear-gradient(135deg, #4ea247, #f0d400 65%, #ff8a2a);
       color: #10151d;
-      font-size: clamp(28px, 6vw, 58px);
+      font-size: clamp(28px, 4vw, 44px);
       line-height: 1;
       font-weight: 700;
     }
@@ -634,6 +825,62 @@
       gap: 10px;
     }
 
+    .proposal-summary {
+      display: grid;
+      gap: 6px;
+      margin-top: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-left: 4px solid #5794f2;
+      border-radius: 6px;
+      background: #111720;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .proposal-summary.is-fallback { border-left-color: #ff9830; }
+    .proposal-summary[hidden] { display: none; }
+
+    .proposal-badges,
+    .equipment-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .proposal-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 3px 7px;
+      border: 1px solid #3a4658;
+      border-radius: 4px;
+      color: #c7d8f5;
+      background: #18202b;
+      font-size: 11px;
+    }
+
+    .equipment-selector {
+      margin: 10px 0 0;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+
+    .equipment-selector legend { padding: 0 5px; color: var(--muted); font-size: 12px; }
+    .equipment-options .check-row { margin: 0; min-height: 34px; padding: 4px 7px; border: 1px solid var(--line); border-radius: 4px; }
+
+    .panel-proposal-info {
+      display: grid;
+      gap: 4px;
+      padding: 9px 10px;
+      border-left: 3px solid #5794f2;
+      background: #101722;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
     .panel-head {
       display: flex;
       justify-content: space-between;
@@ -659,6 +906,56 @@
     }
 
     .panel-actions .danger { min-height: 36px; padding: 7px 10px; }
+
+    .panel-editor-dialog {
+      width: min(720px, calc(100vw - 32px));
+      max-height: calc(100vh - 32px);
+      padding: 0;
+      border: 1px solid #3a4658;
+      border-radius: 8px;
+      color: var(--text);
+      background: var(--panel);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.62);
+    }
+
+    .panel-editor-dialog::backdrop { background: rgba(0, 0, 0, 0.72); }
+
+    .panel-dialog-form {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      max-height: calc(100vh - 34px);
+    }
+
+    .panel-dialog-head,
+    .panel-dialog-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      background: var(--panel);
+    }
+
+    .panel-dialog-head { border-bottom: 1px solid var(--line); }
+    .panel-dialog-actions { border-top: 1px solid var(--line); justify-content: flex-end; }
+
+    .panel-dialog-close {
+      width: 44px;
+      min-height: 44px;
+      padding: 0;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid var(--line);
+      font-size: 22px;
+    }
+
+    .panel-dialog-body {
+      padding: 0 16px 18px;
+      overflow-y: auto;
+    }
+
+    .dialog-validation { margin-top: 14px; }
+    .dialog-validation[hidden] { display: none; }
 
     .validation-list {
       margin: 0;
@@ -745,22 +1042,117 @@
       }
       .mobile-nav button[data-action="create"] { color: #111827; background: var(--accent); }
     }
+
+    body.device-tablet .app { grid-template-columns: 1fr; }
+
+    body.device-tablet aside {
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 90;
+      width: min(380px, 88vw);
+      height: 100vh;
+      transform: translateX(-102%);
+      transition: transform 180ms ease;
+      border-right: 1px solid var(--line);
+      border-bottom: 0;
+      overflow-y: auto;
+    }
+
+    body.device-tablet.tablet-conditions-open aside { transform: translateX(0); }
+    body.device-tablet.tablet-conditions-open .tablet-backdrop { display: block; }
+    body.device-tablet .tablet-conditions-toggle,
+    body.device-tablet .tablet-conditions-close { display: inline-flex; align-items: center; justify-content: center; }
+    body.device-tablet .tablet-conditions-close { width: 100%; margin-bottom: 14px; }
+    body.device-tablet main { padding: 16px; }
+    body.device-tablet button,
+    body.device-tablet input,
+    body.device-tablet select { min-height: 44px; }
+    body.device-tablet .toolbar { position: static; }
+    body.device-tablet .panel-editor-dialog { width: calc(100vw - 20px); max-height: calc(100vh - 20px); }
+    body.device-tablet .panel-dialog-form { max-height: calc(100vh - 22px); }
   </style>
 </head>
 <body>
   <a class="skip-link" href="#mainContent">メインコンテンツへ移動</a>
   <div class="app">
     <aside id="conditionsSection" tabindex="-1" aria-label="ダッシュボード作成条件">
+      <button id="tabletConditionsClose" class="secondary tablet-conditions-close" type="button">条件を閉じる</button>
       <h1>Grafana Cloud<br>ダッシュボード提案ツール</h1>
 
-      <label for="industry">業種欄向けのダッシュボードを作成してください。</label>
-      <input id="industry" value="板金加工業者" placeholder="例: 板金加工業者" maxlength="120">
+      <div class="segmented-control source-mode-control" role="tablist" aria-label="企業情報の入力方法">
+        <button id="industrySourceTab" type="button" role="tab" aria-selected="true" aria-controls="industrySourcePanel">業種から作成</button>
+        <button id="companySourceTab" type="button" role="tab" aria-selected="false" aria-controls="companySourcePanel">会社資料から作成</button>
+      </div>
+
+      <div id="industrySourcePanel" class="source-panel" role="tabpanel" aria-labelledby="industrySourceTab">
+        <label for="industry">業種欄向けのダッシュボードを作成してください。</label>
+        <input id="industry" value="板金加工業者" placeholder="例: 板金加工業者" maxlength="120">
+      </div>
+
+      <div id="companySourcePanel" class="source-panel" role="tabpanel" aria-labelledby="companySourceTab" hidden>
+        <label for="companyUrl">WebサイトURL</label>
+        <input id="companyUrl" type="url" inputmode="url" placeholder="https:// または http://www.example.co.jp/about/" maxlength="2048">
+        <p class="source-help">HTTPサイトも解析できます。通信が暗号化されないため、公開情報だけを入力してください。</p>
+
+        <label for="companyKeywords">キーワード</label>
+        <input id="companyKeywords" placeholder="例: 金属加工, 多品種少量, ISO9001" maxlength="500">
+
+        <label for="companyNotes">営業担当者の補足</label>
+        <textarea id="companyNotes" placeholder="例: NC旋盤とマシニングセンターの保全を提案したい" maxlength="2000"></textarea>
+
+        <label for="companyMaterials">会社案内・設備資料</label>
+        <input id="companyMaterials" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple>
+        <p class="source-help">JPEG・PNG・WebP・PDFを最大3件。ファイルは解析中のみ使用し、ブラウザの下書きには保存しません。</p>
+        <div id="companyMaterialList" class="material-list" aria-live="polite"></div>
+
+        <label class="check-row" for="companyAiConsent">
+          <input id="companyAiConsent" type="checkbox">
+          入力した会社情報を設定済みのAI分析サービスへ送信することに同意する
+        </label>
+
+        <div class="actions">
+          <button id="analyzeCompanySources" type="button">企業情報を分析</button>
+        </div>
+
+        <div id="companyAnalysisResult" class="company-analysis-result" aria-live="polite" hidden>
+          <h2>企業分析結果</h2>
+          <div id="companyAnalysisConfidence" class="analysis-confidence"></div>
+          <label for="analysisCompanyName">会社名・案件名</label>
+          <input id="analysisCompanyName" maxlength="120">
+          <label for="analysisIndustrySummary">業種・事業概要</label>
+          <textarea id="analysisIndustrySummary" maxlength="500"></textarea>
+          <label for="analysisConfirmedFacts">確認できた情報</label>
+          <textarea id="analysisConfirmedFacts" maxlength="2000"></textarea>
+          <label for="analysisInferredFacts">AI推定</label>
+          <textarea id="analysisInferredFacts" maxlength="2000"></textarea>
+          <label for="analysisMissingInformation">顧客への確認事項</label>
+          <textarea id="analysisMissingInformation" maxlength="2000"></textarea>
+          <button id="applyCompanyAnalysis" type="button">この内容でパネル案作成</button>
+        </div>
+      </div>
 
       <label for="dashboardType">ダッシュボード種別</label>
       <select id="dashboardType">
         <option value="manufacturing">製造ライン・設備保全</option>
         <option value="iot">IoTデバイス監視</option>
       </select>
+
+      <label for="monitoringGoal">監視目的</label>
+      <select id="monitoringGoal">
+        <option value="maintenance">保全・故障予兆</option>
+        <option value="production">生産性・稼働</option>
+        <option value="quality">品質・不良低減</option>
+        <option value="energy">エネルギー・環境</option>
+      </select>
+
+      <label for="primaryProcess">主要工程</label>
+      <select id="primaryProcess" disabled>
+        <option value="">自動判定</option>
+      </select>
+      <fieldset id="equipmentSelector" class="equipment-selector" hidden>
+        <legend>監視対象設備（任意・複数選択可）</legend>
+        <div id="equipmentOptions" class="equipment-options"></div>
+      </fieldset>
 
       <label for="projectLabel">顧客/案件ラベル</label>
       <input id="projectLabel" placeholder="例: A工場 PoC" maxlength="80">
@@ -794,6 +1186,7 @@
       <div id="authState" class="auth-state" role="status" aria-live="polite" hidden></div>
 
       <div id="status" class="status" role="status" aria-live="polite" tabindex="-1">業種を入力してパネル案を作成してください。</div>
+      <div id="proposalSourceSummary" class="proposal-summary" aria-live="polite" hidden></div>
 
       <details class="tool-section" open>
         <summary>作成履歴</summary>
@@ -915,27 +1308,30 @@
         </div>
       </section>
 
-      <section class="preview" id="previewSection" tabindex="-1">
-        <div class="preview-head">
-          <h2>生成前プレビュー</h2>
-          <span id="previewSummary">パネル案作成後に表示されます</span>
+      <section class="editor-mode-toolbar" aria-label="パネル編集表示">
+        <div class="segmented-control" role="tablist" aria-label="編集モード">
+          <button id="previewModeTab" type="button" role="tab" aria-selected="true" aria-controls="previewSection">プレビュー編集</button>
+          <button id="listModeTab" type="button" role="tab" aria-selected="false" aria-controls="listEditor">一覧編集</button>
         </div>
-        <div id="previewBoard" class="preview-board">
-          <div class="empty" style="grid-column: span 24;">ダッシュボード作成前にレイアウトを確認できます。</div>
+        <div class="preview-toolbar-actions">
+          <button id="tabletConditionsToggle" class="secondary tablet-conditions-toggle" type="button">条件</button>
+          <div class="segmented-control" aria-label="表示端末">
+            <button type="button" data-device-mode="auto" aria-pressed="true">自動</button>
+            <button type="button" data-device-mode="desktop" aria-pressed="false">PC</button>
+            <button type="button" data-device-mode="tablet" aria-pressed="false">Tablet</button>
+          </div>
+          <button id="undoLayout" class="secondary" type="button" disabled>配置を戻す</button>
+          <button id="resetLayout" class="secondary" type="button" disabled>自動配置</button>
         </div>
       </section>
 
-      <section class="panel-list-toolbar" id="panelEditSection" tabindex="-1" aria-label="パネル編集一覧">
-        <div>
-          <h2>パネル編集</h2>
-          <span id="panelFilterSummary" class="panel-filter-summary">パネル案作成後に編集できます</span>
+      <section class="preview" id="previewSection" tabindex="-1">
+        <div class="preview-head">
+          <h2>生成前プレビュー・編集</h2>
+          <span id="previewSummary">パネル案作成後に表示されます</span>
         </div>
-        <div class="panel-filter-controls">
-          <input id="panelFilter" type="search" placeholder="パネル名・目的・単位で検索" disabled>
-          <label class="check-row" for="invalidOnly">
-            <input id="invalidOnly" type="checkbox" disabled>
-            エラーのみ
-          </label>
+        <div id="previewBoard" class="preview-board grid-stack" aria-label="ドラッグして配置を変更できるダッシュボードプレビュー">
+          <div class="empty" style="grid-column: span 24;">ダッシュボード作成前にレイアウトを確認できます。</div>
         </div>
       </section>
 
@@ -944,11 +1340,28 @@
         <button id="undoDelete" class="secondary" type="button">元に戻す</button>
       </div>
 
-      <section id="panels" class="panel-grid">
-        <div class="empty">ここにAI提案されたパネル案が表示されます。</div>
-      </section>
+      <div id="listEditor" hidden>
+        <section class="panel-list-toolbar" id="panelEditSection" tabindex="-1" aria-label="パネル編集一覧">
+          <div>
+            <h2>パネル編集</h2>
+            <span id="panelFilterSummary" class="panel-filter-summary">パネル案作成後に編集できます</span>
+          </div>
+          <div class="panel-filter-controls">
+            <input id="panelFilter" type="search" placeholder="パネル名・目的・単位で検索" disabled>
+            <label class="check-row" for="invalidOnly">
+              <input id="invalidOnly" type="checkbox" disabled>
+              エラーのみ
+            </label>
+          </div>
+        </section>
+
+        <section id="panels" class="panel-grid">
+          <div class="empty">ここにAI提案されたパネル案が表示されます。</div>
+        </section>
+      </div>
     </main>
   </div>
+  <button id="tabletBackdrop" class="tablet-backdrop" type="button" aria-label="条件パネルを閉じる"></button>
   <nav class="mobile-nav" aria-label="モバイル工程ナビゲーション">
     <button type="button" data-target="conditionsSection">条件</button>
     <button type="button" data-target="previewSection">プレビュー</button>
@@ -956,6 +1369,71 @@
     <button type="button" data-action="create" disabled>作成</button>
   </nav>
 
+  <dialog id="panelEditorDialog" class="panel-editor-dialog" aria-labelledby="panelDialogTitle">
+    <form id="panelDialogForm" class="panel-dialog-form" method="dialog">
+      <header class="panel-dialog-head">
+        <div>
+          <h2 id="panelDialogTitle">パネル編集</h2>
+          <span id="panelDialogPosition" class="panel-filter-summary"></span>
+        </div>
+        <button id="panelDialogClose" class="panel-dialog-close" type="button" aria-label="編集を閉じる">×</button>
+      </header>
+      <div class="panel-dialog-body">
+        <ul id="panelDialogErrors" class="validation-list dialog-validation" role="alert" tabindex="-1" hidden></ul>
+        <div id="dialogPanelProposalInfo" class="panel-proposal-info"></div>
+        <label for="dialogPanelTitle">パネル名</label>
+        <input id="dialogPanelTitle" data-dialog-key="title" maxlength="80" required>
+        <div class="meta">
+          <div>
+            <label for="dialogPanelVisualization">可視化</label>
+            <select id="dialogPanelVisualization" data-dialog-key="visualization">
+              <option value="timeseries">時系列</option>
+              <option value="stat">Stat</option>
+              <option value="gauge">Gauge</option>
+              <option value="bargauge">Bar gauge</option>
+              <option value="barchart">棒グラフ</option>
+              <option value="heatmap">Heatmap</option>
+              <option value="piechart">ドーナツ</option>
+              <option value="table">Table</option>
+            </select>
+          </div>
+          <div>
+            <label for="dialogPanelUnit">単位</label>
+            <input id="dialogPanelUnit" data-dialog-key="unit" maxlength="32">
+          </div>
+          <div>
+            <label for="dialogPanelLatestOnly">最新値のみ</label>
+            <select id="dialogPanelLatestOnly" data-dialog-key="latestOnly">
+              <option value="false">いいえ</option>
+              <option value="true">はい</option>
+            </select>
+          </div>
+        </div>
+        <div class="meta two">
+          <div><label for="dialogPanelMin">最小値</label><input id="dialogPanelMin" type="number" step="any" data-dialog-key="min"></div>
+          <div><label for="dialogPanelMax">最大値</label><input id="dialogPanelMax" type="number" step="any" data-dialog-key="max"></div>
+        </div>
+        <label for="dialogPanelRiskDirection">異常方向</label>
+        <select id="dialogPanelRiskDirection" data-dialog-key="riskDirection">
+          <option value="high">上限超過が異常</option>
+          <option value="low">下限割れが異常</option>
+          <option value="outside">範囲外が異常</option>
+        </select>
+        <div class="meta two">
+          <div><label for="dialogPanelWarning">Warning 閾値</label><input id="dialogPanelWarning" type="number" step="any" data-dialog-key="warningThreshold"></div>
+          <div><label for="dialogPanelCritical">Critical 閾値</label><input id="dialogPanelCritical" type="number" step="any" data-dialog-key="criticalThreshold"></div>
+        </div>
+        <label for="dialogPanelPurpose">目的</label>
+        <textarea id="dialogPanelPurpose" data-dialog-key="purpose" maxlength="160"></textarea>
+      </div>
+      <footer class="panel-dialog-actions">
+        <button id="panelDialogCancel" class="secondary" type="button">キャンセル</button>
+        <button type="submit">変更を適用</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <script src="/vendor/gridstack/gridstack-all.js"></script>
   <script>
     const state = {
       proposal: null,
@@ -968,6 +1446,13 @@
       panelFilter: "",
       invalidOnly: false,
       deletedPanel: null,
+      sourceMode: "industry",
+      companyAnalysis: null,
+      companyMaterials: [],
+      editorMode: "preview",
+      deviceMode: sessionStorage.getItem("grafanaBuilderDeviceMode") || "auto",
+      editingPanelIndex: -1,
+      layoutHistory: [],
       accessRequired: false,
       authMode: "none",
       authenticated: true,
@@ -981,8 +1466,16 @@
     const DRAFT_FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
     const MAX_PANEL_COUNT = 24;
     const API_TIMEOUT_MS = 30000;
+    const COMPANY_ANALYSIS_TIMEOUT_MS = 60000;
+    const COMPANY_MATERIAL_MAX_FILES = 3;
+    const COMPANY_MATERIAL_MAX_BYTES = 5 * 1024 * 1024;
+    const COMPANY_MATERIAL_MAX_TOTAL_BYTES = 10 * 1024 * 1024;
+    const COMPANY_MATERIAL_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
     let draftSaveTimer = null;
     let draftPersistenceEnabled = false;
+    let previewGrid = null;
+    let suppressGridEvents = false;
+    let dragStartLayout = null;
 
     const $ = (id) => document.getElementById(id);
 
@@ -1019,7 +1512,7 @@
           String(draft.proposal.industry || "").trim() &&
           String(draft.proposal.dashboardUid || "").trim() &&
           String(draft.proposal.dashboardSlug || "").trim();
-        const valid = draft?.version === 1 &&
+        const valid = [1, 2, 3].includes(draft?.version) &&
           validIdentity &&
           Array.isArray(draft.panels) &&
           draft.panels.length >= 1 &&
@@ -1038,15 +1531,25 @@
           const number = Number(value);
           return Number.isFinite(number) ? number : "";
         };
-        const visualizations = new Set(["timeseries", "stat", "gauge", "piechart", "table"]);
+        const visualizations = new Set(["timeseries", "stat", "gauge", "bargauge", "barchart", "heatmap", "piechart", "table"]);
         const riskDirections = new Set(["high", "low", "outside"]);
         return {
           ...draft,
           industry: cleanString(draft.industry || draft.proposal.industry, 120),
           dashboardType: draft.dashboardType === "iot" ? "iot" : "manufacturing",
+          monitoringGoal: ["maintenance", "production", "quality", "energy"].includes(draft.monitoringGoal) ? draft.monitoringGoal : "maintenance",
+          primaryProcess: cleanString(draft.primaryProcess, 40),
+          selectedEquipment: Array.isArray(draft.selectedEquipment)
+            ? draft.selectedEquipment.map((value) => cleanString(value, 80)).slice(0, 12)
+            : [],
           projectLabel: cleanString(draft.projectLabel, 80),
           salesOwner: cleanString(draft.salesOwner, 80),
           folderUid: cleanString(draft.folderUid, 120),
+          sourceMode: draft.sourceMode === "company" ? "company" : "industry",
+          companyUrl: cleanString(draft.companyUrl, 2048),
+          companyKeywords: cleanString(draft.companyKeywords, 500),
+          companyNotes: cleanString(draft.companyNotes, 2000),
+          companyAnalysis: draft.companyAnalysis && typeof draft.companyAnalysis === "object" ? draft.companyAnalysis : null,
           proposal: {
             ...draft.proposal,
             industry: cleanString(draft.proposal.industry, 120),
@@ -1054,21 +1557,33 @@
             dashboardSlug: cleanString(draft.proposal.dashboardSlug, 120),
             dashboardType: draft.proposal.dashboardType === "iot" ? "iot" : "manufacturing"
           },
-          panels: draft.panels.map((panel, index) => ({
-            id: index + 1,
-            title: cleanString(panel.title, 80),
-            visualization: visualizations.has(panel.visualization) ? panel.visualization : "timeseries",
-            unit: cleanString(panel.unit || "short", 32),
-            min: cleanNumber(panel.min),
-            max: cleanNumber(panel.max),
-            warningThreshold: cleanNumber(panel.warningThreshold),
-            criticalThreshold: cleanNumber(panel.criticalThreshold),
-            riskDirection: riskDirections.has(panel.riskDirection) ? panel.riskDirection : "high",
-            purpose: cleanString(panel.purpose, 160),
-            latestOnly: Boolean(panel.latestOnly),
-            scenarioId: panel.scenarioId === "csv_content" ? "csv_content" : "random_walk",
-            csvContent: cleanString(panel.csvContent, 4000)
-          }))
+          panels: draft.panels.map((panel, index) => {
+            const gridPos = normalizeClientGridPos(panel.gridPos);
+            return {
+              id: index + 1,
+              title: cleanString(panel.title, 80),
+              visualization: visualizations.has(panel.visualization) ? panel.visualization : "timeseries",
+              unit: cleanString(panel.unit || "short", 32),
+              min: cleanNumber(panel.min),
+              max: cleanNumber(panel.max),
+              warningThreshold: cleanNumber(panel.warningThreshold),
+              criticalThreshold: cleanNumber(panel.criticalThreshold),
+              riskDirection: riskDirections.has(panel.riskDirection) ? panel.riskDirection : "high",
+              purpose: cleanString(panel.purpose, 160),
+              rationale: cleanString(panel.rationale || panel.purpose, 240),
+              proposalSource: cleanString(panel.proposalSource || "industry-template", 40),
+              rangeSource: panel.rangeSource === "customer-confirmed" ? "customer-confirmed" : "testdata-demo-default",
+              processKey: cleanString(panel.processKey, 40),
+              processLabel: cleanString(panel.processLabel, 80),
+              equipment: Array.isArray(panel.equipment)
+                ? panel.equipment.map((value) => cleanString(value, 80)).slice(0, 12)
+                : [],
+              latestOnly: Boolean(panel.latestOnly),
+              scenarioId: panel.scenarioId === "csv_content" ? "csv_content" : "random_walk",
+              csvContent: cleanString(panel.csvContent, 4000),
+              ...(gridPos ? { gridPos } : {})
+            };
+          })
         };
       } catch {
         try {
@@ -1095,13 +1610,21 @@
     function saveDraft() {
       if (!draftPersistenceEnabled || !state.proposal || !state.panels.length) return;
       const draft = {
-        version: 1,
+        version: 3,
         updatedAt: new Date().toISOString(),
         industry: $("industry").value.trim(),
         dashboardType: $("dashboardType").value,
+        monitoringGoal: $("monitoringGoal").value,
+        primaryProcess: $("primaryProcess").value,
+        selectedEquipment: selectedEquipmentValues(),
         projectLabel: $("projectLabel").value.trim(),
         salesOwner: $("salesOwner").value.trim(),
         folderUid: $("folderUid").value,
+        sourceMode: state.sourceMode,
+        companyUrl: $("companyUrl").value.trim(),
+        companyKeywords: $("companyKeywords").value.trim(),
+        companyNotes: $("companyNotes").value.trim(),
+        companyAnalysis: state.companyAnalysis,
         overwrite: $("overwriteDashboard").checked,
         proposal: state.proposal,
         panels: state.panels
@@ -1132,14 +1655,24 @@
       if (!draft) return false;
       state.proposal = draft.proposal;
       state.panels = draft.panels.filter((panel) => panel && typeof panel === "object");
+      ensurePanelLayouts(state.panels);
       if (!state.panels.length) {
         clearSavedDraft();
         return false;
       }
       $("industry").value = draft.industry || draft.proposal.industry || "";
       $("dashboardType").value = draft.dashboardType === "iot" ? "iot" : "manufacturing";
+      $("monitoringGoal").value = draft.monitoringGoal || "maintenance";
       $("projectLabel").value = draft.projectLabel || "";
       $("salesOwner").value = draft.salesOwner || "";
+      $("companyUrl").value = draft.companyUrl || "";
+      $("companyKeywords").value = draft.companyKeywords || "";
+      $("companyNotes").value = draft.companyNotes || "";
+      state.sourceMode = draft.sourceMode === "company" ? "company" : "industry";
+      state.companyAnalysis = draft.companyAnalysis;
+      renderProposalOptions(state.proposal, draft.primaryProcess || "", draft.selectedEquipment || []);
+      renderSourceMode();
+      renderCompanyAnalysis(state.companyAnalysis);
       $("overwriteDashboard").checked = Boolean(draft.overwrite);
       draftPersistenceEnabled = true;
       const savedFolderExists = Array.from($("folderUid").options).some((option) => option.value === draft.folderUid);
@@ -1158,6 +1691,14 @@
       clearPanelUndo();
       state.proposal = null;
       state.panels = [];
+      state.companyAnalysis = null;
+      state.companyMaterials = [];
+      $("monitoringGoal").value = "maintenance";
+      renderProposalOptions(null);
+      $("companyAiConsent").checked = false;
+      state.layoutHistory = [];
+      renderCompanyMaterials();
+      renderCompanyAnalysis(null);
       $("projectLabel").value = "";
       $("salesOwner").value = "";
       $("overwriteDashboard").checked = false;
@@ -1385,10 +1926,76 @@
       return `${state.grafanaUrl}/d/${encodeURIComponent(state.proposal.dashboardUid)}/${encodeURIComponent(state.proposal.dashboardSlug)}`;
     }
 
+    function proposalSourceLabel(source) {
+      return {
+        "process-catalog": "工程カタログ",
+        "common-kpi": "共通KPI",
+        "industry-template": "既知業種テンプレート",
+        manual: "手動追加",
+        ai: "AI生成",
+        fallback: "汎用フォールバック",
+        template: "既知業種テンプレート"
+      }[source] || "既知業種テンプレート";
+    }
+
+    function rangeSourceLabel(source) {
+      return source === "customer-confirmed" ? "顧客確認済み範囲" : "TestDataデモ範囲";
+    }
+
+    function selectedEquipmentValues() {
+      return Array.from(document.querySelectorAll('#equipmentOptions input[type="checkbox"]:checked'))
+        .map((input) => input.value)
+        .slice(0, 12);
+    }
+
+    function renderProposalOptions(proposal, preferredProcess = "", preferredEquipment = []) {
+      const processOptions = Array.isArray(proposal?.processOptions) ? proposal.processOptions : [];
+      const equipmentOptions = Array.isArray(proposal?.equipmentOptions) ? proposal.equipmentOptions : [];
+      const selectedProcess = preferredProcess || proposal?.primaryProcess || "";
+      const selectedEquipment = new Set(preferredEquipment.length ? preferredEquipment : (proposal?.selectedEquipment || []));
+      $("primaryProcess").innerHTML = '<option value="">自動判定</option>' + processOptions
+        .map((process) => `<option value="${escapeHtml(process.key)}" ${process.key === selectedProcess ? "selected" : ""}>${escapeHtml(process.label)}</option>`)
+        .join("");
+      $("primaryProcess").disabled = processOptions.length === 0;
+      $("equipmentOptions").innerHTML = equipmentOptions.map((equipment, index) => `
+        <label class="check-row" for="equipment-${index}">
+          <input id="equipment-${index}" type="checkbox" value="${escapeHtml(equipment)}" ${selectedEquipment.has(equipment) ? "checked" : ""}>
+          ${escapeHtml(equipment)}
+        </label>
+      `).join("");
+      $("equipmentSelector").hidden = equipmentOptions.length === 0;
+    }
+
+    function renderProposalSourceSummary() {
+      const summary = $("proposalSourceSummary");
+      if (!state.proposal) {
+        summary.hidden = true;
+        summary.innerHTML = "";
+        return;
+      }
+      const processes = (state.proposal.processOptions || []).map((process) => process.label);
+      const warning = state.proposal.warning
+        ? `<div><strong>注意:</strong> ${escapeHtml(state.proposal.warning)}</div>`
+        : "";
+      summary.classList.toggle("is-fallback", state.proposal.source === "fallback");
+      summary.innerHTML = `
+        <div class="proposal-badges">
+          <span class="proposal-badge">方式: ${escapeHtml(proposalSourceLabel(state.proposal.source))}</span>
+          <span class="proposal-badge">目的: ${escapeHtml($("monitoringGoal").selectedOptions[0]?.textContent || "保全")}</span>
+          ${processes.map((process) => `<span class="proposal-badge">工程: ${escapeHtml(process)}</span>`).join("")}
+        </div>
+        <div>${processes.length ? "工程固有パネルを先頭に配置し、監視目的別の共通KPIを後段に追加しています。" : "工程を特定できなかったため、業種テンプレートまたはAI提案を使用しています。"}</div>
+        <div>数値範囲と閾値は、表示上「顧客確認済み」と明示されない限りTestData用の編集可能なデモ値です。</div>
+        ${warning}
+      `;
+      summary.hidden = false;
+    }
+
     function renderMeta() {
       if (!state.proposal) {
         $("dashboardName").textContent = "パネル案";
         $("dashboardMeta").textContent = "未作成";
+        renderProposalSourceSummary();
         return;
       }
       const label = state.proposal.dashboardType === "iot" ? "IoTデバイス監視ダッシュボード" : "保全用ダッシュボード";
@@ -1400,6 +2007,7 @@
         : "URL: Grafana URLを確認中";
       $("dashboardMeta").innerHTML =
         `名前: ${escapeHtml(state.proposal.dashboardUid)}\nFolder: ${escapeHtml(folderTitle)}\n${urlLine}`;
+      renderProposalSourceSummary();
     }
 
     function updatePanel(index, key, value) {
@@ -1416,6 +2024,9 @@
           state.panels[index].warningThreshold = defaults.warning;
           state.panels[index].criticalThreshold = defaults.critical;
         }
+      } else if (key === "visualization") {
+        state.panels[index][key] = value;
+        if (["stat", "gauge", "bargauge"].includes(value)) state.panels[index].latestOnly = true;
       } else {
         state.panels[index][key] = value;
       }
@@ -1433,7 +2044,7 @@
       const label = `Panel ${index + 1}`;
       if (!String(panel.title || "").trim()) errors.push(`${label}: パネル名を入力してください。`);
       if (String(panel.title || "").length > 80) errors.push(`${label}: パネル名は80文字以内にしてください。`);
-      if (!["timeseries", "stat", "gauge", "piechart", "table"].includes(panel.visualization)) {
+      if (!["timeseries", "stat", "gauge", "bargauge", "barchart", "heatmap", "piechart", "table"].includes(panel.visualization)) {
         errors.push(`${label}: 可視化タイプが不正です。`);
       }
       const riskDirection = ["high", "low", "outside"].includes(panel.riskDirection) ? panel.riskDirection : "high";
@@ -1473,7 +2084,7 @@
     function validatePanels() {
       if (!state.panels.length) return ["パネル案を作成または追加してください。"];
       if (state.panels.length > MAX_PANEL_COUNT) return [`パネル数は${MAX_PANEL_COUNT}個以内にしてください。`];
-      return state.panels.flatMap(panelValidationErrors);
+      return [...state.panels.flatMap(panelValidationErrors), ...validateClientPanelLayouts(state.panels)];
     }
 
     function thresholdDefaults(min, max, unit, riskDirection = "high") {
@@ -1497,9 +2108,13 @@
       $("printProposal").disabled = !state.proposal || !state.panels.length;
       $("buildReplacementPlan").disabled = !state.panels.length || !state.datasources.length;
       $("discardDraft").disabled = !state.proposal && !readSavedDraft();
+      $("resetLayout").disabled = !state.panels.length;
+      $("undoLayout").disabled = state.layoutHistory.length === 0;
     }
 
     function navigateToSection(targetId) {
+      if (targetId === "previewSection") setEditorMode("preview");
+      if (targetId === "panelEditSection") setEditorMode("list");
       const target = document.getElementById(targetId);
       if (!target) return;
       target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1507,14 +2122,14 @@
     }
 
     function previewSize(panel) {
-      const isSmall = panel.visualization === "stat" || panel.visualization === "gauge";
+      const isSmall = panel.visualization === "stat" || panel.visualization === "gauge" || panel.visualization === "bargauge";
       const isWide = panel.visualization === "timeseries" && String(panel.title).toLowerCase().includes("trend");
       return isWide ? { w: 24, h: 9 } : isSmall ? { w: 8, h: 5 } : { w: 12, h: 8 };
     }
 
     function previewPositions(panels) {
       let x = 0;
-      let y = 1;
+      let y = 0;
       let rowHeight = 0;
       return panels.map((panel) => {
         const size = previewSize(panel);
@@ -1528,6 +2143,346 @@
         rowHeight = Math.max(rowHeight, size.h);
         return grid;
       });
+    }
+
+    function renderSourceMode() {
+      const companyMode = state.sourceMode === "company";
+      $("industrySourceTab").setAttribute("aria-selected", String(!companyMode));
+      $("companySourceTab").setAttribute("aria-selected", String(companyMode));
+      $("industrySourcePanel").hidden = companyMode;
+      $("companySourcePanel").hidden = !companyMode;
+    }
+
+    function setSourceMode(mode, focusPanel = false) {
+      state.sourceMode = mode === "company" ? "company" : "industry";
+      renderSourceMode();
+      if (focusPanel) {
+        const target = state.sourceMode === "company" ? $("companyUrl") : $("industry");
+        target.focus();
+      }
+      scheduleDraftSave();
+    }
+
+    function textLines(value, maxItems = 20) {
+      return String(value || "")
+        .split(/\r?\n/)
+        .map((item) => item.replace(/^[-・•\s]+/, "").trim())
+        .filter(Boolean)
+        .slice(0, maxItems);
+    }
+
+    function keywordValues() {
+      return String($("companyKeywords").value || "")
+        .split(/[,\n、]/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, 20);
+    }
+
+    function renderCompanyAnalysis(analysis) {
+      const container = $("companyAnalysisResult");
+      if (!analysis || typeof analysis !== "object") {
+        container.hidden = true;
+        $("applyCompanyAnalysis").disabled = true;
+        return;
+      }
+      state.companyAnalysis = analysis;
+      container.hidden = false;
+      $("applyCompanyAnalysis").disabled = false;
+      $("companyAnalysisConfidence").textContent = `確信度 ${Math.round(Math.max(0, Math.min(1, Number(analysis.confidence) || 0)) * 100)}%`;
+      $("analysisCompanyName").value = String(analysis.companyName || "").slice(0, 120);
+      $("analysisIndustrySummary").value = String(analysis.industrySummary || "").slice(0, 500);
+      $("analysisConfirmedFacts").value = (analysis.confirmedFacts || []).join("\n");
+      $("analysisInferredFacts").value = (analysis.inferredFacts || []).join("\n");
+      $("analysisMissingInformation").value = (analysis.missingInformation || []).join("\n");
+    }
+
+    function companyAnalysisFromEditor() {
+      if (!state.companyAnalysis) return null;
+      return {
+        ...state.companyAnalysis,
+        companyName: $("analysisCompanyName").value.trim().slice(0, 120),
+        industrySummary: $("analysisIndustrySummary").value.trim().slice(0, 500),
+        confirmedFacts: textLines($("analysisConfirmedFacts").value),
+        inferredFacts: textLines($("analysisInferredFacts").value),
+        missingInformation: textLines($("analysisMissingInformation").value)
+      };
+    }
+
+    function renderCompanyMaterials() {
+      const list = $("companyMaterialList");
+      list.innerHTML = "";
+      if (!state.companyMaterials.length) {
+        const empty = document.createElement("div");
+        empty.className = "source-help";
+        empty.textContent = "資料は選択されていません。";
+        list.appendChild(empty);
+        return;
+      }
+      state.companyMaterials.forEach((file, index) => {
+        const row = document.createElement("div");
+        row.className = "material-item";
+        const label = document.createElement("span");
+        label.textContent = `${file.name} / ${(file.size / 1024 / 1024).toFixed(2)} MB`;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "secondary";
+        remove.textContent = "削除";
+        remove.setAttribute("aria-label", `${file.name}を削除`);
+        remove.addEventListener("click", () => {
+          state.companyMaterials.splice(index, 1);
+          $("companyMaterials").value = "";
+          renderCompanyMaterials();
+        });
+        row.append(label, remove);
+        list.appendChild(row);
+      });
+    }
+
+    function selectCompanyMaterials(files) {
+      const selected = Array.from(files || []);
+      if (selected.length > COMPANY_MATERIAL_MAX_FILES) {
+        throw new Error(`会社資料は最大${COMPANY_MATERIAL_MAX_FILES}件です。`);
+      }
+      let totalBytes = 0;
+      selected.forEach((file) => {
+        if (!COMPANY_MATERIAL_TYPES.has(file.type)) throw new Error(`${file.name}: 対応していないファイル形式です。`);
+        if (file.size > COMPANY_MATERIAL_MAX_BYTES) throw new Error(`${file.name}: 1ファイル5MB以内にしてください。`);
+        totalBytes += file.size;
+      });
+      if (totalBytes > COMPANY_MATERIAL_MAX_TOTAL_BYTES) throw new Error("会社資料の合計は10MB以内にしてください。");
+      state.companyMaterials = selected;
+      renderCompanyMaterials();
+    }
+
+    function materialPayload(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error(`${file.name}を読み込めませんでした。`));
+        reader.onload = () => {
+          const encoded = String(reader.result || "");
+          const comma = encoded.indexOf(",");
+          if (comma < 0) return reject(new Error(`${file.name}の形式が不正です。`));
+          resolve({ name: file.name, mimeType: file.type, dataBase64: encoded.slice(comma + 1) });
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function analyzeCompanySources() {
+      const url = $("companyUrl").value.trim();
+      const keywords = keywordValues();
+      const notes = $("companyNotes").value.trim();
+      if (!url && !keywords.length && !notes && !state.companyMaterials.length) {
+        setStatus("URL、キーワード、補足、または会社資料を入力してください。", "error");
+        return;
+      }
+      if (!$("companyAiConsent").checked) {
+        setStatus("会社情報をAI分析サービスへ送信することを確認し、同意欄をチェックしてください。", "error");
+        return;
+      }
+      if (url) {
+        let companySourceUrl;
+        try {
+          companySourceUrl = new URL(url);
+        } catch {
+          $("companyUrl").setAttribute("aria-invalid", "true");
+          setStatus("WebサイトURLを正しい形式で入力してください。", "error");
+          return;
+        }
+        if (companySourceUrl.protocol !== "https:" && companySourceUrl.protocol !== "http:") {
+          $("companyUrl").setAttribute("aria-invalid", "true");
+          setStatus("WebサイトURLはhttps://またはhttp://から入力してください。", "error");
+          return;
+        }
+      }
+      $("companyUrl").removeAttribute("aria-invalid");
+      if (!protectedApiReady()) {
+        setStatus(authenticationMessage(), "error");
+        return;
+      }
+      $("analyzeCompanySources").disabled = true;
+      setStatus("企業情報を分析しています...");
+      try {
+        const materials = await Promise.all(state.companyMaterials.map(materialPayload));
+        const result = await api("/api/analyze-company-sources", {
+          url,
+          keywords,
+          notes,
+          materials,
+          aiConsent: true
+        }, COMPANY_ANALYSIS_TIMEOUT_MS);
+        const analysis = result.analysis || result;
+        renderCompanyAnalysis(analysis);
+        if (analysis.dashboardType === "iot" || analysis.dashboardType === "manufacturing") {
+          $("dashboardType").value = analysis.dashboardType;
+        }
+        const warning = result.warning ? `\n${result.warning}` : "";
+        setStatus(`企業情報を分析しました。確認済み情報とAI推定を確認してください。${warning}`, result.warning ? "error" : "ok");
+      } catch (error) {
+        setStatus(error.message, "error");
+      } finally {
+        $("analyzeCompanySources").disabled = false;
+      }
+    }
+
+    function normalizeClientGridPos(value) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+      const gridPos = { x: Number(value.x), y: Number(value.y), w: Number(value.w), h: Number(value.h) };
+      if (!Object.values(gridPos).every(Number.isInteger)) return null;
+      if (gridPos.x < 0 || gridPos.y < 0 || gridPos.w < 1 || gridPos.h < 1) return null;
+      if (gridPos.w > 24 || gridPos.h > 50 || gridPos.x + gridPos.w > 24 || gridPos.y > 1000) return null;
+      return gridPos;
+    }
+
+    function positionsOverlap(first, second) {
+      return first.x < second.x + second.w && first.x + first.w > second.x &&
+        first.y < second.y + second.h && first.y + first.h > second.y;
+    }
+
+    function validateClientPanelLayouts(panels) {
+      const errors = [];
+      const positions = panels.map((panel, index) => {
+        const gridPos = normalizeClientGridPos(panel.gridPos);
+        if (!gridPos) errors.push(`Panel ${index + 1}: 配置情報が不正です。自動配置を実行してください。`);
+        return gridPos;
+      });
+      positions.forEach((first, firstIndex) => {
+        if (!first) return;
+        positions.slice(firstIndex + 1).forEach((second, offset) => {
+          if (second && positionsOverlap(first, second)) {
+            errors.push(`Panel ${firstIndex + 1} と Panel ${firstIndex + offset + 2} の配置が重複しています。`);
+          }
+        });
+      });
+      return errors;
+    }
+
+    function ensurePanelLayouts(panels) {
+      const positions = previewPositions(panels);
+      panels.forEach((panel, index) => {
+        const normalized = normalizeClientGridPos(panel.gridPos);
+        panel.gridPos = normalized || positions[index];
+      });
+      if (validateClientPanelLayouts(panels).length) {
+        panels.forEach((panel, index) => { panel.gridPos = positions[index]; });
+      }
+      return panels;
+    }
+
+    function layoutSnapshot() {
+      return state.panels.map((panel) => {
+        const position = normalizeClientGridPos(panel.gridPos);
+        return position ? { x: position.x, y: position.y, w: position.w, h: position.h } : null;
+      });
+    }
+
+    function sameLayout(first, second) {
+      return Array.isArray(first) && Array.isArray(second) && first.length === second.length &&
+        first.every((position, index) => position && second[index] &&
+          position.x === second[index].x && position.y === second[index].y &&
+          position.w === second[index].w && position.h === second[index].h);
+    }
+
+    function rememberLayout(snapshot = layoutSnapshot()) {
+      if (!snapshot.length || sameLayout(snapshot, layoutSnapshot())) return;
+      const last = state.layoutHistory[state.layoutHistory.length - 1];
+      if (!last || !sameLayout(last, snapshot)) state.layoutHistory.push(snapshot);
+      if (state.layoutHistory.length > 20) state.layoutHistory.shift();
+      $("undoLayout").disabled = state.layoutHistory.length === 0;
+    }
+
+    function restoreLayout(snapshot) {
+      if (!Array.isArray(snapshot) || snapshot.length !== state.panels.length) return false;
+      const positions = snapshot.map(normalizeClientGridPos);
+      if (!positions.every(Boolean)) return false;
+      state.panels.forEach((panel, index) => { panel.gridPos = positions[index]; });
+      renderPanels();
+      scheduleDraftSave();
+      return true;
+    }
+
+    function undoLayoutChange() {
+      const snapshot = state.layoutHistory.pop();
+      if (snapshot) restoreLayout(snapshot);
+      $("undoLayout").disabled = state.layoutHistory.length === 0;
+    }
+
+    function resetAllPanelLayouts() {
+      if (!state.panels.length) return;
+      const before = layoutSnapshot();
+      const positions = previewPositions(state.panels);
+      state.panels.forEach((panel, index) => { panel.gridPos = positions[index]; });
+      rememberLayout(before);
+      renderPanels();
+      scheduleDraftSave();
+    }
+
+    function firstAvailableGridPos(panel, ignoredIndex) {
+      const size = previewSize(panel);
+      const occupied = state.panels
+        .map((item, index) => index === ignoredIndex ? null : normalizeClientGridPos(item.gridPos))
+        .filter(Boolean);
+      for (let y = 0; y <= 1000; y += 1) {
+        for (let x = 0; x + size.w <= 24; x += 1) {
+          const candidate = { x, y, ...size };
+          if (!occupied.some((position) => positionsOverlap(candidate, position))) return candidate;
+        }
+      }
+      return { x: 0, y: Math.max(0, ...occupied.map((position) => position.y + position.h)), ...size };
+    }
+
+    function resetPanelPosition(index) {
+      if (!state.panels[index]) return;
+      const before = layoutSnapshot();
+      state.panels[index].gridPos = firstAvailableGridPos(state.panels[index], index);
+      rememberLayout(before);
+      renderPanels();
+      scheduleDraftSave();
+    }
+
+    function setEditorMode(mode, focus = false) {
+      state.editorMode = mode === "list" ? "list" : "preview";
+      const previewActive = state.editorMode === "preview";
+      $("previewSection").hidden = !previewActive;
+      $("listEditor").hidden = previewActive;
+      $("previewModeTab").setAttribute("aria-selected", String(previewActive));
+      $("listModeTab").setAttribute("aria-selected", String(!previewActive));
+      sessionStorage.setItem("grafanaBuilderEditorMode", state.editorMode);
+      if (previewActive && state.panels.length) renderPreview();
+      if (focus) (previewActive ? $("previewSection") : $("panelEditSection")).focus({ preventScroll: true });
+    }
+
+    function tabletModeActive() {
+      if (state.deviceMode === "tablet") return true;
+      if (state.deviceMode === "desktop") return false;
+      return window.matchMedia("(min-width: 600px) and (max-width: 1180px)").matches ||
+        window.matchMedia("(pointer: coarse) and (min-width: 600px)").matches;
+    }
+
+    function applyDeviceMode() {
+      document.body.classList.toggle("device-tablet", tabletModeActive());
+      document.querySelectorAll("[data-device-mode]").forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.deviceMode === state.deviceMode));
+      });
+      if (!tabletModeActive()) closeTabletConditions();
+      if (state.editorMode === "preview" && state.panels.length) renderPreview();
+    }
+
+    function setDeviceMode(mode) {
+      state.deviceMode = ["auto", "desktop", "tablet"].includes(mode) ? mode : "auto";
+      sessionStorage.setItem("grafanaBuilderDeviceMode", state.deviceMode);
+      applyDeviceMode();
+    }
+
+    function openTabletConditions() {
+      if (!tabletModeActive()) return;
+      document.body.classList.add("tablet-conditions-open");
+      $("conditionsSection").focus({ preventScroll: true });
+    }
+
+    function closeTabletConditions() {
+      document.body.classList.remove("tablet-conditions-open");
     }
 
     function formatValue(value, unit) {
@@ -1616,6 +2571,74 @@
       `;
     }
 
+    function renderBarChartPreview(panel) {
+      const values = sampleSeries(panel, 10);
+      const lo = Number.isFinite(Number(panel.min)) ? Number(panel.min) : 0;
+      const hi = Number.isFinite(Number(panel.max)) && Number(panel.max) > lo ? Number(panel.max) : lo + 100;
+      const width = 420;
+      const height = 170;
+      const plot = { left: 38, top: 12, right: 8, bottom: 30 };
+      const innerW = width - plot.left - plot.right;
+      const innerH = height - plot.top - plot.bottom;
+      const slot = innerW / values.length;
+      const bars = values.map((value, index) => {
+        const barHeight = Math.max(2, ((value - lo) / (hi - lo)) * innerH);
+        const x = plot.left + index * slot + slot * 0.14;
+        const y = plot.top + innerH - barHeight;
+        const color = value >= Number(panel.criticalThreshold) ? "#ff6b57" : value >= Number(panel.warningThreshold) ? "#f2c230" : "#73bf69";
+        return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(slot * 0.72).toFixed(1)}" height="${barHeight.toFixed(1)}" fill="${color}" rx="1"/>`;
+      }).join("");
+      return `
+        <svg class="preview-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          <rect x="${plot.left}" y="${plot.top}" width="${innerW}" height="${innerH}" fill="#11161d"/>
+          <path d="M${plot.left} ${plot.top + innerH * 0.33}H${plot.left + innerW} M${plot.left} ${plot.top + innerH * 0.66}H${plot.left + innerW}" stroke="#2a3340"/>
+          ${bars}
+          <text x="2" y="${plot.top + 8}" fill="#c6cfdd" font-size="11">${escapeHtml(formatValue(hi, panel.unit))}</text>
+          <text x="2" y="${plot.top + innerH}" fill="#c6cfdd" font-size="11">${escapeHtml(formatValue(lo, panel.unit))}</text>
+          <text x="${plot.left}" y="${height - 8}" fill="#7da6f8" font-size="11">Period 1</text>
+          <text x="${width - 55}" y="${height - 8}" fill="#7da6f8" font-size="11">Period 10</text>
+        </svg>`;
+    }
+
+    function renderBarGaugePreview(panel) {
+      const values = sampleSeries(panel, 5);
+      const lo = Number.isFinite(Number(panel.min)) ? Number(panel.min) : 0;
+      const hi = Number.isFinite(Number(panel.max)) && Number(panel.max) > lo ? Number(panel.max) : lo + 100;
+      const rows = values.map((value, index) => {
+        const y = 16 + index * 29;
+        const ratio = Math.max(0.03, Math.min(1, (value - lo) / (hi - lo)));
+        const color = value >= Number(panel.criticalThreshold) ? "#ff6b57" : value >= Number(panel.warningThreshold) ? "#f2c230" : "#73bf69";
+        return `
+          <text x="2" y="${y + 12}" fill="#c6cfdd" font-size="10">Asset ${index + 1}</text>
+          <rect x="62" y="${y}" width="280" height="16" fill="#303844" rx="2"/>
+          <rect x="62" y="${y}" width="${(280 * ratio).toFixed(1)}" height="16" fill="${color}" rx="2"/>
+          <text x="350" y="${y + 12}" fill="#dbe7ff" font-size="10">${escapeHtml(formatValue(value, panel.unit))}</text>`;
+      }).join("");
+      return `<svg class="preview-chart" viewBox="0 0 420 170" preserveAspectRatio="none" aria-hidden="true">${rows}</svg>`;
+    }
+
+    function renderHeatmapPreview(panel) {
+      const columns = 16;
+      const rows = 6;
+      const colors = ["#18202b", "#25476b", "#3274a1", "#4ea3a3", "#73bf69", "#f2cc0c", "#ff780a", "#e02f44"];
+      const cells = [];
+      for (let row = 0; row < rows; row += 1) {
+        for (let column = 0; column < columns; column += 1) {
+          const intensity = seededValue((panel.title?.length || 3) + row * 5, column);
+          const color = colors[Math.min(colors.length - 1, Math.floor(intensity * colors.length))];
+          cells.push(`<rect x="${42 + column * 22}" y="${10 + row * 21}" width="19" height="18" fill="${color}" rx="1"/>`);
+        }
+      }
+      return `
+        <svg class="preview-chart" viewBox="0 0 420 170" preserveAspectRatio="none" aria-hidden="true">
+          ${cells.join("")}
+          <text x="2" y="20" fill="#c6cfdd" font-size="10">High</text>
+          <text x="2" y="132" fill="#c6cfdd" font-size="10">Low</text>
+          <text x="42" y="154" fill="#7da6f8" font-size="10">-6h</text>
+          <text x="370" y="154" fill="#7da6f8" font-size="10">now</text>
+        </svg>`;
+    }
+
     function renderGaugePreview(panel) {
       const min = Number(panel.min);
       const max = Number(panel.max);
@@ -1669,6 +2692,9 @@
         return `<div class="preview-stat">${escapeHtml(formatValue(lo + (hi - lo) * 0.35, panel.unit))}</div>`;
       }
       if (panel.visualization === "gauge") return renderGaugePreview(panel);
+      if (panel.visualization === "bargauge") return renderBarGaugePreview(panel);
+      if (panel.visualization === "barchart") return renderBarChartPreview(panel);
+      if (panel.visualization === "heatmap") return renderHeatmapPreview(panel);
       if (panel.visualization === "piechart") return renderDonutPreview(panel);
       if (panel.visualization === "table") return renderTablePreview(panel);
       return renderTimeSeriesPreview(panel);
@@ -1677,29 +2703,182 @@
     function renderPreview() {
       const board = $("previewBoard");
       const summary = $("previewSummary");
+      if (previewGrid) {
+        previewGrid.destroy(false);
+        previewGrid = null;
+      }
       if (!state.panels.length) {
         summary.textContent = "パネル案作成後に表示されます";
         board.innerHTML = '<div class="empty" style="grid-column: span 24;">ダッシュボード作成前にレイアウトを確認できます。</div>';
         return;
       }
-      const positions = previewPositions(state.panels);
-      const maxRow = Math.max(...positions.map((pos) => pos.y + pos.h), 10);
-      board.style.gridTemplateRows = `repeat(${maxRow}, 24px)`;
+      ensurePanelLayouts(state.panels);
       summary.textContent = `${state.panels.length} panels / ${$("folderUid").selectedOptions[0]?.textContent || "General / ルート"}`;
       board.innerHTML = "";
       state.panels.forEach((panel, index) => {
-        const pos = positions[index];
+        const pos = panel.gridPos;
         const el = document.createElement("div");
-        el.className = "preview-panel";
-        el.style.gridColumn = `${pos.x + 1} / span ${pos.w}`;
-        el.style.gridRow = `${pos.y} / span ${pos.h}`;
+        el.className = "preview-panel grid-stack-item";
+        el.dataset.panelIndex = String(index);
+        el.setAttribute("gs-id", String(panel.id || index + 1));
+        el.setAttribute("gs-x", String(pos.x));
+        el.setAttribute("gs-y", String(pos.y));
+        el.setAttribute("gs-w", String(pos.w));
+        el.setAttribute("gs-h", String(pos.h));
         el.innerHTML = `
-          <div class="preview-title">${escapeHtml(panel.title || `Panel ${index + 1}`)}</div>
-          <div class="preview-body">${renderPanelVisualization(panel)}</div>
-          <div class="preview-meta">${escapeHtml(panel.visualization)} / ${escapeHtml(panel.riskDirection || "high")} / W:${escapeHtml(panel.warningThreshold ?? "")} / C:${escapeHtml(panel.criticalThreshold ?? "")}</div>
+          <div class="grid-stack-item-content">
+            <div class="preview-panel-head preview-drag-handle">
+              <div class="preview-title">${escapeHtml(panel.title || `Panel ${index + 1}`)}</div>
+              <button class="preview-menu-button" type="button" aria-label="${escapeHtml(panel.title || `Panel ${index + 1}`)}のメニュー" aria-expanded="false">⋮</button>
+            </div>
+            <div class="preview-body">${renderPanelVisualization(panel)}</div>
+            <div class="preview-meta">${escapeHtml(panel.processLabel || proposalSourceLabel(panel.proposalSource))} / ${escapeHtml(rangeSourceLabel(panel.rangeSource))} / ${escapeHtml(panel.visualization)} / W:${escapeHtml(formatValue(panel.warningThreshold, panel.unit))} / C:${escapeHtml(formatValue(panel.criticalThreshold, panel.unit))}</div>
+            <div class="preview-context-menu" hidden>
+              <button type="button" data-action="edit">詳細を編集</button>
+              <button type="button" data-action="duplicate">複製</button>
+              <button type="button" data-action="reset-position">自動位置へ移動</button>
+              <button type="button" data-action="delete">削除</button>
+            </div>
+          </div>
         `;
+        const menuButton = el.querySelector(".preview-menu-button");
+        const menu = el.querySelector(".preview-context-menu");
+        menuButton.addEventListener("pointerdown", (event) => event.stopPropagation());
+        menuButton.addEventListener("click", (event) => {
+          event.stopPropagation();
+          closePreviewMenus(el);
+          const open = menu.hidden;
+          menu.hidden = !open;
+          menuButton.setAttribute("aria-expanded", String(open));
+          if (open) menu.querySelector("button")?.focus();
+        });
+        menu.addEventListener("pointerdown", (event) => event.stopPropagation());
+        menu.addEventListener("click", (event) => {
+          const action = event.target.closest("button")?.dataset.action;
+          if (!action) return;
+          menu.hidden = true;
+          menuButton.setAttribute("aria-expanded", "false");
+          if (action === "edit") openPanelEditor(index);
+          if (action === "duplicate") duplicatePanel(index, false);
+          if (action === "reset-position") resetPanelPosition(index);
+          if (action === "delete") deletePanel(index);
+        });
         board.appendChild(el);
       });
+
+      if (state.editorMode !== "preview") return;
+      if (!window.GridStack) {
+        summary.textContent = `${state.panels.length} panels / ドラッグ機能を読み込めませんでした`;
+        return;
+      }
+
+      suppressGridEvents = true;
+      previewGrid = window.GridStack.init({
+        column: 24,
+        cellHeight: 24,
+        margin: 4,
+        float: true,
+        animate: true,
+        disableResize: true,
+        handle: ".preview-drag-handle",
+        draggable: { scroll: true }
+      }, board);
+      previewGrid.on("dragstart", () => {
+        dragStartLayout = layoutSnapshot();
+        closePreviewMenus();
+      });
+      previewGrid.on("change", (_event, items) => {
+        if (suppressGridEvents || !Array.isArray(items)) return;
+        items.forEach((item) => {
+          const index = Number(item.el?.dataset.panelIndex);
+          if (!Number.isInteger(index) || !state.panels[index]) return;
+          state.panels[index].gridPos = { x: item.x, y: item.y, w: item.w, h: item.h };
+        });
+        if (dragStartLayout) rememberLayout(dragStartLayout);
+        dragStartLayout = null;
+        updateCreateState();
+        scheduleDraftSave();
+      });
+      window.requestAnimationFrame(() => { suppressGridEvents = false; });
+    }
+
+    function closePreviewMenus(exceptPanel = null) {
+      document.querySelectorAll("#previewBoard .preview-panel").forEach((panel) => {
+        if (panel === exceptPanel) return;
+        const menu = panel.querySelector(".preview-context-menu");
+        const button = panel.querySelector(".preview-menu-button");
+        if (menu) menu.hidden = true;
+        if (button) button.setAttribute("aria-expanded", "false");
+      });
+    }
+
+    function openPanelEditor(index) {
+      const panel = state.panels[index];
+      if (!panel) return;
+      state.editingPanelIndex = index;
+      $("panelDialogTitle").textContent = panel.title || `Panel ${index + 1}`;
+      $("panelDialogPosition").textContent = `Panel ${index + 1} / x:${panel.gridPos?.x ?? 0} y:${panel.gridPos?.y ?? 0} w:${panel.gridPos?.w ?? 0} h:${panel.gridPos?.h ?? 0}`;
+      $("dialogPanelTitle").value = panel.title || "";
+      $("dialogPanelVisualization").value = panel.visualization || "timeseries";
+      $("dialogPanelUnit").value = panel.unit || "short";
+      $("dialogPanelLatestOnly").value = String(Boolean(panel.latestOnly));
+      $("dialogPanelMin").value = panel.min ?? "";
+      $("dialogPanelMax").value = panel.max ?? "";
+      $("dialogPanelRiskDirection").value = panel.riskDirection || "high";
+      $("dialogPanelWarning").value = panel.warningThreshold ?? "";
+      $("dialogPanelCritical").value = panel.criticalThreshold ?? "";
+      $("dialogPanelPurpose").value = panel.purpose || "";
+      $("dialogPanelProposalInfo").innerHTML = `
+        <strong>${escapeHtml(panel.processLabel || proposalSourceLabel(panel.proposalSource))}</strong>
+        <span>${escapeHtml(rangeSourceLabel(panel.rangeSource))}</span>
+        <span>採用理由: ${escapeHtml(panel.rationale || panel.purpose || "監視対象の状態を確認")}</span>
+        ${panel.equipment?.length ? `<span>対象設備: ${panel.equipment.map(escapeHtml).join("、")}</span>` : ""}
+      `;
+      $("panelDialogErrors").hidden = true;
+      $("panelDialogErrors").innerHTML = "";
+      $("panelEditorDialog").showModal();
+      window.setTimeout(() => $("dialogPanelTitle").focus(), 0);
+    }
+
+    function panelFromDialog(index) {
+      const current = state.panels[index];
+      if (!current) return null;
+      return {
+        ...current,
+        title: $("dialogPanelTitle").value,
+        visualization: $("dialogPanelVisualization").value,
+        unit: $("dialogPanelUnit").value,
+        latestOnly: $("dialogPanelLatestOnly").value === "true",
+        min: $("dialogPanelMin").value === "" ? "" : Number($("dialogPanelMin").value),
+        max: $("dialogPanelMax").value === "" ? "" : Number($("dialogPanelMax").value),
+        riskDirection: $("dialogPanelRiskDirection").value,
+        warningThreshold: $("dialogPanelWarning").value === "" ? "" : Number($("dialogPanelWarning").value),
+        criticalThreshold: $("dialogPanelCritical").value === "" ? "" : Number($("dialogPanelCritical").value),
+        purpose: $("dialogPanelPurpose").value
+      };
+    }
+
+    function closePanelEditor() {
+      if ($("panelEditorDialog").open) $("panelEditorDialog").close();
+      state.editingPanelIndex = -1;
+    }
+
+    function applyPanelDialog() {
+      const index = state.editingPanelIndex;
+      const candidate = panelFromDialog(index);
+      if (!candidate) return;
+      const errors = panelValidationErrors(candidate, index);
+      if (errors.length) {
+        $("panelDialogErrors").innerHTML = errors.map((error) => `<li>${escapeHtml(error)}</li>`).join("");
+        $("panelDialogErrors").hidden = false;
+        $("panelDialogErrors").focus?.();
+        return;
+      }
+      state.panels[index] = candidate;
+      closePanelEditor();
+      renderPanels();
+      scheduleDraftSave();
+      setStatus(`「${candidate.title}」を更新しました。`, "ok");
     }
 
     function renderPanels() {
@@ -1759,6 +2938,14 @@
               <button class="danger delete-panel" type="button">削除</button>
             </div>
           </div>
+          <div class="panel-proposal-info">
+            <div class="proposal-badges">
+              <span class="proposal-badge">${escapeHtml(panel.processLabel || proposalSourceLabel(panel.proposalSource))}</span>
+              <span class="proposal-badge">${escapeHtml(rangeSourceLabel(panel.rangeSource))}</span>
+            </div>
+            <span>採用理由: ${escapeHtml(panel.rationale || panel.purpose || "監視対象の状態を確認")}</span>
+            ${panel.equipment?.length ? `<span>対象設備: ${panel.equipment.map(escapeHtml).join("、")}</span>` : ""}
+          </div>
           ${validationHtml}
           <label for="${fieldId("title")}">パネル名</label>
           <input id="${fieldId("title")}" data-key="title" value="${escapeHtml(panel.title)}" maxlength="80">
@@ -1769,6 +2956,9 @@
                 ${option("timeseries", "時系列", panel.visualization)}
                 ${option("stat", "Stat", panel.visualization)}
                 ${option("gauge", "Gauge", panel.visualization)}
+                ${option("bargauge", "Bar gauge", panel.visualization)}
+                ${option("barchart", "棒グラフ", panel.visualization)}
+                ${option("heatmap", "Heatmap", panel.visualization)}
                 ${option("piechart", "ドーナツ", panel.visualization)}
                 ${option("table", "Table", panel.visualization)}
               </select>
@@ -1844,7 +3034,11 @@
     function movePanel(index, direction) {
       const targetIndex = index + direction;
       if (targetIndex < 0 || targetIndex >= state.panels.length) return;
+      const sourcePosition = { ...state.panels[index].gridPos };
+      const targetPosition = { ...state.panels[targetIndex].gridPos };
       [state.panels[index], state.panels[targetIndex]] = [state.panels[targetIndex], state.panels[index]];
+      state.panels[index].gridPos = sourcePosition;
+      state.panels[targetIndex].gridPos = targetPosition;
       renderPanels();
       scheduleDraftSave();
     }
@@ -1859,16 +3053,21 @@
       });
     }
 
-    function duplicatePanel(index) {
+    function duplicatePanel(index, focusEditor = true) {
       if (state.panels.length >= MAX_PANEL_COUNT || !state.panels[index]) return;
       state.invalidOnly = false;
       $("invalidOnly").checked = false;
       const source = state.panels[index];
       const nextId = Math.max(0, ...state.panels.map((panel) => Number(panel.id) || 0)) + 1;
       const title = `${String(source.title || "Panel").slice(0, 73)} - Copy`;
-      state.panels.splice(index + 1, 0, { ...source, id: nextId, title });
+      const copy = { ...source, id: nextId, title };
+      state.panels.splice(index + 1, 0, copy);
+      copy.gridPos = firstAvailableGridPos(copy, index + 1);
       renderPanels();
-      focusPanelTitle(index + 1);
+      if (focusEditor) {
+        setEditorMode("list");
+        focusPanelTitle(index + 1);
+      }
       scheduleDraftSave();
     }
 
@@ -1894,6 +3093,9 @@
       if (!deleted || state.panels.length >= MAX_PANEL_COUNT) return;
       const restoreIndex = Math.min(deleted.index, state.panels.length);
       state.panels.splice(restoreIndex, 0, deleted.panel);
+      if (validateClientPanelLayouts(state.panels).length) {
+        deleted.panel.gridPos = firstAvailableGridPos(deleted.panel, restoreIndex);
+      }
       clearPanelUndo();
       renderPanels();
       focusPanelTitle(restoreIndex);
@@ -2189,12 +3391,19 @@
       renderReplacementPlan(result.plan || []);
     }
 
-    $("propose").addEventListener("click", async () => {
+    async function createPanelProposal() {
       const industryInput = $("industry");
-      const industry = industryInput.value.trim();
+      const reviewedAnalysis = state.sourceMode === "company" ? companyAnalysisFromEditor() : null;
+      const industry = reviewedAnalysis
+        ? (reviewedAnalysis.companyName || reviewedAnalysis.industrySummary).trim().slice(0, 120)
+        : industryInput.value.trim();
+      if (state.sourceMode === "company" && !reviewedAnalysis) {
+        setStatus("企業情報を分析し、確認済み情報とAI推定を確認してください。", "error");
+        return;
+      }
       if (!industry) {
         industryInput.setAttribute("aria-invalid", "true");
-        setStatus("業種を入力してください。", "error");
+        setStatus(state.sourceMode === "company" ? "企業名または業種概要を入力してください。" : "業種を入力してください。", "error");
         return;
       }
       if (industry.length > 120) {
@@ -2208,20 +3417,32 @@
         return;
       }
       $("propose").disabled = true;
+      $("applyCompanyAnalysis").disabled = true;
       setStatus("パネル案を作成しています...");
       try {
-        const proposal = await api("/api/propose", { industry, dashboardType: $("dashboardType").value });
+        if (reviewedAnalysis) state.companyAnalysis = reviewedAnalysis;
+        const proposal = await api("/api/propose", {
+          industry,
+          dashboardType: $("dashboardType").value,
+          monitoringGoal: $("monitoringGoal").value,
+          primaryProcess: $("primaryProcess").value,
+          selectedEquipment: selectedEquipmentValues(),
+          ...(reviewedAnalysis ? { companyAnalysis: reviewedAnalysis } : {})
+        });
         state.proposal = proposal;
-        state.panels = proposal.panels;
+        state.panels = ensurePanelLayouts(proposal.panels);
+        renderProposalOptions(proposal, proposal.primaryProcess, proposal.selectedEquipment || []);
+        state.layoutHistory = [];
         clearPanelUndo();
         state.panelFilter = "";
         $("panelFilter").value = "";
         state.invalidOnly = false;
         $("invalidOnly").checked = false;
         renderPanels();
+        setEditorMode("preview");
         setWorkflowStep(2);
         scheduleDraftSave();
-        const sourceLabel = proposal.source === "ai" ? "AI生成" : proposal.source === "fallback" ? "汎用テンプレート" : "既知業種テンプレート";
+        const sourceLabel = proposalSourceLabel(proposal.source);
         const warning = proposal.warning ? `\n${proposal.warning}` : "";
         setStatus(`パネル案を作成しました。方式: ${sourceLabel}\n内容を編集してから作成できます。${warning}`, proposal.warning ? "error" : "ok");
         if (window.matchMedia("(max-width: 840px)").matches) navigateToSection("previewSection");
@@ -2229,7 +3450,43 @@
         setStatus(error.message, "error");
       } finally {
         $("propose").disabled = false;
+        $("applyCompanyAnalysis").disabled = !state.companyAnalysis;
       }
+    }
+
+    $("propose").addEventListener("click", createPanelProposal);
+    $("industrySourceTab").addEventListener("click", () => setSourceMode("industry", true));
+    $("companySourceTab").addEventListener("click", () => setSourceMode("company", true));
+    [$("industrySourceTab"), $("companySourceTab")].forEach((tab) => {
+      tab.addEventListener("keydown", (event) => {
+        if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+        event.preventDefault();
+        setSourceMode(state.sourceMode === "company" ? "industry" : "company", true);
+      });
+    });
+    $("companyMaterials").addEventListener("change", (event) => {
+      try {
+        selectCompanyMaterials(event.target.files);
+        setStatus("会社資料を選択しました。", "ok");
+      } catch (error) {
+        event.target.value = "";
+        state.companyMaterials = [];
+        renderCompanyMaterials();
+        setStatus(error.message, "error");
+      }
+    });
+    $("analyzeCompanySources").addEventListener("click", analyzeCompanySources);
+    $("applyCompanyAnalysis").addEventListener("click", async () => {
+      const reviewed = companyAnalysisFromEditor();
+      if (!reviewed || !reviewed.companyName || !reviewed.industrySummary) {
+        setStatus("企業名と業種・事業概要を確認してください。", "error");
+        return;
+      }
+      state.companyAnalysis = reviewed;
+      $("dashboardType").value = reviewed.dashboardType;
+      $("industry").value = reviewed.companyName.slice(0, 120);
+      scheduleDraftSave();
+      await createPanelProposal();
     });
 
     $("addPanel").addEventListener("click", () => {
@@ -2241,7 +3498,7 @@
       $("panelFilter").value = "";
       state.invalidOnly = false;
       $("invalidOnly").checked = false;
-      state.panels.push({
+      const panel = {
         id: state.panels.length + 1,
         title: "New Sensor Panel",
         visualization: "timeseries",
@@ -2252,9 +3509,18 @@
         criticalThreshold: 95,
         riskDirection: "high",
         purpose: "追加センサーの推移を監視",
+        rationale: "営業担当者が手動で追加した監視パネル",
+        proposalSource: "manual",
+        rangeSource: "testdata-demo-default",
+        processKey: "",
+        processLabel: "手動追加",
+        equipment: [],
         latestOnly: false
-      });
+      };
+      state.panels.push(panel);
+      panel.gridPos = firstAvailableGridPos(panel, state.panels.length - 1);
       renderPanels();
+      setEditorMode("list");
       focusPanelTitle(state.panels.length - 1);
       scheduleDraftSave();
     });
@@ -2407,6 +3673,9 @@
         const createPayload = {
           industry: $("industry").value.trim(),
           dashboardType: $("dashboardType").value,
+          monitoringGoal: $("monitoringGoal").value,
+          primaryProcess: $("primaryProcess").value,
+          selectedEquipment: selectedEquipmentValues(),
           folderUid: $("folderUid").value,
           panels: state.panels,
           overwrite: $("overwriteDashboard").checked
@@ -2459,10 +3728,42 @@
       attributeFilter: ["disabled"]
     });
 
-    ["industry", "dashboardType", "projectLabel", "salesOwner", "overwriteDashboard"].forEach((id) => {
-      $(id).addEventListener("input", scheduleDraftSave);
-      $(id).addEventListener("change", scheduleDraftSave);
+    $("previewModeTab").addEventListener("click", () => setEditorMode("preview", true));
+    $("listModeTab").addEventListener("click", () => setEditorMode("list", true));
+    document.querySelectorAll("[data-device-mode]").forEach((button) => {
+      button.addEventListener("click", () => setDeviceMode(button.dataset.deviceMode));
     });
+    $("undoLayout").addEventListener("click", undoLayoutChange);
+    $("resetLayout").addEventListener("click", resetAllPanelLayouts);
+    $("tabletConditionsToggle").addEventListener("click", openTabletConditions);
+    $("tabletConditionsClose").addEventListener("click", closeTabletConditions);
+    $("tabletBackdrop").addEventListener("click", closeTabletConditions);
+    $("panelDialogClose").addEventListener("click", closePanelEditor);
+    $("panelDialogCancel").addEventListener("click", closePanelEditor);
+    $("panelDialogForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      applyPanelDialog();
+    });
+    $("panelEditorDialog").addEventListener("cancel", (event) => {
+      event.preventDefault();
+      closePanelEditor();
+    });
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest(".preview-panel")) closePreviewMenus();
+    });
+    window.addEventListener("resize", () => {
+      if (state.deviceMode === "auto") applyDeviceMode();
+    });
+
+    ["industry", "dashboardType", "monitoringGoal", "primaryProcess", "projectLabel", "salesOwner", "overwriteDashboard"].forEach((id) => {
+      $(id).addEventListener("input", scheduleDraftSave);
+      $(id).addEventListener("change", () => {
+        scheduleDraftSave();
+        if (id === "monitoringGoal") renderProposalSourceSummary();
+      });
+    });
+
+    $("equipmentOptions").addEventListener("change", scheduleDraftSave);
 
     $("discardDraft").addEventListener("click", discardCurrentDraft);
 
@@ -2567,6 +3868,12 @@
     }
 
     async function init() {
+      state.editorMode = sessionStorage.getItem("grafanaBuilderEditorMode") === "list" ? "list" : "preview";
+      applyDeviceMode();
+      setEditorMode(state.editorMode);
+      renderSourceMode();
+      renderCompanyMaterials();
+      renderCompanyAnalysis(state.companyAnalysis);
       await loadAuthStatus();
       if (protectedApiReady()) {
         await loadProtectedUiResources();
@@ -2574,6 +3881,7 @@
         renderDashboardHistory(mergeDashboardHistory([]));
       }
       restoreDraft();
+      setEditorMode(state.editorMode);
     }
 
     init().catch((error) => setStatus(`初期化に失敗しました。\n${error.message}`, "error"));
